@@ -1,0 +1,2006 @@
+"""
+reading_app.py  —  IMLLS Reading Practice
+==========================================
+Запуск:  streamlit run reading_app.py
+Дані:    data/reading_lessons.xlsx
+
+Встановлення:
+    pip install streamlit pandas openpyxl gtts edge-tts
+
+Алгоритм (5 кроків):
+    1. Послухай і повтори       — по одному слову з аудіо
+    2. Прочитай слова           — читає сам, потім перевіряє аудіо
+    3. Послухай і знайди        — слухає → вибирає зі списку
+    4. Послухай і повтори       — ще раз всі слова по черзі
+    5. Прочитай на час          — таймер + всі слова видно
+
+Озвучка:
+    - Уроки 1, 3, 8, 16 (букви):  phonemes/en/<letter>.mp3
+    - Інші букви (Aa, Bb):        edge-tts SSML phoneme → fallback gTTS carrier
+    - Слова (Bad, Man):           edge-tts / gTTS
+"""
+
+import asyncio
+import json
+import base64
+import hashlib
+import random
+import re
+import time
+from pathlib import Path
+import sys
+
+import pandas as pd
+import streamlit as st
+import streamlit.components.v1 as components
+
+ROOT        = Path(__file__).parent
+sys.path.insert(0, str(ROOT))
+APP_IMG_DIR = ROOT / "static" / "app_images"
+CACHE_DIR   = ROOT / "audio_cache" / "reading"
+CACHE_DIR.mkdir(parents=True, exist_ok=True)
+DB_PATH   = ROOT / "data" / "reading_lessons.xlsx"
+
+# Lessons that use pre-recorded phoneme audio from phonemes/en/<letter>.mp3
+PHONEME_AUDIO_LESSONS = {1, 3, 8, 16}
+PHONEMES_DIR    = ROOT / "phonemes" / "en"
+PHONEMES_DIR_UK = ROOT / "phonemes" / "uk"
+PHONEMES_DIR_KO = ROOT / "phonemes" / "ko"
+
+# Spanish phoneme dispatch:
+#   A E I O U Z Ñ H + all syllables → edge-tts Spanish voice (lowercase)
+#   All consonants below → pre-recorded file from phonemes/en/
+ES_PHONEME_MAP: dict[str, Path] = {
+    # Special files
+    "R":  PHONEMES_DIR / "rr.ogg",
+    "J":  PHONEMES_DIR / "jota.ogg",
+    "CH": PHONEMES_DIR / "ch.ogg",
+    "LL": PHONEMES_DIR / "ll.ogg",
+    "Y":  PHONEMES_DIR / "ll.ogg",   # Y sounds like LL in Spanish
+    # Standard English phoneme mp3s
+    "M":  PHONEMES_DIR / "m.mp3",
+    "P":  PHONEMES_DIR / "p.mp3",
+    "L":  PHONEMES_DIR / "l.mp3",
+    "S":  PHONEMES_DIR / "s.mp3",
+    "T":  PHONEMES_DIR / "t.mp3",
+    "N":  PHONEMES_DIR / "n.mp3",
+    "D":  PHONEMES_DIR / "d.mp3",
+    "F":  PHONEMES_DIR / "f.mp3",
+    "B":  PHONEMES_DIR / "b.mp3",
+    "V":  PHONEMES_DIR / "v.mp3",
+    "C":  PHONEMES_DIR / "c.mp3",
+    "G":  PHONEMES_DIR / "g.mp3",
+    "Q":  PHONEMES_DIR / "q.mp3",
+    "X":  PHONEMES_DIR / "x.mp3",
+    "K":  PHONEMES_DIR / "k.mp3",
+    "W":  PHONEMES_DIR / "w.mp3",
+}
+
+# Korean consonant phoneme set — pre-recorded .ogg files in phonemes/ko/
+KO_CONSONANTS = {
+    "ㄱ", "ㄴ", "ㄷ", "ㄹ", "ㅁ", "ㅂ", "ㅅ", "ㅇ",
+    "ㅈ", "ㅎ", "ㅋ", "ㅌ", "ㅍ", "ㅊ",
+    "ㄲ", "ㄸ", "ㅃ", "ㅆ", "ㅉ",
+}
+
+# ── Multi-language TTS / Whisper config ───────────────────────────────────
+TTS_CONFIG = {
+    "en": {"voice": "en-US-JennyNeural",        "gtts": "en"},
+    "uk": {"voice": "uk-UA-PolinaNeural",        "gtts": "uk"},
+    "es": {"voice": "es-ES-ElviraNeural",        "gtts": "es"},
+    "ko": {"voice": "ko-KR-SunHiNeural",         "gtts": "ko"},
+    "fr": {"voice": "fr-FR-DeniseNeural",        "gtts": "fr"},
+    "de": {"voice": "de-DE-KatjaNeural",         "gtts": "de"},
+    "ja": {"voice": "ja-JP-NanamiNeural",        "gtts": "ja"},
+    "zh": {"voice": "zh-CN-XiaoxiaoNeural",      "gtts": "zh-CN"},
+    "pt": {"voice": "pt-BR-FranciscaNeural",     "gtts": "pt"},
+    "it": {"voice": "it-IT-ElsaNeural",          "gtts": "it"},
+    "pl": {"voice": "pl-PL-ZofiaNeural",         "gtts": "pl"},
+    "ru": {"voice": "ru-RU-SvetlanaNeural",      "gtts": "ru"},
+}
+LANG_LABELS = {
+    "en": "English 🇬🇧",
+    "uk": "Українська 🇺🇦",
+    "es": "Español 🇪🇸",
+    "ko": "한국어 🇰🇷",
+    "fr": "Français 🇫🇷",
+    "de": "Deutsch 🇩🇪",
+    "ja": "日本語 🇯🇵",
+    "zh": "中文 🇨🇳",
+    "pt": "Português 🇧🇷",
+    "it": "Italiano 🇮🇹",
+    "pl": "Polski 🇵🇱",
+    "ru": "Русский 🇷🇺",
+}
+WHISPER_LANG = {
+    "en": "en", "uk": "uk", "es": "es", "ko": "ko",
+    "fr": "fr", "de": "de", "ja": "ja", "zh": "zh",
+    "pt": "pt", "it": "it", "pl": "pl", "ru": "ru",
+}
+
+# Native language → column name in «Правила» sheet (rules for English lessons)
+NATIVE_TO_RULES_COL = {
+    "Ukrainian": "uk", "Russian": "ru",
+    "English":   "en", "Spanish": "es",
+}
+
+
+def _r_lang() -> str:
+    """Current target reading language from session state (default: 'en')."""
+    return st.session_state.get("r_lang", "en")
+
+# ── optional STT ──────────────────────────────────────────────────────────
+try:
+    from engine.stt import transcribe_bytes, whisper_available
+    STT_OK = whisper_available()
+except Exception:
+    STT_OK = False
+
+# ── optional similarity scorer ────────────────────────────────────────────
+try:
+    from engine.scorer import evaluate as _evaluate
+    SCORER_OK = True
+except Exception:
+    SCORER_OK = False
+
+# ── logging (CSV + Google Sheets via engine.logger) ───────────────────────
+try:
+    from engine.logger import SessionLogger, get_last_lesson, get_progress, save_progress
+    LOGGER_OK = True
+except Exception:
+    LOGGER_OK = False
+
+try:
+    from engine.gamification import on_step_complete, on_lesson_complete, sidebar_widget as _gami_sidebar
+    GAMI_OK = True
+except Exception:
+    GAMI_OK = False
+
+
+def _save_step_progress(lesson_id: int, step: int, user_id: str):
+    """Persist current (lesson_id, step) so user can resume here next time.
+    Saves at most once per (lesson_id, step) per session."""
+    if not LOGGER_OK:
+        return
+    key = (lesson_id, step)
+    if st.session_state.get("_r_last_saved_progress") == key:
+        return
+    try:
+        save_progress(
+            user_id               = user_id,
+            language_pair         = _reading_lang_pair(),
+            last_completed_lesson = int(lesson_id),
+            last_step             = int(step),
+        )
+        st.session_state["_r_last_saved_progress"] = key
+    except Exception as e:
+        print(f"[reading_app] save_progress error: {e}")
+
+def _reading_lang_pair() -> str:
+    """Language pair key for progress logging, e.g. 'en-reading', 'uk-reading'."""
+    return f"{_r_lang()}-reading"
+
+
+def _get_logger():
+    """Return (and lazily create) the SessionLogger for this reading session."""
+    if not LOGGER_OK:
+        return None
+    if "r_logger" in st.session_state:
+        return st.session_state["r_logger"]
+    user_id = st.session_state.get("r_user", "anonymous")
+    try:
+        logger = SessionLogger(user_id, language_pair=_reading_lang_pair())
+        st.session_state["r_logger"] = logger
+        return logger
+    except Exception as e:
+        print(f"[reading_app] logger init failed: {e}")
+        return None
+
+
+def _log_score(step: int, phrase_id: int, similarity: float,
+               response_time_ms: int, success: bool):
+    """Log a score event for the current reading lesson."""
+    logger = _get_logger()
+    if logger is None:
+        return
+    try:
+        logger.log(
+            lesson_id=int(st.session_state.get("r_lesson", 0)),
+            phrase_id=phrase_id,
+            step=step,
+            similarity=similarity,
+            response_time_ms=response_time_ms,
+            attempts=1,
+            success=success,
+            mode="reading",
+        )
+    except Exception as e:
+        print(f"[reading_app] log error: {e}")
+
+
+def score_audio(audio_bytes, expected_text, lang: str = None):
+    """Transcribe via Whisper and score similarity vs expected_text."""
+    if not STT_OK or not SCORER_OK or not audio_bytes:
+        return None
+    wh_lang = WHISPER_LANG.get(lang or _r_lang(), "en")
+    try:
+        text = transcribe_bytes(audio_bytes, language=wh_lang)
+        return _evaluate(text, expected_text)
+    except Exception as e:
+        print(f"[score_audio] {e}")
+        return None
+
+
+def _audio_duration_ms(audio_bytes: bytes) -> int:
+    """Audio duration in ms. Tries WAV header, falls back to size estimate."""
+    if not audio_bytes:
+        return 0
+    try:
+        import io, wave
+        with wave.open(io.BytesIO(audio_bytes)) as wf:
+            return int(wf.getnframes() / wf.getframerate() * 1000)
+    except Exception:
+        pass
+    # Fallback: ~16 kHz mono webm/opus ≈ 32 KB/s
+    return max(0, int(len(audio_bytes) / 32000 * 1000))
+
+
+PHONEME_WORD = {
+    "æ":  "at", "e":  "egg", "ɪ":  "it", "ɔ":  "on", "ʌ":  "up",
+    "ə":  "a", "ʊ":  "good",
+    "i:": "see", "ɑ:": "far", "ɔ:": "or", "ɜ:": "her", "u:": "too",
+    "eɪ": "say", "aɪ": "my", "ɔɪ": "boy", "aʊ": "now", "əʊ": "go",
+    "ɪə": "here", "eə": "air", "ʊə": "pure",
+    "b":  "buh", "d":  "duh", "f":  "fff", "g":  "guh", "h":  "huh",
+    "j":  "yes", "k":  "kuh", "l":  "lll", "m":  "mmm", "n":  "nnn",
+    "ŋ":  "ring", "p":  "puh", "r":  "rrr", "s":  "sss", "t":  "tuh",
+    "v":  "vvv", "w":  "wet", "z":  "zzz",
+    "ʒ":  "vision", "ʃ":  "shh", "tʃ": "church", "dʒ": "judge",
+    "θ":  "thin", "ð":  "the", "ks": "fox", "kw": "quick",
+}
+
+
+def _cache_path(key_str: str, prefix: str = "a") -> Path:
+    h = hashlib.md5(key_str.encode()).hexdigest()
+    return CACHE_DIR / f"{prefix}_{h}.mp3"
+
+
+def _run_async(coro):
+    try:
+        loop = asyncio.get_event_loop()
+        if loop.is_running():
+            import concurrent.futures
+            with concurrent.futures.ThreadPoolExecutor(max_workers=1) as pool:
+                return pool.submit(asyncio.run, coro).result()
+        return loop.run_until_complete(coro)
+    except RuntimeError:
+        return asyncio.run(coro)
+
+
+def _gtts(text: str, path: Path, lang: str = "en"):
+    from gtts import gTTS
+    gtts_lang = TTS_CONFIG.get(lang, TTS_CONFIG["en"])["gtts"]
+    GTts = gTTS(text=text, lang=gtts_lang, slow=True)
+    GTts.save(str(path))
+
+
+async def _edge(text: str, path: Path, rate: str = "-5%", voice: str = None):
+    import edge_tts
+    if voice is None:
+        voice = TTS_CONFIG.get(_r_lang(), TTS_CONFIG["en"])["voice"]
+    tts = edge_tts.Communicate(text, voice=voice, rate=rate)
+    await tts.save(str(path))
+
+
+async def _edge_ssml_phoneme(ipa: str, path: Path):
+    """edge-tts SSML with IPA phoneme tag — exact sound."""
+    import edge_tts
+    ssml = (
+        '<speak version="1.0" '
+        'xmlns="http://www.w3.org/2001/10/synthesis" '
+        'xml:lang="en-US">'
+        '<voice name="en-US-JennyNeural">'
+        f'<prosody rate="-20%">'
+        f'<phoneme alphabet="ipa" ph="{ipa}">a</phoneme>'
+        '</prosody>'
+        '</voice></speak>'
+    )
+    tts = edge_tts.Communicate(ssml, voice="en-US-JennyNeural")
+    await tts.save(str(path))
+
+
+def _edge_ok() -> bool:
+    try:
+        import edge_tts  # noqa
+        return True
+    except ImportError:
+        return False
+
+
+def _gtts_ok() -> bool:
+    try:
+        from gtts import gTTS  # noqa
+        return True
+    except ImportError:
+        return False
+
+
+def audio_for_word(word: str, lang: str = None):
+    """Generate MP3 for a word or compound phrase. Cached permanently."""
+    lang = lang or _r_lang()
+    # Strip stress markers / curly apostrophes that TTS doesn’t handle well
+    clean = word
+    for ch in ("’", "’", "’", "`"):
+        clean = clean.replace(ch, "")
+    clean = clean.strip()
+    path  = _cache_path(f"word::{lang}::{clean}", "w")
+    if path.exists():
+        return path
+    voice = TTS_CONFIG.get(lang, TTS_CONFIG["en"])["voice"]
+    try:
+        if _edge_ok():
+            _run_async(_edge(clean, path, voice=voice))
+        elif _gtts_ok():
+            _gtts(clean, path, lang=lang)
+        else:
+            return None
+        return path if path.exists() else None
+    except Exception as e:
+        print(f"[audio_for_word] ‘{clean}’: {e}")
+        return None
+
+
+def audio_for_phoneme(ipa: str):
+    """IPA phoneme → MP3. Edge-tts SSML first, then carrier word fallback."""
+    ipa_clean = ipa.strip().strip("[]").strip()
+    path      = _cache_path(f"phoneme::{ipa_clean}", "ph")
+    if path.exists():
+        return path
+
+    if _edge_ok():
+        try:
+            _run_async(_edge_ssml_phoneme(ipa_clean, path))
+            if path.exists() and path.stat().st_size > 2000:
+                return path
+            else:
+                path.unlink(missing_ok=True)
+        except Exception as e:
+            print(f"[phoneme SSML] '{ipa_clean}': {e}")
+            path.unlink(missing_ok=True)
+
+    carrier = PHONEME_WORD.get(ipa_clean)
+    if not carrier:
+        for k, v in PHONEME_WORD.items():
+            if k in ipa_clean or ipa_clean.startswith(k):
+                carrier = v
+                break
+
+    if carrier:
+        try:
+            if _edge_ok():
+                _run_async(_edge(carrier, path, rate="-20%"))
+            elif _gtts_ok():
+                _gtts(carrier, path)
+            return path if path.exists() else None
+        except Exception as e:
+            print(f"[phoneme carrier] '{carrier}': {e}")
+    return None
+
+
+def prerecorded_phoneme_path(word: str):
+    """phonemes/en/<letter>.mp3 if it exists for the given word (e.g. 'Aa' → a.mp3)."""
+    clean = word.strip()
+    if not clean:
+        return None
+    first = clean[0].lower()
+    if not first.isalpha():
+        return None
+    p = PHONEMES_DIR / f"{first}.mp3"
+    return p if p.exists() else None
+
+
+def audio_for_row(word: str, transcription: str, lesson_id=None, lang: str = None):
+    """Smart dispatch per language:
+    - English:    pre-recorded phonemes → IPA phoneme TTS → word TTS
+    - Ukrainian:  phonemes/uk/<WORD>.ogg  → TTS lowercase fallback
+    - Spanish:    ES_PHONEME_MAP for R/J/CH/LL → TTS lowercase for everything else
+    - Korean:     phonemes/ko/<jamo>.ogg for consonants → TTS for vowels/syllables
+    """
+    lang = lang or _r_lang()
+
+    w = word.strip()
+
+    # ── Ukrainian ─────────────────────────────────────────────────────────
+    if lang == "uk":
+        # Try pre-recorded file: phonemes/uk/А.ogg, phonemes/uk/ДЖ.ogg, etc.
+        p = PHONEMES_DIR_UK / f"{w}.ogg"
+        if not p.exists():
+            p = PHONEMES_DIR_UK / f"{w.upper()}.ogg"
+        if p.exists():
+            return p
+        # Fallback: lowercase → edge-tts (syllables like МА → "ма")
+        trans = str(transcription).strip()
+        spoken_text = trans if (trans and trans.lower() != "nan") else w.lower()
+        spoken = re.sub(r"\s*[–—‐‑‒\-]\s*", ", ", spoken_text)
+        return audio_for_word(spoken, lang="uk")
+
+    # ── Spanish ───────────────────────────────────────────────────────────
+    if lang == "es":
+        w_up = w.upper()
+        # Specific consonants → pre-recorded phoneme file
+        if w_up in ES_PHONEME_MAP:
+            p = ES_PHONEME_MAP[w_up]
+            if p.exists():
+                return p
+        # Vowels (A E I O U), Ñ, H and all syllables → edge-tts Spanish voice
+        trans = str(transcription).strip()
+        spoken_text = trans if (trans and trans.lower() != "nan") else w.lower()
+        spoken = re.sub(r"\s*[–—‐‑‒\-]\s*", ", ", spoken_text)
+        return audio_for_word(spoken, lang="es")
+
+    # ── Korean ────────────────────────────────────────────────────────────────
+    if lang == "ko":
+        # Single consonant → pre-recorded ogg
+        if w in KO_CONSONANTS:
+            p = PHONEMES_DIR_KO / f"{w}.ogg"
+            if p.exists():
+                return p
+        # Everything else — speak original Korean (Слово), transcription is display-only
+        spoken = re.sub(r"\s*[–—‐‑‒\-]\s*", ", ", w.strip())
+        return audio_for_word(spoken, lang="ko")
+
+    # ── Japanese — speak the original kana/kanji (Слово), IPA is display-only ──
+    if lang == "ja":
+        spoken = re.sub(r"\s*[–—‐‑‒\-]\s*", ", ", w.strip())
+        return audio_for_word(spoken, lang="ja")
+
+    # ── Chinese — speak characters or clean pinyin from Слово ─────────────────
+    if lang == "zh":
+        cjk = re.findall(r"[\u4e00-\u9fff\u3400-\u4dbf]", w)
+        if cjk:
+            spoken = "".join(cjk)
+        elif "\u2192" in w or "->" in w:          # tone sandhi: "nǐ hǎo → ní hǎo"
+            spoken = w.split("\u2192")[-1].strip() if "\u2192" in w else w.split("->")[-1].strip()
+        else:
+            spoken = w.split()[0] if w.split() else w  # first token (pinyin)
+        return audio_for_word(spoken, lang="zh")
+
+    # ── Other non-English (fr, de, it, pl, ru, pt …) ────────────────────────
+    # TTS knows the pronunciation — speak the word directly; IPA is display-only.
+    if lang != "en":
+        spoken = re.sub(r"\s*[–—‐‑‒\-]\s*", ", ", w.strip())
+        return audio_for_word(spoken, lang=lang)
+
+    # English path — original logic
+    is_letter_row = bool(re.match(r"^[A-Za-z]{1,2}$", word.strip()))
+
+    if lesson_id in PHONEME_AUDIO_LESSONS and is_letter_row:
+        p = prerecorded_phoneme_path(word)
+        if p:
+            return p
+
+    if is_letter_row:
+        ipa = re.sub(r"[\[\]]", "", transcription).strip()
+        return audio_for_phoneme(ipa)
+    else:
+        spoken = re.sub(r"\s*[–—‐‑‒\-]\s*", ", ", word.strip())
+        return audio_for_word(spoken, lang="en")
+
+
+def play(path, autoplay=False):
+    """Render audio. Uses st.audio for correct refresh between reruns."""
+    if not path or not Path(path).exists():
+        st.caption("⚠️ Audio not available")
+        return
+    with open(path, "rb") as f:
+        audio_bytes = f.read()
+    try:
+        st.audio(audio_bytes, format="audio/mp3", autoplay=autoplay)
+    except TypeError:
+        # Streamlit < 1.34 doesn't support autoplay — fallback to HTML with unique nonce
+        d = base64.b64encode(audio_bytes).decode()
+        auto = "autoplay" if autoplay else ""
+        nonce = hashlib.md5(str(path).encode()).hexdigest()[:8]
+        st.markdown(
+            f'<div data-audio-nonce="{nonce}">'
+            f'<audio controls {auto} style="width:100%;border-radius:8px;margin:4px 0">'
+            f'<source src="data:audio/mp3;base64,{d}" type="audio/mp3"></audio></div>',
+            unsafe_allow_html=True,
+        )
+
+
+
+def autoplaylist_html(audio_paths, pause_secs=1.0, uid="pl"):
+    """JS component: plays a list of MP3s sequentially with a fixed pause between."""
+    import json as _json
+    srcs = []
+    for p in audio_paths:
+        if p and Path(p).exists():
+            with open(p, "rb") as f:
+                srcs.append("data:audio/mp3;base64," + base64.b64encode(f.read()).decode())
+        else:
+            srcs.append("")
+    srcs_js  = _json.dumps(srcs)
+    pause_ms = int(pause_secs * 1000)
+    n = len(srcs)
+    return f"""
+<div style="background:#FFFFFF;border:1px solid #E8E2D8;border-radius:12px;padding:14px 18px;margin:8px 0;">
+  <div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap;">
+    <button id="pl-btn-{uid}" onclick="plToggle_{uid}()"
+      style="background:#ECEBFB;color:#4F46E5;border:1px solid #4F46E5;border-radius:8px;
+             padding:7px 18px;cursor:pointer;font-family:JetBrains Mono,monospace;font-size:.88rem;">
+      ▶ Play All
+    </button>
+    <span id="pl-stat-{uid}" style="color:#7A7390;font-size:.8rem;font-family:JetBrains Mono,monospace;">ready</span>
+  </div>
+  <div id="pl-bar-{uid}" style="margin-top:10px;display:flex;gap:4px;flex-wrap:wrap;"></div>
+</div>
+<script>
+(function(){{
+  const srcs={srcs_js}, pauseMs={pause_ms}, n={n}, uid='{uid}';
+  let cur=-1, playing=false, aud=null, tmr=null;
+  const bar=document.getElementById('pl-bar-'+uid);
+  for(let i=0;i<n;i++){{
+    const d=document.createElement('div'); d.id='dot-'+uid+'-'+i;
+    d.style.cssText='width:10px;height:10px;border-radius:50%;background:#ECEBFB;transition:.2s;';
+    bar.appendChild(d);
+  }}
+  function dot(i,c){{
+    const d=document.getElementById('dot-'+uid+'-'+i); if(!d) return;
+    d.style.background = c==='active' ? '#4F46E5' : c==='done' ? '#1FB888' : '#ECEBFB';
+  }}
+  function ensureAud(){{
+    // Create ONE Audio element only inside a user-gesture handler.
+    // iOS Safari blocks new Audio()/play() called from setTimeout because
+    // they lose the gesture. Reusing one element keeps the unlock alive.
+    if(aud) return;
+    aud=new Audio();
+    aud.preload='auto';
+    aud.addEventListener('ended', function(){{
+      var i=cur;
+      dot(i,'done');
+      tmr=setTimeout(function(){{ playIdx(i+1); }}, pauseMs);
+    }});
+    aud.addEventListener('error', function(){{
+      tmr=setTimeout(function(){{ playIdx(cur+1); }}, 300);
+    }});
+  }}
+  function stop(){{
+    if(aud){{ try{{aud.pause();}}catch(e){{}} }}
+    if(tmr){{clearTimeout(tmr); tmr=null;}}
+    playing=false; cur=-1;
+    document.getElementById('pl-btn-'+uid).textContent='▶ Play All';
+    document.getElementById('pl-btn-'+uid).style.color='#4F46E5';
+  }}
+  function playIdx(i){{
+    if(i>=n){{
+      stop();
+      document.getElementById('pl-stat-'+uid).textContent='done ✓';
+      for(let j=0;j<n;j++) dot(j,'done');
+      return;
+    }}
+    cur=i; playing=true;
+    for(let j=0;j<i;j++) dot(j,'done'); dot(i,'active');
+    document.getElementById('pl-stat-'+uid).textContent='▶ '+(i+1)+' / '+n;
+    if(!srcs[i]){{ tmr=setTimeout(function(){{ playIdx(i+1); }}, pauseMs); return; }}
+    aud.src=srcs[i];
+    var p=aud.play();
+    if(p && typeof p.catch === 'function'){{
+      p.catch(function(){{ tmr=setTimeout(function(){{ playIdx(i+1); }}, 300); }});
+    }}
+  }}
+  window['plToggle_'+uid]=function(){{
+    if(playing){{ stop(); document.getElementById('pl-stat-'+uid).textContent='stopped'; }}
+    else{{
+      ensureAud();  // must run during this user-gesture click
+      document.getElementById('pl-btn-'+uid).textContent='■ Stop';
+      document.getElementById('pl-btn-'+uid).style.color='#FF7B6B';
+      playIdx(0);
+    }}
+  }};
+}})();
+</script>
+"""
+
+
+def lessons_table(rows, active_idx=None, scores=None,
+                  show_word=True, show_trans=True):
+    """Compact table view of all rows in a lesson (used by steps 1, 2, 4, 5)."""
+    html_rows = ""
+    for i, (_, r) in enumerate(rows.iterrows()):
+        word  = r["word"] if show_word else "—"
+        trans = r["transcription"] if show_trans else "—"
+        score_html = ""
+        if scores and i in scores:
+            s = scores[i]
+            color = "var(--mova-mint)" if s.get("passed") else "var(--mova-coral-ink)"
+            pct   = int(s.get("score", 0) * 100)
+            score_html = (f'<span style="background:{"var(--mova-mint-soft)" if s.get("passed") else "var(--mova-coral-soft)"};'
+                          f'color:{color};border-radius:5px;padding:2px 9px;'
+                          f'font-family:JetBrains Mono,monospace;font-size:.78rem">{pct}%</span>')
+        style = ""
+        if active_idx == i:
+            style = "background:var(--mova-indigo-soft);border-left:3px solid var(--mova-indigo);"
+        html_rows += (
+            f'<div class="row-ok" style="{style}">'
+            f'<span style="min-width:28px;color:var(--mova-indigo-ink);font-family:JetBrains Mono,monospace;font-size:.75rem">{i+1:02d}</span>'
+            f'<span style="flex:1;color:var(--mova-ink);font-size:1.05rem">{word}</span>'
+            f'<span style="flex:1;color:var(--mova-indigo);font-family:JetBrains Mono,monospace;font-size:.9rem">{trans}</span>'
+            f'{score_html}'
+            f'</div>'
+        )
+    st.markdown(
+        f'<div style="background:var(--mova-card);border:1px solid var(--mova-line-2);border-radius:12px;'
+        f'overflow:hidden;margin:8px 0">{html_rows}</div>',
+        unsafe_allow_html=True,
+    )
+
+
+def preload_lesson_audio(rows, prefix: str):
+    """Cache audio paths in session_state under `{prefix}_paths` (list of str or None)."""
+    lang = _r_lang()
+    key  = f"{prefix}_paths"
+    if key not in st.session_state:
+        with st.spinner("Готуємо аудіо..."):
+            paths = []
+            for _, r in rows.iterrows():
+                p = audio_for_row(r["word"], r["transcription"],
+                                  lesson_id=int(r["lesson_id"]), lang=lang)
+                paths.append(str(p) if p else None)
+        st.session_state[key] = paths
+    return [Path(p) if p else None for p in st.session_state[key]]
+
+
+def mic(uid: str):
+    if hasattr(st, "audio_input"):
+        r = st.audio_input("🎙️", key=f"mic_{uid}")
+        return r.read() if r else None
+    f = st.file_uploader("Upload audio", type=["webm", "wav", "mp3"],
+                         key=f"up_{uid}", label_visibility="collapsed")
+    return f.read() if f else None
+
+
+@st.cache_data
+def load(path: str, lang: str = "en", native_lang: str = "Ukrainian") -> pd.DataFrame:
+    """Load lesson data for the given target language.
+
+    For English: reads the 'en' sheet (5 cols) and merges rules from
+    the 'Правила' sheet in the user's native language.
+    For uk/es/ko: reads the respective sheet (4 cols, no IPA transcription for ko).
+    """
+    df = pd.read_excel(path, engine="openpyxl", sheet_name=lang)
+
+    if lang == "en":
+        df = df.iloc[:, :5]
+        df.columns = ["lesson_id", "row_id", "word", "transcription", "rule"]
+        # Merge multilingual rules from «Правила» sheet
+        rules_col = NATIVE_TO_RULES_COL.get(native_lang, "en")
+        try:
+            df_rules = pd.read_excel(path, engine="openpyxl", sheet_name="Правила")
+            df_rules.columns = ["lesson_id", "ru", "en", "es", "uk"]
+            rule_map = dict(zip(df_rules["lesson_id"].astype(int),
+                                df_rules[rules_col].fillna("")))
+            # Apply: Правила sheet takes priority (multilingual); fall back to inline rule
+            def _apply_rule(row):
+                from_sheet = rule_map.get(int(row["lesson_id"]), "")
+                if from_sheet:
+                    return from_sheet
+                existing = str(row["rule"]).strip() if pd.notna(row["rule"]) else ""
+                if existing and existing.lower() != "nan":
+                    return existing
+                return ""
+            df["rule"] = df.apply(_apply_rule, axis=1)
+        except Exception as e:
+            print(f"[load] rules merge failed: {e}")
+            df["rule"] = df["rule"].fillna("").astype(str).str.strip()
+    elif lang in ("ko", "fr", "de", "ja", "zh", "pt", "it", "pl", "ru"):
+        # 5-column sheets: lesson_id, row_id, word, transcription, rule
+        df = df.iloc[:, :5]
+        df.columns = ["lesson_id", "row_id", "word", "transcription", "rule"]
+    else:  # uk, es — 4-column sheets (no rule column)
+        df = df.iloc[:, :4]
+        df.columns = ["lesson_id", "row_id", "word", "transcription"]
+        df["rule"] = ""
+
+    df["lesson_id"]     = pd.to_numeric(df["lesson_id"], errors="coerce").fillna(0).astype(int)
+    df["word"]          = df["word"].astype(str).str.strip()
+    df["transcription"] = df["transcription"].astype(str).str.strip().replace("nan", "")
+    df["rule"]          = df["rule"].fillna("").astype(str).str.strip().replace("nan", "")
+    df = df[df["lesson_id"] > 0].reset_index(drop=True)
+    return df
+
+
+# st.set_page_config is set up by main_app.py when used as a launcher.
+# When this file is run directly, set it here too.
+try:
+    st.set_page_config(page_title="Reading Practice", page_icon="📖",
+                       layout="wide", initial_sidebar_state="collapsed")
+except Exception:
+    pass  # Already set by main_app.py
+
+st.markdown("""
+<style>
+/* Fonts loaded by app.py via _inject_mova_css — no extra @import needed */
+html,body,[class*="css"]{font-family:'Plus Jakarta Sans','Inter',sans-serif;}
+/* removed: was fighting Mova surface; theme is now driven by tokens.css */
+#MainMenu,footer{visibility:hidden;}
+/* Keep Streamlit's sidebar collapse/expand control reachable on every device,
+   including iOS Safari, where the control would otherwise be invisible. */
+header{background:transparent !important;}
+header [data-testid="stDecoration"]{display:none;}
+/* Floating sidebar toggle (visible whenever the sidebar is collapsed) */
+[data-testid="collapsedControl"]{
+    visibility:visible !important;
+    opacity:1 !important;
+    display:flex !important;
+    z-index:9999 !important;
+    position:fixed !important;
+    top:0.6rem !important;
+    left:0.6rem !important;
+    background:var(--mova-card) !important;
+    border:1px solid var(--mova-indigo) !important;
+    border-radius:8px !important;
+    box-shadow:0 2px 8px rgba(0,0,0,.4) !important;
+}
+[data-testid="collapsedControl"] button,
+[data-testid="collapsedControl"] svg{
+    color:var(--mova-indigo) !important;
+    fill:var(--mova-indigo) !important;
+    min-width:36px !important;
+    min-height:36px !important;
+}
+.wcard{background:var(--mova-card);border:1px solid var(--mova-line);border-radius:14px;padding:28px 20px;margin:10px 0;text-align:center;}
+.wbig{font-size:3.2rem;font-weight:700;color:var(--mova-ink);}
+.tbig{font-size:2rem;color:var(--mova-indigo);font-family:'JetBrains Mono',monospace;margin-top:8px;}
+.rule{background:var(--mova-card);border-left:3px solid var(--mova-indigo);border-radius:6px;padding:10px 14px;margin:8px 0;color:#a0a0d0;font-size:.9rem;}
+.spill{font-family:'JetBrains Mono',monospace;font-size:.7rem;padding:3px 10px;border-radius:20px;margin:2px;display:inline-block;}
+.row-ok{display:flex;gap:10px;padding:8px 14px;background:var(--mova-card);border-bottom:1px solid var(--mova-line);align-items:center;}
+/* Make Streamlit secondary buttons (e.g. step 3 choices) dark-themed for readability */
+.stApp .stButton > button[kind="secondary"]{
+    background:var(--mova-card) !important;
+    color:var(--mova-ink) !important;
+    border:1px solid var(--mova-line) !important;
+    font-weight:500 !important;
+}
+.stApp .stButton > button[kind="secondary"]:hover{
+    background:var(--mova-indigo-soft) !important;
+    border-color:var(--mova-indigo) !important;
+    color:var(--mova-ink) !important;
+}
+</style>
+""", unsafe_allow_html=True)
+
+
+REQUIRED = {1, 2, 3}
+
+# ── UI strings per native language ────────────────────────────────────────
+READING_UI = {
+    "Ukrainian": {
+        "setup_title": "Читання",
+        "step1": "Слухай і повторюй",
+        "step1_icon": "🎧",
+        "step1_hint": "🎧 Слухай → ⏸ пауза → 🎤 повтори кожну фразу.",
+        "step2": "Прочитай слова",
+        "step2_icon": "👁️",
+        "step2_hint": "🎤 Запиши себе вголос і перевір вимову.",
+        "step3": "Послухай і знайди переклад",
+        "step3_icon": "🎯",
+        "step3_hint": "🎧 Слухай → 👆 натисни правильний переклад.",
+        "step4": "Повтори вголос",
+        "step4_icon": "🎤",
+        "step4_hint": "🎧 Слухай → 🎤 повтори → перевір результат.",
+        "step5": "Прочитай на час",
+        "step5_icon": "⏱️",
+        "step5_hint": "📖 Прочитай всі слова вголос якомога швидше.",
+        "step_label":      "КРОК",
+        "required":        "обов'язковий",
+        "continue":        "Продовжити →",
+        "next":            "Далі →",
+        "skip":            "Пропустити",
+        "skip_icon":       "⏭ Пропустити",
+        "check_pron":      "✓ Перевірити вимову",
+        "submit_check":    "✓ Завершити та перевірити",
+        "complete_lesson": "Завершити урок ✓",
+        "prev":            "◀ Попередній",
+        "next_icon":       "Наступний ▶",
+        "nav_prev":        "← Попередній",
+        "nav_repeat":      "🔄 Повторити",
+        "nav_prev_help":   "Повернутися до попереднього кроку",
+        "nav_repeat_help": "Перезапустити поточний крок",
+        "go_to_step":      "Перейти до кроку",
+        "step_word":       "Крок",
+        "jump_lesson":     "Перейти до уроку",
+        "nav_title":       "Навігація між кроками",
+        "record_first":    "Спочатку запиши аудіо!",
+        "transcribing":    "Розпізнаємо мовлення...",
+        "checking":        "Перевіряємо вимову...",
+        "seconds":         "секунд",
+        "accuracy":        "точність",
+        "your_path":       "Твій шлях · Reading",
+        "done":            "пройдено",
+        "ahead":           "попереду",
+        "lesson_complete": "Урок завершено!",
+        "step5_record":    "🎙️ Запиши себе, поки читаєш вголос всі слова",
+        "subtitle": 'Фонетика · IPA озвучка · 4 мови',
+        "lang_label": '🌐 Мова для вивчення',
+        "name_label": "👤 Ім'я",
+        "unit_label": '📚 Розділ',
+        "resume_next": '▶ Продовжуєш з уроку {next_lesson} (останній пройдений: {saved_lesson})',
+        "resume_step": '⏯ Повернешся до уроку {saved_lesson} на крок {resume_step}',
+        "try_first":       "Спочатку виконай завдання",
+        "main_menu":       "🏠 Головне меню",
+    },
+    "English": {
+        "setup_title": "Reading Practice",
+        "step1": "Listen & Repeat",
+        "step1_icon": "🎧",
+        "step1_hint": "🎧 Listen → ⏸ pause → 🎤 repeat each phrase.",
+        "step2": "Read the Words",
+        "step2_icon": "👁️",
+        "step2_hint": "🎤 Record yourself and check your pronunciation.",
+        "step3": "Listen & Find",
+        "step3_icon": "🎯",
+        "step3_hint": "🎧 Listen → 👆 tap the correct translation.",
+        "step4": "Repeat Aloud",
+        "step4_icon": "🎤",
+        "step4_hint": "🎧 Listen → 🎤 repeat → check your result.",
+        "step5": "Speed Reading",
+        "step5_icon": "⏱️",
+        "step5_hint": "📖 Read all words aloud as fast as you can.",
+        "step_label":      "STEP",
+        "required":        "required",
+        "continue":        "Continue →",
+        "next":            "Next →",
+        "skip":            "Skip",
+        "skip_icon":       "⏭ Skip",
+        "check_pron":      "✓ Check Pronunciation",
+        "submit_check":    "✓ Submit & Check",
+        "complete_lesson": "Complete Lesson ✓",
+        "prev":            "◀ Previous",
+        "next_icon":       "Next ▶",
+        "nav_prev":        "← Previous",
+        "nav_repeat":      "🔄 Repeat",
+        "nav_prev_help":   "Go back to the previous step",
+        "nav_repeat_help": "Restart the current step",
+        "go_to_step":      "Go to step",
+        "step_word":       "Step",
+        "jump_lesson":     "Jump to lesson",
+        "nav_title":       "Step navigation",
+        "record_first":    "Record audio first!",
+        "transcribing":    "Transcribing...",
+        "checking":        "Checking pronunciation...",
+        "seconds":         "seconds",
+        "accuracy":        "accuracy",
+        "your_path":       "Your path · Reading",
+        "done":            "done",
+        "ahead":           "ahead",
+        "lesson_complete": "Lesson complete!",
+        "step5_record":    "🎙️ Record yourself reading all words out loud",
+        "subtitle": 'Phonetics · IPA audio · 4 languages',
+        "lang_label": '🌐 Language to learn',
+        "name_label": '👤 Name',
+        "unit_label": '📚 Unit',
+        "resume_next": '▶ Continue from Lesson {next_lesson} (last completed: {saved_lesson})',
+        "resume_step": '⏯ Resume Lesson {saved_lesson} at Step {resume_step}',
+        "try_first":       "Complete the exercise first",
+        "main_menu":       "🏠 Main menu",
+    },
+    "Spanish": {
+        "setup_title": "Práctica de lectura",
+        "step1": "Escucha y repite",
+        "step1_icon": "🎧",
+        "step1_hint": "🎧 Escucha → ⏸ pausa → 🎤 repite cada frase.",
+        "step2": "Lee las palabras",
+        "step2_icon": "👁️",
+        "step2_hint": "🎤 Grábate y verifica tu pronunciación.",
+        "step3": "Escucha y encuentra",
+        "step3_icon": "🎯",
+        "step3_hint": "🎧 Escucha → 👆 toca la traducción correcta.",
+        "step4": "Repite en voz alta",
+        "step4_icon": "🎤",
+        "step4_hint": "🎧 Escucha → 🎤 repite → verifica tu resultado.",
+        "step5": "Lectura veloz",
+        "step5_icon": "⏱️",
+        "step5_hint": "📖 Lee todas las palabras en voz alta lo más rápido posible.",
+        "step_label":      "PASO",
+        "required":        "obligatorio",
+        "continue":        "Continuar →",
+        "next":            "Siguiente →",
+        "skip":            "Omitir",
+        "skip_icon":       "⏭ Omitir",
+        "check_pron":      "✓ Verificar pronunciación",
+        "submit_check":    "✓ Enviar y verificar",
+        "complete_lesson": "Completar lección ✓",
+        "prev":            "◀ Anterior",
+        "next_icon":       "Siguiente ▶",
+        "nav_prev":        "← Anterior",
+        "nav_repeat":      "🔄 Repetir",
+        "nav_prev_help":   "Volver al paso anterior",
+        "nav_repeat_help": "Reiniciar el paso actual",
+        "go_to_step":      "Ir al paso",
+        "step_word":       "Paso",
+        "jump_lesson":     "Saltar a lección",
+        "nav_title":       "Navegación de pasos",
+        "record_first":    "¡Graba audio primero!",
+        "transcribing":    "Transcribiendo...",
+        "checking":        "Verificando pronunciación...",
+        "seconds":         "segundos",
+        "accuracy":        "precisión",
+        "your_path":       "Tu camino · Lectura",
+        "done":            "completado",
+        "ahead":           "por delante",
+        "lesson_complete": "¡Lección completada!",
+        "step5_record":    "🎙️ Grábate leyendo todas las palabras en voz alta",
+        "subtitle": 'Fonética · Audio IPA · 4 idiomas',
+        "lang_label": '🌐 Idioma a aprender',
+        "name_label": '👤 Nombre',
+        "unit_label": '📚 Unidad',
+        "resume_next": '▶ Continuar desde Lección {next_lesson} (última completada: {saved_lesson})',
+        "resume_step": '⏯ Retomar Lección {saved_lesson} en el Paso {resume_step}',
+        "try_first":       "Primero completa el ejercicio",
+        "main_menu":       "🏠 Menú principal",
+    },
+    "Korean": {
+        "setup_title": "읽기 연습",
+        "step1": "듣고 따라 말하기",
+        "step1_icon": "🎧",
+        "step1_hint": "🎧 듣기 → ⏸ 일시정지 → 🎤 각 문장 따라 말하기.",
+        "step2": "단어 읽기",
+        "step2_icon": "👁️",
+        "step2_hint": "🎤 녹음하여 발음을 확인하세요.",
+        "step3": "듣고 찾기",
+        "step3_icon": "🎯",
+        "step3_hint": "🎧 듣기 → 👆 올바른 번역 누르기.",
+        "step4": "소리 내어 반복",
+        "step4_icon": "🎤",
+        "step4_hint": "🎧 듣기 → 🎤 반복 → 결과 확인.",
+        "step5": "빠른 읽기",
+        "step5_icon": "⏱️",
+        "step5_hint": "📖 최대한 빠르게 모든 단어를 소리 내어 읽으세요.",
+        "step_label":      "단계",
+        "required":        "필수",
+        "continue":        "계속 →",
+        "next":            "다음 →",
+        "skip":            "건너뛰기",
+        "skip_icon":       "⏭ 건너뛰기",
+        "check_pron":      "✓ 발음 확인",
+        "submit_check":    "✓ 제출 및 확인",
+        "complete_lesson": "수업 완료 ✓",
+        "prev":            "◀ 이전",
+        "next_icon":       "다음 ▶",
+        "nav_prev":        "← 이전",
+        "nav_repeat":      "🔄 반복",
+        "nav_prev_help":   "이전 단계로 돌아가기",
+        "nav_repeat_help": "현재 단계 다시 시작",
+        "go_to_step":      "단계로 이동",
+        "step_word":       "단계",
+        "jump_lesson":     "수업으로 이동",
+        "nav_title":       "단계 탐색",
+        "record_first":    "먼저 오디오를 녹음하세요!",
+        "transcribing":    "전사 중...",
+        "checking":        "발음 확인 중...",
+        "seconds":         "초",
+        "accuracy":        "정확도",
+        "your_path":       "학습 경로 · 읽기",
+        "done":            "완료",
+        "ahead":           "남음",
+        "lesson_complete": "수업 완료!",
+        "step5_record":    "🎙️ 모든 단어를 소리 내어 읽으며 녹음하세요",
+        "subtitle": '음성학 · IPA 오디오 · 4개 언어',
+        "lang_label": '🌐 학습할 언어',
+        "name_label": '👤 이름',
+        "unit_label": '📚 단원',
+        "resume_next": '▶ 수업 {next_lesson}에서 계속 (마지막 완료: {saved_lesson})',
+        "resume_step": '⏯ 수업 {saved_lesson} 단계 {resume_step}에서 재개',
+        "try_first":       "먼저 연습을 완료하세요",
+        "main_menu":       "🏠 메인 메뉴",
+    },
+}
+
+
+def _ui(key: str) -> str:
+    """Return a UI string in the user's native language (falls back to English)."""
+    native = st.session_state.get("launcher_native", "English")
+    return READING_UI.get(native, READING_UI["English"]).get(key, READING_UI["English"].get(key, key))
+
+
+def _r_steps() -> dict:
+    """Return step-name dict in the current native language."""
+    return {i: _ui(f"step{i}") for i in range(1, 6)}
+
+
+def current_step() -> int:
+    return st.session_state.get("r_step", 1)
+
+
+def shdr(step: int):
+    icon  = _ui(f"step{step}_icon")
+    title = _ui(f"step{step}")
+    hint  = _ui(f"step{step}_hint")
+    st.markdown(
+        f'<div class="step-header">'
+        f'<div class="step-icon-row">'
+        f'<span class="step-icon-big">{icon}</span>'
+        f'<div style="flex:1">'
+        f'<div class="step-title">{title}</div>'
+        f'<div class="step-desc">{hint}</div>'
+        f'</div></div></div>',
+        unsafe_allow_html=True,
+    )
+    _banner = APP_IMG_DIR / "reading_banner.jpg"
+    if _banner.exists():
+        _, _mid, _ = st.columns([1, 2, 1])
+        with _mid:
+            st.image(str(_banner), use_container_width=True)
+
+
+def card(word, trans, rule="", show_word=True, show_trans=True):
+    w = f'<div class="wbig">{word}</div>' if show_word else ""
+    t = f'<div class="tbig">{trans}</div>' if show_trans else ""
+    r = f'<div class="rule">📖 {rule}</div>' if rule else ""
+    st.markdown(f'<div class="wcard">{w}{t}{r}</div>', unsafe_allow_html=True)
+
+
+def pbar(val: float):
+    val = max(0.0, min(1.0, val))
+    st.markdown(
+        f'<div style="background:var(--mova-card);border-radius:6px;height:6px;overflow:hidden;margin:6px 0">'
+        f'<div style="height:6px;background:linear-gradient(90deg, var(--mova-indigo), #6E66FF);width:{val*100:.0f}%"></div></div>',
+        unsafe_allow_html=True,
+    )
+
+
+# ═══════════════════════════════════════════════════════════════════════════
+#  Step 1 — Послухай і повтори (all on screen, autoplay with 1s pause)
+# ═══════════════════════════════════════════════════════════════════════════
+
+def do_step1(rows: pd.DataFrame) -> bool:
+    shdr(1)
+
+    # Show rule if present (any row has one) — use first non-empty
+    rule_txt = next((r["rule"] for _, r in rows.iterrows() if r["rule"]), "")
+    if rule_txt:
+        st.markdown(f'<div class="rule">📖 {rule_txt}</div>', unsafe_allow_html=True)
+
+    # Combined player + word-list with active-word highlight (reused from grammar).
+    from grammar import autoplaylist_with_table
+    paths = preload_lesson_audio(rows, "s1")
+    phrase_dicts = [
+        {"native": str(r["word"]), "target": str(r["transcription"])}
+        for _, r in rows.iterrows()
+    ]
+    pauses = [1.0 + 0.2 * max(0, len(str(r["word"])) - 2)
+              for _, r in rows.iterrows()]
+    height = 200 + 48 * len(rows)
+    components.html(
+        autoplaylist_with_table(phrase_dicts, paths, pauses, uid="rs1",
+                                show_native=True, show_target=True),
+        height=height, scrolling=True,
+    )
+
+    # Continue button BELOW the player — active as soon as audio renders (autoplays)
+    st.session_state["r_s1_attempted"] = True
+    if st.button(_ui("continue"), type="primary", use_container_width=True, key="s1_done"):
+        return True
+    return False
+
+
+# ═══════════════════════════════════════════════════════════════════════════
+#  Step 2 — Прочитай слова (all on screen, mic + similarity check)
+# ═══════════════════════════════════════════════════════════════════════════
+
+def do_step2(rows: pd.DataFrame) -> bool:
+    shdr(2)
+    st.markdown(
+        f'<div style="color:var(--mova-ink-2);font-size:.9rem;margin:-6px 0 14px">'
+        f'{_ui("step2_hint")}</div>',
+        unsafe_allow_html=True,
+    )
+
+    scores = st.session_state.get("s2_scores", {})
+
+    rule_txt = next((r["rule"] for _, r in rows.iterrows() if r["rule"]), "")
+    if rule_txt:
+        st.markdown(f'<div class="rule">📖 {rule_txt}</div>', unsafe_allow_html=True)
+
+    # ── Mic ABOVE phrases ────────────────────────────────────────────────────
+    expected = ". ".join(str(r["word"]).strip() for _, r in rows.iterrows())
+    audio = mic("s2")
+
+    if not STT_OK or not SCORER_OK:
+        st.caption("⚠️ Для перевірки потрібно: `pip install openai-whisper rapidfuzz`")
+
+    if st.button(_ui("check_pron"), type="primary",
+                 use_container_width=True, key="s2_check"):
+        if not audio:
+            st.warning(_ui("record_first"))
+        elif not STT_OK or not SCORER_OK:
+            st.warning("Whisper/RapidFuzz не встановлені.")
+        else:
+            t_ms = _audio_duration_ms(audio)
+            with st.spinner(_ui("transcribing")):
+                r = score_audio(audio, expected)
+            if r:
+                scores = {i: r for i in range(len(rows))}
+                st.session_state["s2_scores"] = scores
+                color = "var(--mova-mint)" if r["passed"] else "var(--mova-coral-ink)"
+                st.markdown(
+                    f'<div style="text-align:center;font-size:1.6rem;'
+                    f'color:{color};font-weight:600">{int(r["score"]*100)}%</div>',
+                    unsafe_allow_html=True,
+                )
+                _log_score(step=2, phrase_id=0,
+                           similarity=r["score"],
+                           response_time_ms=t_ms,
+                           success=bool(r["passed"]))
+                st.rerun()
+            else:
+                st.error("Не вдалося розпізнати аудіо.")
+
+    # ── Phrases table BELOW mic ───────────────────────────────────────────────
+    lessons_table(rows, show_word=True, show_trans=True, scores=scores)
+
+    # ── Next button — active only after audio recorded or scores exist ─────────
+    attempted = bool(audio) or bool(st.session_state.get("s2_scores"))
+    if st.button(_ui("next"), use_container_width=True, key="s2_next",
+                 disabled=not attempted,
+                 help=None if attempted else _ui("try_first")):
+        return True
+    if not attempted:
+        st.markdown(
+            f'<div style="color:var(--mova-amber-ink);font-size:.78rem;'
+            f'text-align:center;margin:-6px 0 10px;opacity:.9">🔒 {_ui("try_first")}</div>',
+            unsafe_allow_html=True,
+        )
+    return False
+
+
+# ═══════════════════════════════════════════════════════════════════════════
+#  Step 3 — Послухай і знайди
+# ═══════════════════════════════════════════════════════════════════════════
+
+def do_step3(rows: pd.DataFrame) -> bool:
+    shdr(3)
+
+    if "s3_init" not in st.session_state:
+        st.session_state["s3_init"]    = True
+        st.session_state["s3_idx"]     = 0
+        st.session_state["s3_scores"]  = {}
+        shuffled = {}
+        for i in range(len(rows)):
+            opts = list(rows["word"].values)
+            random.shuffle(opts)
+            shuffled[i] = opts
+        st.session_state["s3_shuffled"] = shuffled
+        for i, (_, row) in enumerate(rows.iterrows()):
+            akey = f"s3_audio_{i}"
+            if akey not in st.session_state:
+                p = audio_for_row(row["word"], row["transcription"],
+                                  lesson_id=int(row["lesson_id"]))
+                st.session_state[akey] = str(p) if p else None
+
+    idx      = st.session_state["s3_idx"]
+    scores   = st.session_state["s3_scores"]
+    shuffled = st.session_state["s3_shuffled"]
+
+    if scores:
+        html = "".join(
+            f'<div class="row-ok">'
+            f'<span style="color:{"var(--mova-mint)" if v else "var(--mova-coral-ink)"};flex:1">{"✓" if v else "✗"} {rows.iloc[i]["word"]}</span>'
+            f'<span style="color:var(--mova-ink-3);font-family:JetBrains Mono,monospace;font-size:.78rem">{rows.iloc[i]["transcription"]}</span>'
+            f'</div>'
+            for i, v in sorted(scores.items())
+        )
+        st.markdown(
+            f'<div style="border-radius:10px;overflow:hidden;margin:8px 0">{html}</div>',
+            unsafe_allow_html=True,
+        )
+
+    if idx < len(rows):
+        row = rows.iloc[idx]
+        p   = st.session_state.get(f"s3_audio_{idx}")
+
+        st.markdown(f"**Послухай слово {idx+1} і знайди його:**")
+        if p:
+            play(p, autoplay=True)
+        else:
+            st.caption("⚠️ Аудіо недоступне")
+
+        c_rp, _ = st.columns([1, 3])
+        with c_rp:
+            if p and st.button("▶ Ще раз", key=f"s3_rp_{idx}"):
+                play(p)
+
+        st.markdown("---")
+        opts = shuffled[idx]
+        cols = st.columns(2)
+        for ci, choice in enumerate(opts):
+            with cols[ci % 2]:
+                if st.button(choice, key=f"s3_ch_{idx}_{ci}",
+                             use_container_width=True):
+                    ok = choice.strip().lower() == row["word"].strip().lower()
+                    scores[idx] = ok
+                    st.session_state["s3_scores"] = scores
+                    st.session_state["s3_idx"]    = idx + 1
+                    _log_score(step=3, phrase_id=int(row.get("row_id", idx + 1)),
+                               similarity=1.0 if ok else 0.0,
+                               response_time_ms=0,
+                               success=ok)
+                    if ok:
+                        st.success(f"✓ Правильно! — {row['transcription']}")
+                    else:
+                        st.error(f"✗ Неправильно. Правильно: **{row['word']}** {row['transcription']}")
+                    time.sleep(0.4)
+                    st.rerun()
+        return False
+
+    ok = sum(1 for v in scores.values() if v)
+    st.success(f"✓ Готово! {ok}/{len(rows)}")
+    if st.button(_ui("continue"), type="primary", use_container_width=True, key="s3_done"):
+        return True
+    return False
+
+
+# ═══════════════════════════════════════════════════════════════════════════
+#  Step 4 — Послухай і повтори (all on screen, autoplay with 1s pause)
+# ═══════════════════════════════════════════════════════════════════════════
+
+def do_step4(rows: pd.DataFrame) -> bool:
+    shdr(4)
+
+    rule_txt = next((r["rule"] for _, r in rows.iterrows() if r["rule"]), "")
+    if rule_txt:
+        st.markdown(f'<div class="rule">📖 {rule_txt}</div>', unsafe_allow_html=True)
+
+    # Combined player + word-list with active-word highlight (reused from grammar).
+    from grammar import autoplaylist_with_table
+    paths = preload_lesson_audio(rows, "s4")
+    phrase_dicts = [
+        {"native": str(r["word"]), "target": str(r["transcription"])}
+        for _, r in rows.iterrows()
+    ]
+    pauses = [1.0 + 0.2 * max(0, len(str(r["word"])) - 2)
+              for _, r in rows.iterrows()]
+    height = 200 + 48 * len(rows)
+    components.html(
+        autoplaylist_with_table(phrase_dicts, paths, pauses, uid="rs4",
+                                show_native=True, show_target=True),
+        height=height, scrolling=True,
+    )
+
+    # Continue / Skip buttons BELOW the player — active as soon as audio renders (autoplays)
+    st.session_state["r_s4_attempted"] = True
+    c1, c2 = st.columns(2)
+    with c1:
+        if st.button(_ui("continue"), type="primary",
+                     use_container_width=True, key="s4_done"):
+            return True
+    with c2:
+        if st.button(_ui("skip_icon"), key="s4_skip", use_container_width=True):
+            return True
+    return False
+
+
+# ═══════════════════════════════════════════════════════════════════════════
+#  Step 5 — Прочитай на час (mic-driven timer + similarity check)
+# ═══════════════════════════════════════════════════════════════════════════
+
+def do_step5(rows: pd.DataFrame) -> bool:
+    shdr(5)
+
+    # Mic FIRST so mobile users don't need to scroll past the word grid
+    st.markdown(f"#### {_ui('step5_record')}")
+    audio = mic("s5")
+
+    # Show all words as grid
+    chips = "".join(
+        f'<span style="font-size:1.3rem;font-weight:600;color:var(--mova-ink);'
+        f'background:var(--mova-card);border:1px solid var(--mova-line);border-radius:10px;'
+        f'padding:10px 16px;margin:4px;display:inline-block">'
+        f'{row["word"]}'
+        f'<span style="display:block;font-size:.75rem;color:var(--mova-ink-3);'
+        f'font-family:JetBrains Mono,monospace">{row["transcription"]}</span></span>'
+        for _, row in rows.iterrows()
+    )
+    st.markdown(
+        f'<div style="display:flex;flex-wrap:wrap;gap:6px;padding:16px;'
+        f'background:var(--mova-surface);border-radius:12px">{chips}</div>',
+        unsafe_allow_html=True,
+    )
+
+    if not STT_OK or not SCORER_OK:
+        st.caption("⚠️ Для перевірки вимови потрібно: `pip install openai-whisper rapidfuzz`")
+
+    expected = ". ".join(str(r["word"]).strip() for _, r in rows.iterrows())
+
+    c1, c2 = st.columns([3, 1])
+    with c1:
+        if st.button(_ui("submit_check"), type="primary",
+                     key="s5_sub", use_container_width=True):
+            if not audio:
+                st.warning(_ui("record_first"))
+            else:
+                t_ms = _audio_duration_ms(audio)
+                res = {"time": max(1, round(t_ms / 1000))}
+                if STT_OK and SCORER_OK:
+                    with st.spinner(_ui("checking")):
+                        r = score_audio(audio, expected)
+                    if r:
+                        res["score"]  = r["score"]
+                        res["passed"] = r["passed"]
+                # Log step 5 outcome
+                _log_score(
+                    step=5, phrase_id=0,
+                    similarity=res.get("score", 0.0),
+                    response_time_ms=t_ms,
+                    success=bool(res.get("passed", False)),
+                )
+                st.session_state["s5_result"] = res
+                st.rerun()
+    with c2:
+        if st.button(_ui("skip"), key="s5_skip", use_container_width=True):
+            return True
+
+    if "s5_result" in st.session_state:
+        res = st.session_state["s5_result"]
+        score_str = f" · {int(res['score']*100)}% {_ui('accuracy')}" if "score" in res else ""
+        emoji = "🎉" if res.get("passed") else "🏁"
+        st.success(f"{emoji} {res['time']} {_ui('seconds')}{score_str}")
+        if st.button(_ui("complete_lesson"), type="primary",
+                     use_container_width=True, key="s5_fin"):
+            st.session_state.pop("s5_result", None)
+            return True
+    return False
+
+
+# ═══════════════════════════════════════════════════════════════════════════
+#  State management
+# ═══════════════════════════════════════════════════════════════════════════
+
+STEP_FNS = {1: do_step1, 2: do_step2, 3: do_step3, 4: do_step4, 5: do_step5}
+
+
+def clear_step_state():
+    """Remove all per-step keys but keep lesson/user/rows."""
+    keep = {"r_step", "r_lesson", "r_user", "r_rows"}
+    for k in list(st.session_state):
+        if k not in keep and (
+            k.startswith("s1_") or k.startswith("s2_") or
+            k.startswith("s3_") or k.startswith("s4_") or
+            k.startswith("s5_") or k.startswith("mic_") or k.startswith("up_")
+        ):
+            del st.session_state[k]
+
+
+def clear_all():
+    _keep = {k: st.session_state[k] for k in
+             ("launcher_user", "launcher_native", "launcher_target")
+             if k in st.session_state}
+    _curriculum = st.session_state.get("curriculum_mode", False)
+    for k in list(st.session_state):
+        del st.session_state[k]
+    st.session_state.update(_keep)
+    if _curriculum:
+        st.session_state["active_module"] = "path"
+        st.session_state["curriculum_mode"] = True
+        st.session_state["curriculum_advance_pending"] = True
+        st.query_params["module"] = "path"
+    else:
+        st.query_params.clear()
+
+
+# ═══════════════════════════════════════════════════════════════════════════
+#  Setup screen
+# ═══════════════════════════════════════════════════════════════════════════
+
+def _render_module_nav_sidebar(current_module: str) -> None:
+    """Render the module-switcher sidebar (shared by setup and active-lesson views)."""
+    _MODS = [
+        ("grammar", "🗣️", "Grammar"),
+        ("vocab",   "📖", "Vocabulary"),
+        ("reading", "🔤", "Reading"),
+        ("custom",  "📝", "My Phrases"),
+    ]
+    st.markdown(
+        '<div style="font-size:.7rem;color:var(--mova-ink-3);'
+        'text-transform:uppercase;letter-spacing:.07em;margin-bottom:6px">'
+        'Module</div>',
+        unsafe_allow_html=True,
+    )
+    for _mk, _mi, _mn in _MODS:
+        _active = (_mk == current_module)
+        if st.button(
+            f"{_mi} {_mn}",
+            key=f"sb_nav_{_mk}",
+            use_container_width=True,
+            type="primary" if _active else "secondary",
+            disabled=_active,
+        ):
+            _u = st.session_state.get("launcher_user", "student1")
+            _n = st.session_state.get("launcher_native", "Ukrainian")
+            _t = st.session_state.get("launcher_target", "English")
+            for _k in list(st.session_state):
+                del st.session_state[_k]
+            st.session_state.update({
+                "active_module":   _mk,
+                "launcher_user":   _u,
+                "launcher_native": _n,
+                "launcher_target": _t,
+            })
+            st.query_params["module"] = _mk
+            st.rerun()
+    st.markdown("---")
+
+
+def render_setup():
+    with st.sidebar:
+        _render_module_nav_sidebar("reading")
+        # ── Lesson ◀ ▶ navigation ─────────────────────────────────────
+        try:
+            _sb_lang   = st.session_state.get("r_lang", "en")
+            _sb_native = st.session_state.get("launcher_native", "Ukrainian")
+            _sb_df     = load(str(DB_PATH), lang=_sb_lang, native_lang=_sb_native)
+            _sb_lids   = sorted(_sb_df["lesson_id"].unique())
+            _idx_key   = "r_setup_sel_idx"
+            if _idx_key not in st.session_state:
+                st.session_state[_idx_key] = 0
+            _cur = min(int(st.session_state[_idx_key]), len(_sb_lids) - 1)
+            st.markdown("---")
+            _lesson_word_sb = {"English": "Lesson", "Ukrainian": "Урок", "Spanish": "Lección", "Korean": "수업"}.get(_sb_native, "Lesson")
+            st.caption(f"{_lesson_word_sb} {_sb_lids[_cur]} / {len(_sb_lids)}")
+            _sc1, _sc2 = st.columns(2)
+            with _sc1:
+                if st.button(_ui("prev"), key="r_sb_prev",
+                             use_container_width=True, disabled=(_cur <= 0)):
+                    _new = _cur - 1
+                    st.session_state[_idx_key] = _new
+                    st.session_state["r_lesson_sel"] = _sb_lids[_new]
+                    st.rerun()
+            with _sc2:
+                if st.button(_ui("next_icon"), key="r_sb_next",
+                             use_container_width=True,
+                             disabled=(_cur >= len(_sb_lids) - 1)):
+                    _new = _cur + 1
+                    st.session_state[_idx_key] = _new
+                    st.session_state["r_lesson_sel"] = _sb_lids[_new]
+                    st.rerun()
+        except Exception:
+            pass
+        st.markdown("---")
+        if st.button(_ui("main_menu"), key="r_setup_home"):
+            clear_all()
+            st.rerun()
+
+
+    # ── Query-params bridge: wave clicked a lesson ────────────────────────────
+    _qp = st.query_params
+    if "vnav_lesson" in _qp:
+        try:
+            from urllib.parse import unquote as _uq
+            _qp_lid  = int(_qp["vnav_lesson"])
+            _qp_lang = _uq(_qp.get("r_lang", "en"))
+            _qp_user = _uq(_qp.get("vnav_user", "student1"))
+            if _qp_lang not in TTS_CONFIG:
+                _qp_lang = "en"
+            _qp_native = st.session_state.get("launcher_native", "Ukrainian")
+            st.query_params.clear()
+            _qp_df   = load(str(DB_PATH), lang=_qp_lang, native_lang=_qp_native)
+            _qp_rows = _qp_df[_qp_df["lesson_id"] == _qp_lid].reset_index(drop=True)
+            if not _qp_rows.empty:
+                st.session_state.update({
+                    "r_lang":   _qp_lang,
+                    "r_lesson": _qp_lid,
+                    "r_user":   _qp_user,
+                    "r_rows":   _qp_rows,
+                    "r_step":   1,
+                })
+                st.session_state.pop("_r_progress_saved", None)
+                st.session_state.pop("_r_last_saved_progress", None)
+                st.rerun()
+        except Exception:
+            st.query_params.clear()
+
+    _setup_title = _ui("setup_title")
+    st.markdown(f"""
+    <div style="text-align:center;padding:32px 0 16px">
+      <h1 style="color:var(--mova-ink);font-weight:700;margin:0;font-size:2rem">{_setup_title}</h1>
+    </div>""", unsafe_allow_html=True)
+
+    _reading_banner = APP_IMG_DIR / "reading_banner.jpg"
+    if _reading_banner.exists():
+        _, _mid, _ = st.columns([1, 2, 1])
+        with _mid:
+            st.image(str(_reading_banner), use_container_width=True)
+
+    if not _edge_ok() and not _gtts_ok():
+        st.error("⚠️ Встанови аудіо бібліотеку:\n\n`pip install edge-tts`\n\nабо\n\n`pip install gtts`")
+
+    # ── Language selector ──────────────────────────────────────────────────
+    native_lang = st.session_state.get("launcher_native", "Ukrainian")
+    lang_options = list(LANG_LABELS.keys())
+    saved_lang   = st.session_state.get("r_lang", "en")
+    lang_idx     = lang_options.index(saved_lang) if saved_lang in lang_options else 0
+
+    col_lang, col_user = st.columns([2, 1])
+    with col_lang:
+        chosen_lang = st.selectbox(
+            _ui("lang_label"),
+            lang_options,
+            index=lang_idx,
+            format_func=lambda k: LANG_LABELS[k],
+            key="r_lang_select",
+        )
+    with col_user:
+        default_user = st.session_state.get("launcher_user", "student1")
+        user_id = st.text_input(_ui("name_label"), value=default_user)
+
+    # Reload data when language changes
+    if chosen_lang != st.session_state.get("r_lang"):
+        st.session_state["r_lang"] = chosen_lang
+        st.rerun()
+
+    # Load data for selected language
+    df = load(str(DB_PATH), lang=chosen_lang, native_lang=native_lang)
+    lessons = sorted(df["lesson_id"].unique())
+
+    # Auto-select lesson based on saved progress
+    progress    = None
+    default_idx = 0
+    resume_step = 1
+    resume_msg  = None
+    if LOGGER_OK and user_id:
+        try:
+            progress = get_progress(user_id, _reading_lang_pair())
+        except Exception:
+            progress = None
+
+    if progress:
+        saved_lesson = progress["last_completed_lesson"]
+        saved_step   = progress["last_step"]
+        if saved_step >= 99:
+            next_lesson = saved_lesson + 1
+            if next_lesson in lessons:
+                default_idx = lessons.index(next_lesson)
+                resume_step = 1
+                resume_msg  = _ui("resume_next").format(next_lesson=next_lesson, saved_lesson=saved_lesson)
+        else:
+            if saved_lesson in lessons:
+                default_idx = lessons.index(saved_lesson)
+                resume_step = max(1, min(5, saved_step))
+                resume_msg  = _ui("resume_step").format(saved_lesson=saved_lesson, resume_step=resume_step)
+
+    # ── Wave navigator ────────────────────────────────────────────────────────
+    if resume_msg:
+        st.info(resume_msg)
+
+    def _start_reading_lesson(lid):
+        try:
+            _df = load(str(DB_PATH), lang=chosen_lang,
+                       native_lang=st.session_state.get("launcher_native", "Ukrainian"))
+            _rows = _df[_df["lesson_id"] == lid].reset_index(drop=True)
+            if not _rows.empty:
+                st.session_state.update({
+                    "r_lang":   chosen_lang,
+                    "r_lesson": lid,
+                    "r_user":   user_id,
+                    "r_rows":   _rows,
+                    "r_step":   1,
+                })
+                st.session_state.pop("_r_progress_saved", None)
+                st.session_state.pop("_r_last_saved_progress", None)
+                st.rerun()
+            else:
+                st.warning(f"{_lesson_word} {lid} — not found.")
+        except Exception as _e:
+            st.error(f"Помилка: {_e}")
+
+    _LESSON_WORD = {
+        "English":   "Lesson",
+        "Ukrainian": "Урок",
+        "Spanish":   "Lección",
+        "Korean":    "수업",
+    }
+    _lesson_word = _LESSON_WORD.get(native_lang, "Lesson")
+
+    default_lid = int(lessons[default_idx])
+    _r_lesson_names  = {int(l): f"{_lesson_word} {l}" for l in lessons}
+    _r_lesson_counts = {int(l): int((df["lesson_id"] == l).sum()) for l in lessons}
+    _r_int_lessons   = [int(l) for l in lessons]
+
+    from engine.picker import _render_wave_plotly
+
+    # ── Unit grouping (10 lessons per unit) ─────────────────────────────────
+    _UNIT_SIZE = 10
+    _r_units   = []
+    for _u_idx in range(0, len(_r_int_lessons), _UNIT_SIZE):
+        _u_lids = _r_int_lessons[_u_idx:_u_idx + _UNIT_SIZE]
+        _r_units.append({
+            "label": f"Unit {_u_idx // _UNIT_SIZE + 1}  ({_lesson_word} {_u_lids[0]}–{_u_lids[-1]})",
+            "lids":  _u_lids,
+        })
+
+    _def_unit_idx = next(
+        (i for i, u in enumerate(_r_units) if default_lid in u["lids"]), 0
+    )
+    _sel_unit_lbl = st.selectbox(
+        _ui("unit_label"),
+        [u["label"] for u in _r_units],
+        index=_def_unit_idx,
+        key=f"r_unit_{chosen_lang}",
+    )
+    _sel_unit         = _r_units[[u["label"] for u in _r_units].index(_sel_unit_lbl)]
+    _filtered_r       = _sel_unit["lids"]
+    _r_default_lid    = default_lid if default_lid in _filtered_r else _filtered_r[0]
+
+    # Plotly wave (Streamlit ≥ 1.33 + plotly installed), else dropdown fallback
+    _r_clicked = _render_wave_plotly(
+        lessons=_filtered_r,
+        lesson_names=_r_lesson_names,
+        lesson_counts=_r_lesson_counts,
+        default_lid=_r_default_lid,
+        resume_step=resume_step,
+        key_suffix=f"reading_{chosen_lang}",
+        show_lesson_image=False,
+    )
+    if _r_clicked is not None:
+        _start_reading_lesson(_r_clicked)
+    else:
+        # Clean dropdown fallback — replaces the circular button grid
+        _r_opts  = [_r_lesson_names.get(_lid, f"{_lesson_word} {_lid}") for _lid in _filtered_r]
+        _r_def_i = _filtered_r.index(_r_default_lid) if _r_default_lid in _filtered_r else 0
+        _r_sel   = st.selectbox(
+            f"Select {_lesson_word}", _r_opts, index=_r_def_i,
+            key=f"r_dd_{chosen_lang}",
+        )
+        _r_sel_lid   = _filtered_r[_r_opts.index(_r_sel)]
+        _r_is_resume = (_r_sel_lid == _r_default_lid and resume_step > 1)
+        _r_btn_lbl   = (f"▶ Resume at Step {resume_step}" if _r_is_resume
+                        else f"▶ Start {_lesson_word}")
+        if st.button(_r_btn_lbl, type="primary", use_container_width=True,
+                     key=f"r_dd_btn_{chosen_lang}"):
+            _start_reading_lesson(_r_sel_lid)
+
+
+# ═══════════════════════════════════════════════════════════════════════════
+#  Main
+# ═══════════════════════════════════════════════════════════════════════════
+
+def _inject_css():
+    st.markdown("""
+<style>
+/* Fonts loaded by app.py via _inject_mova_css — no extra @import needed */
+html,body,[class*="css"]{font-family:'Plus Jakarta Sans','Inter',sans-serif;}
+/* removed: was fighting Mova surface; theme is now driven by tokens.css */
+#MainMenu,footer{visibility:hidden;}
+.step-header{background:var(--mova-card);border:1px solid var(--mova-line);border-left:4px solid var(--mova-indigo);border-radius:14px;padding:18px 26px;margin-bottom:18px;}
+.step-icon-row{display:flex;align-items:center;gap:16px;margin-top:6px;}
+.step-icon-big{font-size:2rem;line-height:1;}
+.step-title{color:var(--mova-ink);font-size:1.25rem;font-weight:600;}
+.step-desc{color:var(--mova-ink-2);font-size:.88rem;margin-top:5px;}
+/* Keep Streamlit's sidebar collapse/expand control reachable on every device,
+   including iOS Safari, where the control would otherwise be invisible. */
+header{background:transparent !important;}
+header [data-testid="stDecoration"]{display:none;}
+/* Floating sidebar toggle (visible whenever the sidebar is collapsed) */
+[data-testid="collapsedControl"]{
+    visibility:visible !important;
+    opacity:1 !important;
+    display:flex !important;
+    z-index:9999 !important;
+    position:fixed !important;
+    top:0.6rem !important;
+    left:0.6rem !important;
+    background:var(--mova-card) !important;
+    border:1px solid var(--mova-indigo) !important;
+    border-radius:8px !important;
+    box-shadow:0 2px 8px rgba(0,0,0,.4) !important;
+}
+[data-testid="collapsedControl"] button,
+[data-testid="collapsedControl"] svg{
+    color:var(--mova-indigo) !important;
+    fill:var(--mova-indigo) !important;
+    min-width:36px !important;
+    min-height:36px !important;
+}
+.wcard{background:var(--mova-card);border:1px solid var(--mova-line);border-radius:14px;padding:28px 20px;margin:10px 0;text-align:center;}
+.wbig{font-size:3.2rem;font-weight:700;color:var(--mova-ink);}
+.tbig{font-size:2rem;color:var(--mova-indigo);font-family:'JetBrains Mono',monospace;margin-top:8px;}
+.rule{background:var(--mova-card);border-left:3px solid var(--mova-indigo);border-radius:6px;padding:10px 14px;margin:8px 0;color:#a0a0d0;font-size:.9rem;}
+.spill{font-family:'JetBrains Mono',monospace;font-size:.7rem;padding:3px 10px;border-radius:20px;margin:2px;display:inline-block;}
+.row-ok{display:flex;gap:10px;padding:8px 14px;background:var(--mova-card);border-bottom:1px solid var(--mova-line);align-items:center;}
+/* Make Streamlit secondary buttons (e.g. step 3 choices) dark-themed for readability */
+.stApp .stButton > button[kind="secondary"]{
+    background:var(--mova-card) !important;
+    color:var(--mova-ink) !important;
+    border:1px solid var(--mova-line) !important;
+    font-weight:500 !important;
+}
+.stApp .stButton > button[kind="secondary"]:hover{
+    background:var(--mova-indigo-soft) !important;
+    border-color:var(--mova-indigo) !important;
+    color:var(--mova-ink) !important;
+}
+</style>
+""", unsafe_allow_html=True)
+
+
+def main():
+    _inject_css()
+    if not DB_PATH.exists():
+        st.error(
+            f"**Файл не знайдено:** `{DB_PATH}`\n\n"
+            "Скопіюй Excel файл у `data/reading_lessons.xlsx`."
+        )
+        st.stop()
+
+    if "r_step" not in st.session_state or "r_rows" not in st.session_state:
+        render_setup()
+        return
+
+    lang        = _r_lang()
+    native_lang = st.session_state.get("launcher_native", "Ukrainian")
+    _lesson_word = {
+        "English": "Lesson", "Ukrainian": "Урок",
+        "Spanish": "Lección", "Korean": "수업",
+    }.get(native_lang, "Lesson")
+    df          = load(str(DB_PATH), lang=lang, native_lang=native_lang)
+
+    step = st.session_state["r_step"]
+    rows = st.session_state["r_rows"]
+
+    # Auto-save progress on every step (for resume next session)
+    cur_lesson = st.session_state.get("r_lesson", 0)
+    cur_user   = st.session_state.get("r_user", "anonymous")
+    if step > 5:
+        _save_step_progress(cur_lesson, 99, cur_user)  # 99 = lesson done
+    else:
+        _save_step_progress(cur_lesson, step, cur_user)
+
+    with st.sidebar:
+        _render_module_nav_sidebar("reading")
+        if GAMI_OK:
+            _gami_sidebar(cur_user)
+        st.markdown("**🔤 Reading**")
+        all_l    = sorted(df["lesson_id"].unique())
+        lid      = st.session_state.get("r_lesson", 1)
+        total    = max(len(all_l), 1)
+        # Lessons fully completed = lid - 1 (current one is in progress)
+        completed = max(lid - 1, 0)
+        pct       = round(completed / total * 100, 1)
+
+        st.markdown(
+            f'<div style="background:var(--mova-card);border:1px solid var(--mova-line);'
+            f'border-radius:10px;padding:10px 12px;margin:4px 0 10px">'
+            f'<div style="color:var(--mova-ink-2);font-size:.7rem;'
+            f'font-family:\'JetBrains Mono\',monospace;'
+            f'text-transform:uppercase;letter-spacing:.05em;margin-bottom:4px">'
+            f'{_ui("your_path")}</div>'
+            f'<div style="color:var(--mova-ink);font-size:1.05rem;font-weight:600">'
+            f'{_lesson_word} {lid} / {total}</div>'
+            f'<div style="display:flex;justify-content:space-between;'
+            f'font-family:\'JetBrains Mono\',monospace;font-size:.72rem;'
+            f'color:var(--mova-ink-3);margin:6px 0 2px">'
+            f'<span>{completed} {_ui("done")} · {total - completed} {_ui("ahead")}</span>'
+            f'<span>{pct}%</span></div>'
+            f'<div style="background:var(--mova-card);border-radius:6px;height:6px;overflow:hidden">'
+            f'<div style="height:6px;background:linear-gradient(90deg, var(--mova-indigo), #6E66FF);'
+            f'width:{pct}%"></div></div>'
+            f'</div>',
+            unsafe_allow_html=True,
+        )
+
+        # Step indicator
+        step_pct = round((step - 1) / 5 * 100, 0)
+        st.markdown(
+            f'<div style="display:flex;justify-content:space-between;'
+            f'font-family:\'JetBrains Mono\',monospace;font-size:.72rem;'
+            f'color:var(--mova-ink-3);margin-bottom:2px">'
+            f'<span>{_ui("step_word")} {step} / 5 — {_r_steps().get(step,"")}</span>'
+            f'<span>{"🔒" if step in REQUIRED else ""}</span></div>'
+            f'<div style="background:var(--mova-card);border-radius:6px;height:6px;overflow:hidden">'
+            f'<div style="height:6px;background:linear-gradient(90deg, var(--mova-mint), #34D0A0);'
+            f'width:{step_pct}%"></div></div>',
+            unsafe_allow_html=True,
+        )
+
+        # ── Step navigation: Previous / Repeat / Jump ──
+        st.markdown("---")
+        st.caption(_ui("nav_title"))
+        nav_c1, nav_c2 = st.columns(2)
+        with nav_c1:
+            back_disabled = step <= 1
+            if st.button(_ui("nav_prev"), disabled=back_disabled,
+                         use_container_width=True, key="r_nav_back",
+                         help=_ui("nav_prev_help")):
+                clear_step_state()
+                st.session_state["r_step"] = max(1, step - 1)
+                st.rerun()
+        with nav_c2:
+            if st.button(_ui("nav_repeat"), use_container_width=True,
+                         key="r_nav_repeat",
+                         help=_ui("nav_repeat_help")):
+                clear_step_state()
+                st.rerun()
+
+        jump_default = min(max(step, 1), 5) - 1
+        _sw = _ui("step_word")
+        jump_to = st.selectbox(
+            _ui("go_to_step"),
+            options=list(range(1, 6)),
+            index=jump_default,
+            format_func=lambda s: f"{_sw} {s}" + (" 🔒" if s in REQUIRED else ""),
+            key="r_nav_jump",
+        )
+        if jump_to != step:
+            if st.button(f"{_ui('go_to_step')} {jump_to}",
+                         use_container_width=True, key="r_nav_go"):
+                clear_step_state()
+                st.session_state["r_step"] = jump_to
+                st.rerun()
+
+        # ── Jump to lesson ────────────────────────────────────────────────────
+        st.caption(_ui("jump_lesson"))
+        _jump_lid = st.selectbox(
+            "lesson_jump_sel_r",
+            options=all_l,
+            index=all_l.index(lid) if lid in all_l else 0,
+            format_func=lambda l, lw=_lesson_word: f"{lw} {l}",
+            key="sb_r_jump_lid",
+            label_visibility="collapsed",
+        )
+        if _jump_lid != lid:
+            if st.button(
+                f"→ {_lesson_word} {_jump_lid}",
+                use_container_width=True,
+                key="sb_r_go_lid",
+            ):
+                _new_rows = df[df["lesson_id"] == _jump_lid].reset_index(drop=True)
+                clear_step_state()
+                st.session_state["r_lesson"] = _jump_lid
+                st.session_state["r_rows"]   = _new_rows
+                st.session_state["r_step"]   = 1
+                st.session_state.pop("_r_progress_saved", None)
+                st.session_state.pop("_r_last_saved_progress", None)
+                st.session_state.pop("_r_gami_lesson_saved", None)
+                st.session_state.pop("_cached_r_streak", None)
+                st.rerun()
+
+        st.markdown("---")
+        if st.button(_ui("main_menu")):
+            clear_all()
+            st.rerun()
+
+    if step > 5:
+        # Save progress (idempotent guard)
+        if LOGGER_OK and not st.session_state.get("_r_progress_saved"):
+            try:
+                save_progress(
+                    user_id              = st.session_state.get("r_user", "anonymous"),
+                    language_pair        = _reading_lang_pair(),
+                    last_completed_lesson= int(st.session_state.get("r_lesson", 0)),
+                    last_step            = 99,
+                )
+                st.session_state["_r_progress_saved"] = True
+            except Exception as e:
+                print(f"[reading_app] save_progress failed: {e}")
+        if GAMI_OK and not st.session_state.get("_r_gami_lesson_saved"):
+            try:
+                _rllang = {"English":"en","Ukrainian":"uk","Spanish":"es","Korean":"ko"}.get(st.session_state.get("launcher_native","English"),"en")
+                _lres = on_lesson_complete(cur_user, _rllang)
+                _ltoasts = [f"🎉 {_ui('lesson_complete')} +{_lres['xp_earned']} XP"]
+                if _lres.get("leveled_up"):
+                    _ltoasts.append(f"⭐ Новий рівень {_lres['level_num']}: {_lres['level_name']}!")
+                for _bid, _bem, _bname, _bdesc in _lres.get("new_badges", []):
+                    _ltoasts.append(f"{_bem} Бейдж «{_bname}»: {_bdesc}!")
+                _streak = _lres.get("streak_current", 0)
+                if _streak > 1:
+                    _ltoasts.append(f"🔥 Серія {_streak} днів!")
+                st.session_state["_pending_r_toasts"] = (
+                    st.session_state.get("_pending_r_toasts", []) + _ltoasts
+                )
+                st.session_state["_r_gami_lesson_saved"] = True
+            except Exception:
+                pass
+
+        # ── Персонаж у банері ────────────────────────────────────────────
+        try:
+            from engine.characters import get_phrase as _gp
+            _nat_lang = st.session_state.get("launcher_native", "Ukrainian")
+            _streak   = st.session_state.get("_cached_r_streak", 0)
+            _cat      = "on_streak" if _streak > 1 else "on_lesson_complete"
+            _cd       = _gp("natalia", _cat, lang=_nat_lang)
+            _phrase   = _cd["phrase"] if _cd else f"{_ui('lesson_complete')} 🎉"
+            _cname    = _cd["name"]   if _cd else "Natalia"
+            _img_path = ROOT / "assets" / "characters" / "natalia.png"
+            import base64 as _b64
+            _ib64 = _b64.b64encode(_img_path.read_bytes()).decode() if _img_path.exists() else ""
+            _img_tag = (
+                '<img src="data:image/png;base64,' + _ib64 +
+                '" style="width:100px;height:100px;object-fit:cover;'
+                'border-radius:50%;border:3px solid var(--mova-mint);'
+                'box-shadow:0 4px 14px rgba(0,0,0,.15);margin-bottom:6px;" />'
+            ) if _ib64 else '<div style="font-size:3.5rem">\U0001f469\u200d\U0001f3eb</div>'
+        except Exception:
+            _phrase = _ui("lesson_complete")
+            _cname  = "Natalia"
+            _img_tag = '<div style="font-size:3.5rem">\U0001f469\u200d\U0001f3eb</div>'
+
+        st.markdown(
+            '<div style="background:linear-gradient(135deg,var(--mova-mint-soft),'
+            'var(--mova-indigo-soft));border:1px solid var(--mova-mint);'
+            'border-radius:16px;padding:32px 36px;text-align:center;">' +
+            '<div style="font-size:2.4rem;margin-bottom:6px;">\U0001f389</div>' +
+            '' + f'<h2 style="color:var(--mova-ink);margin:0 0 20px 0;">{_ui("lesson_complete")}</h2>' + '' +
+            '<div style="display:flex;align-items:center;gap:20px;'
+            'background:rgba(255,255,255,.45);border-radius:14px;'
+            'padding:16px 20px;text-align:left;">' +
+            '<div style="flex-shrink:0;text-align:center;">' +
+            _img_tag +
+            '<div style="font-size:.75rem;font-weight:600;color:#E65100;margin-top:4px;">' +
+            _cname + '</div></div>' +
+            '<div style="font-size:.97rem;color:#333;line-height:1.55;">\U0001f4ac ' +
+            _phrase + '</div></div></div>',
+            unsafe_allow_html=True,
+        )
+
+        # ── Кнопки навігації ─────────────────────────────────────────────
+        _all_lids = sorted(df["lesson_id"].unique())
+        _next_lid = cur_lesson + 1
+        _has_next = _next_lid in _all_lids
+        _ncols    = 3 if _has_next else 2
+        _cols     = st.columns(_ncols)
+
+        with _cols[0]:
+            if st.button(_ui("nav_repeat"), type="primary", use_container_width=True):
+                clear_step_state()
+                st.session_state["r_step"] = 1
+                st.session_state.pop("_r_progress_saved", None)
+                st.session_state.pop("_r_last_saved_progress", None)
+                st.session_state.pop("_r_gami_lesson_saved", None)
+                st.rerun()
+
+        if _has_next:
+            with _cols[1]:
+                if st.button(f"\u25b6 {_lesson_word} {_next_lid}", use_container_width=True, type="primary"):
+                    _next_rows = df[df["lesson_id"] == _next_lid].reset_index(drop=True)
+                    clear_step_state()
+                    st.session_state["r_lesson"] = _next_lid
+                    st.session_state["r_rows"]   = _next_rows
+                    st.session_state["r_step"]   = 1
+                    st.session_state.pop("_r_progress_saved", None)
+                    st.session_state.pop("_r_last_saved_progress", None)
+                    st.session_state.pop("_r_gami_lesson_saved", None)
+                    st.session_state.pop("_cached_r_streak", None)
+                    st.rerun()
+
+        with _cols[-1]:
+            if st.button("\u23ed Next", use_container_width=True):
+                pass
+
+    else:
+        # -- Render lesson step (1-5) --
+        # Show any pending toast notifications
+        for _msg in st.session_state.pop("_pending_r_toasts", []):
+            st.toast(_msg)
+
+        if step == 1:
+            done = do_step1(rows)
+        elif step == 2:
+            done = do_step2(rows)
+        elif step == 3:
+            done = do_step3(rows)
+        elif step == 4:
+            done = do_step4(rows)
+        elif step == 5:
+            done = do_step5(rows)
+        else:
+            done = False
+
+        if done:
+            clear_step_state()
+            st.session_state["r_step"] = step + 1
+            st.rerun()
+
+
+if __name__ == "__main__":
+    main()

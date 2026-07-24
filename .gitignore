@@ -1,0 +1,10 @@
+.streamlit/secrets.toml
+.streamlit/*.json
+*-service-account*.json
+logs/
+audio_cache/
+__pycache__/
+*.pyc
+*.pyo
+.env
+.vscode/
