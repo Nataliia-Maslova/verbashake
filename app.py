@@ -9,8 +9,8 @@ Lets the user choose between three practice modes at the start of a session:
   - Vocabulary (uses grammar.py with module="vocab" + data/vocabulary.xlsx)
   - Reading (uses reading_app.py + data/reading_lessons.xlsx)
 
-Each module has its own progress tracked separately in the SessionLogger
-via different language_pair suffixes.
+Each module has its own resume pointer tracked separately (engine.recommender's
+lesson_pointer table, keyed by user/target_lang/module).
 
 The main menu also shows a per-module progress bar (% of all exercises
 completed and "exercise N of M"), so the user always knows where they are
@@ -40,17 +40,32 @@ import grammar as grammar_app          # noqa: E402
 import reading_app                  # noqa: E402
 import custom_app                   # noqa: E402
 import path_app                     # noqa: E402
-import license_gate                 # noqa: E402
+from engine import auth_gate        # noqa: E402
+from engine import billing          # noqa: E402
+from engine import user_prefs       # noqa: E402
+from engine.gamification import sidebar_widget  # noqa: E402
 
 # Used for fetching progress on the launcher
 from engine.loader  import (                  # noqa: E402
-    load_phrases, get_available_lessons, WHISPER_LANG,
+    load_phrases, get_available_lessons,
 )
 from engine.vocab_loader import (             # noqa: E402
     load_vocab, get_available_vocab_lessons,
 )
 from engine.custom_store import list_user_lessons  # noqa: E402
-from engine.logger import get_progress        # noqa: E402
+from engine import placement_quiz                   # noqa: E402
+
+
+def _app_url() -> str:
+    """The app's own public URL, for Stripe Checkout's success/cancel redirect.
+    Derived from the [auth] redirect_uri (already required for st.login()) so
+    there's no separate secret to configure — falls back to localhost for
+    local dev before secrets are set up."""
+    try:
+        redirect_uri = st.secrets["auth"]["redirect_uri"]
+        return redirect_uri.rsplit("/oauth2callback", 1)[0]
+    except Exception:
+        return "http://localhost:8501"
 
 
 # ═══════════════════════════════════════════════════════════════════════════
@@ -117,6 +132,7 @@ LANGUAGES = [
     "English", "Ukrainian", "Spanish", "Korean",
     "French", "German", "Japanese", "Chinese",
     "Portuguese", "Italian", "Polish", "Russian",
+    "Catalan", "Dutch",
 ]
 
 DB_GRAMMAR  = ROOT / "data" / "imlls_database.xlsx"
@@ -148,6 +164,14 @@ MODULES = {
         "icon":        "📖",
         "img":         str(APP_IMG_DIR / "vocab_basic.jpg"),
         "tagline":     "Learn words by topic - Family, Food, Travel...",
+        "color_from":  "var(--mova-card)",
+        "color_to":    "var(--mova-card)",
+    },
+    "phrasebook": {
+        "label":       "Phrasebook",
+        "icon":        "💬",
+        "img":         str(APP_IMG_DIR / "vocab_greetings.jpg"),
+        "tagline":     "Useful phrases by topic - Hobbies, Restaurant, Travel...",
         "color_from":  "var(--mova-card)",
         "color_to":    "var(--mova-card)",
     },
@@ -193,11 +217,23 @@ def _count_grammar_lessons(native: str, target: str) -> int:
 
 @st.cache_data(show_spinner=False)
 def _count_vocab_lessons(native: str, target: str) -> int:
-    """Total vocabulary lessons available (index only — no phrase text loaded)."""
+    """CEFR-J lesson count -- same list for every target now (CLAUDE.md
+    2026-08-22: see grammar.py::_load_vocabulary). "Phrasebook"
+    (_count_phrasebook_lessons) still covers the old Word Bank workbook."""
     try:
-        from engine.vocab_loader import get_vocab_nav_data
+        from engine.cefr_j_vocab_loader import _build_index, CSV_PATH
+        return int(_build_index(str(CSV_PATH))["lesson_id"].nunique())
+    except Exception:
+        return 0
+
+
+@st.cache_data(show_spinner=False)
+def _count_phrasebook_lessons(native: str, target: str) -> int:
+    """Vocabulary sheets minus the Word Bank ones -- see grammar.py::_load_phrasebook."""
+    try:
+        from engine.vocab_loader import get_vocab_nav_data, WORD_BANK_SHEETS
         nav_data = get_vocab_nav_data(str(DB_VOCAB))
-        return sum(len(ls) for ls in nav_data.values())
+        return sum(len(ls) for sheet, ls in nav_data.items() if sheet not in WORD_BANK_SHEETS)
     except Exception:
         return 0
 
@@ -213,23 +249,27 @@ def _count_reading_lessons(lang: str = "en") -> int:
         return 0
 
 
-def _module_progress(user_id: str, lang_pair: str, total: int) -> dict:
+def _module_progress(user_id: str, target: str, module: str, total: int) -> dict:
     """
-    Look up the saved progress for `lang_pair` and convert it into:
-      {"current": N, "total": M, "pct": float, "done": bool}
+    Look up the saved resume pointer for (user, target, module) and convert it
+    into: {"current": N, "total": M, "pct": float, "done": bool}
     """
     info = {"current": 1, "total": max(total, 0), "pct": 0.0, "done": False}
     if not user_id or total <= 0:
         return info
     try:
-        p = get_progress(user_id, lang_pair)
+        from engine import recommender as _recommender
+        ptr = _recommender.get_pointer(user_id, target, module)
     except Exception:
-        p = None
-    if not p:
+        ptr = None
+    if not ptr:
         return info
 
-    saved_lesson = int(p.get("last_completed_lesson") or 0)
-    saved_step   = int(p.get("last_step") or 1)
+    saved_step = int(ptr.get("step") or 1)
+    try:
+        saved_lesson = _recommender.parse_unit_id(ptr["unit_id"])["lesson_id"]
+    except Exception:
+        saved_lesson = 0
 
     if saved_step >= 99:
         completed = min(saved_lesson, total)
@@ -247,57 +287,48 @@ def _module_progress(user_id: str, lang_pair: str, total: int) -> dict:
     return info
 
 
-def _count_path_units(target: str) -> int:
-    """Total curriculum units for the given target language."""
-    try:
-        from engine.curriculum import build_path
-        return len(build_path(target))
-    except Exception:
-        return 0
-
-
 def _module_progress_card(module_key: str, native: str, target: str,
                           user_id: str) -> dict:
     """Returns the progress info to render on a module card."""
     if module_key == "reading":
         import streamlit as _st
-        r_lang    = _st.session_state.get("r_lang", "en")
-        total     = _count_reading_lessons(lang=r_lang)
-        lang_pair = f"{r_lang}-reading"
-        word      = "Lesson"
+        r_lang = _st.session_state.get("r_lang", "en")
+        total  = _count_reading_lessons(lang=r_lang)
+        module = "reading"
+        word   = "Lesson"
     elif module_key == "grammar":
-        total     = _count_grammar_lessons(native, target)
-        lang_pair = f"{WHISPER_LANG.get(native,'?')}-{WHISPER_LANG.get(target,'?')}-grammar"
-        word      = "Lesson"
+        total  = _count_grammar_lessons(native, target)
+        module = "grammar"
+        word   = "Lesson"
     elif module_key == "vocab":
-        total     = _count_vocab_lessons(native, target)
-        lang_pair = f"{WHISPER_LANG.get(native,'?')}-{WHISPER_LANG.get(target,'?')}-vocab"
-        word      = "Topic"
+        total  = _count_vocab_lessons(native, target)
+        module = "vocab"
+        word   = "Topic"
+    elif module_key == "phrasebook":
+        total  = _count_phrasebook_lessons(native, target)
+        module = "phrasebook"
+        word   = "Phrase"
     elif module_key == "path":
-        total     = _count_path_units(target)
         try:
-            from engine.curriculum import load_progress
-            prog      = load_progress(user_id, target)
-            idx       = int(prog.get("current_index", 0))
-            lang_pair = f"curriculum-{WHISPER_LANG.get(target,'?')}"
-            pr = {"current": idx + 1, "total": total,
-                  "pct": round(idx / total * 100, 1) if total else 0.0,
-                  "done": idx >= total and total > 0,
-                  "lang_pair": lang_pair, "lesson_word": "Unit", "module_key": "path"}
-            return pr
+            from engine import recommender as _recommender
+            stats = _recommender.get_stats(user_id, target)
+            return {
+                "current": stats["done_total"] + 1, "total": stats["total_units"],
+                "pct": stats["pct"], "done": False,
+                "lesson_word": "Unit", "module_key": "path",
+            }
         except Exception:
-            lang_pair = f"curriculum-{WHISPER_LANG.get(target,'?')}"
-            word      = "Unit"
+            return {"current": 1, "total": 0, "pct": 0.0, "done": False,
+                    "lesson_word": "Unit", "module_key": "path"}
     else:
         try:
             total = len(list_user_lessons(user_id, native_lang=native,
                                           target_lang=target))
         except Exception:
             total = 0
-        lang_pair = f"{WHISPER_LANG.get(native,'?')}-{WHISPER_LANG.get(target,'?')}-custom"
-        word      = "Lesson"
-    pr = _module_progress(user_id, lang_pair, total)
-    pr["lang_pair"]   = lang_pair
+        module = "custom"
+        word   = "Lesson"
+    pr = _module_progress(user_id, target, module, total)
     pr["lesson_word"] = word
     pr["module_key"]  = module_key
     return pr
@@ -337,7 +368,7 @@ def render_launcher():
         background:var(--mova-card);
         border:1px solid var(--mova-line);
         border-radius:18px;
-        padding:28px 22px 22px;
+        padding:24px 12px 18px;
         text-align:center;
         transition:all .2s;
         height:100%;
@@ -346,11 +377,19 @@ def render_launcher():
         border-color:var(--mova-indigo);
         background:var(--mova-surface-3);
     }
-    .mode-icon{font-size:3rem;margin-bottom:6px;}
-    .mode-title{color:var(--mova-ink);font-size:1.4rem;font-weight:600;margin:6px 0;}
+    .mode-icon{font-size:2.4rem;margin-bottom:6px;}
+    .mode-title{
+        color:var(--mova-ink);
+        font-size:clamp(.85rem, 2.4vw, 1.1rem);
+        font-weight:600;
+        line-height:1.25;
+        margin:6px 0;
+        overflow-wrap:break-word;
+        hyphens:auto;
+    }
     .mode-tag{color:var(--mova-ink-2);font-size:.88rem;margin-bottom:14px;}
     .pb-wrap{background:var(--mova-surface-3);border-radius:8px;height:8px;margin:8px 0 6px;
-             overflow:hidden;border:1px solid var(--mova-line);}
+             overflow:hidden;border:1px solid var(--mova-line-2);}
     .pb-fill{height:8px;border-radius:8px;
              background:linear-gradient(90deg, var(--mova-indigo), #6E66FF);transition:width .4s;}
     .pb-info{display:flex;justify-content:space-between;
@@ -394,17 +433,25 @@ def render_launcher():
     </div>
     """, unsafe_allow_html=True)
 
-    # ── User identity + language preferences (used for progress lookup) ──
+    # ── Account (Google, via st.login) + language preferences ───────────────
     # Defaults persist across reruns via session_state.
-    default_user   = st.session_state.get("launcher_user", "student1")
+    user_id        = auth_gate.current_user_id()
     default_native = st.session_state.get("launcher_native", "Ukrainian")
     default_target = st.session_state.get("launcher_target", "English")
+
+    if st.session_state.get("_prefs_is_new_user"):
+        st.info(
+            "👋 Welcome! Pick your native and target language below — "
+            "we'll remember this for next time."
+        )
 
     with st.container():
         c1, c2, c3 = st.columns([2, 1.3, 1.3])
         with c1:
-            user_id = st.text_input("👤 Your name", value=default_user,
-                                    key="launcher_user_input")
+            st.markdown(
+                f'<div style="padding-top:1.9rem">👤 {auth_gate.current_user_name()}</div>',
+                unsafe_allow_html=True,
+            )
         with c2:
             native = st.selectbox("🌐 Native language", LANGUAGES,
                                   index=LANGUAGES.index(default_native)
@@ -423,18 +470,41 @@ def render_launcher():
     st.session_state["launcher_native"] = native
     st.session_state["launcher_target"] = target
 
-    # ── Sidebar: deactivate license ──────────────────────────────────────────
+    # Save to the DB only when the choice actually changed (not on every
+    # rerun) — CLAUDE.md 2026-08-22. Also clears the new-user welcome banner
+    # once a real choice has been saved.
+    if user_id and (native, target) != (
+        st.session_state.get("_prefs_saved_native"),
+        st.session_state.get("_prefs_saved_target"),
+    ):
+        user_prefs.save_prefs(user_id, native, target)
+        st.session_state["_prefs_saved_native"] = native
+        st.session_state["_prefs_saved_target"] = target
+        st.session_state["_prefs_is_new_user"]  = False
+
+    # ── Sidebar: streak/XP + account + subscription ──────────────────────────
     with st.sidebar:
+        if user_id:
+            sidebar_widget(user_id)
         st.markdown("---")
-        if st.button("🔑 Deactivate license", use_container_width=True,
-                     key="launcher_deactivate"):
-            from engine.license import deactivate_license
-            res = deactivate_license()
-            if res["ok"]:
-                st.session_state.pop("license_ok", None)
-                st.rerun()
-            else:
-                st.error(res.get("error", "Failed to deactivate."))
+        if billing.is_paid(user_id):
+            st.markdown("⭐ **Premium**")
+        else:
+            st.markdown("Free plan")
+            checkout_url = st.session_state.get("_checkout_url")
+            if checkout_url:
+                st.link_button("Continue to checkout →", checkout_url, use_container_width=True)
+            elif st.button("⭐ Upgrade", use_container_width=True, type="primary",
+                           key="launcher_upgrade"):
+                try:
+                    st.session_state["_checkout_url"] = billing.create_checkout_session(
+                        user_id, user_id, return_url=_app_url()
+                    )
+                    st.rerun()
+                except Exception as e:
+                    st.error(f"Checkout unavailable: {e}")
+        if st.button("Sign out", use_container_width=True, key="launcher_signout"):
+            st.logout()
 
     st.markdown("<div style='margin:10px 0 18px'></div>", unsafe_allow_html=True)
 
@@ -487,8 +557,73 @@ def render_launcher():
             </div>
             """, unsafe_allow_html=True)
             if st.button(f"Start {info['label']}", key=f"pick_{key}",
-                         use_container_width=True, type="primary"):
+                         use_container_width=True,
+                         type="primary" if key == "path" else "secondary"):
                 _switch_to(key)
+
+    st.markdown("<div style='margin:24px 0 0'></div>", unsafe_allow_html=True)
+    _render_placement_quiz(native, target, user_id)
+
+
+def _render_placement_quiz(native: str, target: str, user_id: str) -> None:
+    """
+    Optional short placement quiz (CLAUDE.md item 3, decided 2026-08-21: a
+    short quiz rather than a full adaptive test). Free for every user — it's
+    graded locally (engine.scorer), zero Gemini calls — and seeds initial
+    mastery via engine.recommender.seed_mastery_from_level() so a learner who
+    already knows some material isn't started from 0.0 on every topic.
+    """
+    with st.expander("📊 Not starting from zero? Take a quick placement quiz"):
+        quiz_module = st.selectbox(
+            "Module", ["grammar", "vocab"],
+            format_func=lambda m: MODULES[m]["label"], key="pq_module",
+        )
+        if st.button("Generate quiz", key="pq_generate"):
+            cfg = grammar_app._module_config(quiz_module)
+            df_all = cfg["load"](str(cfg["db_path"]), native, target)
+            st.session_state["pq_items"] = placement_quiz.build_quiz(
+                quiz_module, target, df_all, cfg["get_lesson"]
+            )
+            st.session_state["pq_module_used"] = quiz_module
+            st.session_state.pop("pq_result", None)
+
+        items = st.session_state.get("pq_items")
+        if items == [] and st.session_state.get("pq_module_used") == "vocab":
+            st.caption(
+                "Vocabulary quiz isn't available yet — the CEFR-J word list "
+                "(now used for every language, CLAUDE.md 2026-08-22) has no "
+                "pre-translated phrases to quiz with offline; translation "
+                "only happens once a lesson is actually opened. Try the "
+                "Grammar quiz instead."
+            )
+        if items:
+            st.caption(
+                "Translate each phrase into your target language. "
+                "Leave it blank if you don't know it."
+            )
+            answers = {}
+            for i, item in enumerate(items):
+                answers[i] = st.text_input(
+                    f"{item['level']}  ·  {item['native']}", key=f"pq_ans_{i}"
+                )
+            if st.button("Submit quiz", type="primary", key="pq_submit"):
+                st.session_state["pq_result"] = placement_quiz.score_quiz(
+                    user_id, target, st.session_state["pq_module_used"], items, answers,
+                )
+
+        result = st.session_state.get("pq_result")
+        if result:
+            if result["estimated_level"]:
+                st.success(
+                    f"Estimated level: **{result['estimated_level']}**. "
+                    f"We'll deprioritize material you already know."
+                )
+            else:
+                st.info("Looks like a great place to start from the beginning!")
+            for r in result["results"]:
+                icon = "✅" if r["passed"] else "❌"
+                said = f" — you wrote: *{r['user_answer']}*" if r["user_answer"] else ""
+                st.caption(f"{icon} {r['level']}: {r['native']} → {r['target']}{said}")
 
 
 def _switch_to(module_key: str):
@@ -517,9 +652,33 @@ def main():
     # the sub-apps' legacy CSS via cascade.
     _inject_mova_css()
 
-    # ── License gate — must pass before anything else is shown ──────────────
-    if not license_gate.check_and_gate():
+    # ── Login gate — must pass before anything else is shown ────────────────
+    if not auth_gate.check_and_gate():
         return
+
+    # Finalise a Stripe Checkout redirect, if we just came back from one.
+    billing.handle_checkout_return()
+    if st.session_state.pop("_billing_just_upgraded", False):
+        st.toast("⭐ Welcome to Premium!")
+
+    # Real account from here on — every downstream module reads this.
+    user_id = auth_gate.current_user_id()
+    st.session_state["launcher_user"] = user_id
+
+    # Load the student's saved native/target language once per session
+    # (CLAUDE.md 2026-08-22) — a returning login shouldn't reset the choice
+    # back to the hardcoded Ukrainian/English default. Guarded so it only
+    # seeds session_state on the first render of this session, never
+    # overwriting a change the student just made in the selectors below.
+    if user_id and not st.session_state.get("_prefs_loaded"):
+        _saved_prefs = user_prefs.get_prefs(user_id)
+        st.session_state["_prefs_is_new_user"] = not _saved_prefs
+        if _saved_prefs:
+            if _saved_prefs.get("native_lang"):
+                st.session_state["launcher_native"] = _saved_prefs["native_lang"]
+            if _saved_prefs.get("target_lang"):
+                st.session_state["launcher_target"] = _saved_prefs["target_lang"]
+        st.session_state["_prefs_loaded"] = True
 
     # Sub-apps may set this flag in their sidebar "Switch mode" button.
     if st.session_state.pop("_show_launcher", False):
@@ -554,6 +713,8 @@ def main():
         grammar_app.main(module="grammar")
     elif active == "vocab":
         grammar_app.main(module="vocab")
+    elif active == "phrasebook":
+        grammar_app.main(module="phrasebook")
     elif active == "reading":
         # Sync launcher target language -> reading language code (only if not yet set)
         _TARGET_TO_RLANG = {
