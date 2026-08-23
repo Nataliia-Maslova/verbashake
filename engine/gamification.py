@@ -1,7 +1,14 @@
 """
 engine/gamification.py — Streak · XP · Levels · Badges · Time
 
-Public API (all functions are safe to call even if the CSV is missing):
+Storage: the `gamification` DB table (see schema.sql) when DATABASE_URL is
+configured (engine/db.py) — same ephemeral-filesystem exposure the mastery/SRS
+data would have had on local SQLite, so it lives in the same Postgres DB.
+Falls back to the legacy data/gamification.csv when no DB is configured yet,
+so the app keeps working before Supabase is set up. A user's first read after
+the DB comes online migrates their existing CSV row in automatically.
+
+Public API (all functions are safe to call even if storage is unavailable):
   load_stats(user_id)         → dict
   on_step_complete(user_id, step, similarity) → result dict
   on_lesson_complete(user_id) → result dict
@@ -16,6 +23,8 @@ import json
 import time as _time
 from datetime import date, datetime
 from pathlib import Path
+
+from engine import db
 
 DATA_DIR = Path(__file__).parent.parent / "data"
 DATA_DIR.mkdir(exist_ok=True)
@@ -292,6 +301,18 @@ def _row_to_stats(row: dict) -> dict:
 
 def load_stats(user_id: str) -> dict:
     """Load gamification stats for user_id (or create defaults)."""
+    if db.is_available():
+        row = db.fetch_one("SELECT * FROM gamification WHERE user_id = :uid", {"uid": user_id})
+        if row is not None:
+            return _row_to_stats(row)
+        # Not in the DB yet — one-time migration from the legacy CSV, if present.
+        for row in _read_csv():
+            if str(row.get("user_id", "")) == user_id:
+                stats = _row_to_stats(row)
+                save_stats(user_id, stats)
+                return stats
+        return _default_stats(user_id)
+
     for row in _read_csv():
         if str(row.get("user_id", "")) == user_id:
             return _row_to_stats(row)
@@ -300,8 +321,30 @@ def load_stats(user_id: str) -> dict:
 
 def save_stats(user_id: str, stats: dict) -> None:
     """Upsert stats row for user_id."""
-    rows = _read_csv()
     stats["user_id"] = user_id
+
+    if db.is_available():
+        badges_val = stats.get("badges", set())
+        if isinstance(badges_val, set):
+            badges_val = ",".join(sorted(badges_val))
+        db.upsert(
+            "gamification",
+            keys={"user_id": user_id},
+            values={
+                "streak_current":     int(stats.get("streak_current", 0)),
+                "streak_max":         int(stats.get("streak_max", 0)),
+                "streak_last_date":   stats.get("streak_last_date", ""),
+                "xp_total":           int(stats.get("xp_total", 0)),
+                "lessons_completed":  int(stats.get("lessons_completed", 0)),
+                "daily_xp_date":      stats.get("daily_xp_date", ""),
+                "daily_xp":           int(stats.get("daily_xp", 0)),
+                "badges":             badges_val,
+                "total_time_minutes": round(float(stats.get("total_time_minutes", 0)), 1),
+            },
+        )
+        return
+
+    rows = _read_csv()
     for i, row in enumerate(rows):
         if str(row.get("user_id", "")) == user_id:
             rows[i] = stats

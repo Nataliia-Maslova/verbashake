@@ -1,10 +1,11 @@
 """
 LessonSession — state machine for lesson-based learning (7 steps).
 """
+from __future__ import annotations
+
 import time
 from dataclasses import dataclass, field
 from engine.scorer import evaluate
-from engine.logger import SessionLogger
 
 
 @dataclass
@@ -13,7 +14,9 @@ class SessionState:
     lesson_id:       int
     native_lang:     str
     target_lang:     str
-    language_pair:   str   = ""     # e.g. "en-uk"
+    language_pair:   str       = ""     # e.g. "en-uk"
+    unit_id:         str | None = None  # e.g. "grammar:42" — content_units key, feeds the recommender.
+                                         # None for untracked lessons (e.g. custom_app.py's user phrases).
     current_step:    int   = 1
     phrase_index:    int   = 0
     step_start_ts:   float = field(default_factory=time.time)
@@ -22,15 +25,56 @@ class SessionState:
 
 class LessonSession:
     def __init__(self, user_id, lesson_df, lesson_id,
-                 native_lang, target_lang, language_pair=""):
+                 native_lang, target_lang, language_pair="", unit_id=None):
         self.df     = lesson_df.reset_index(drop=True)
-        self.logger = SessionLogger(user_id, language_pair=language_pair)
+        self._fill_missing_translations(native_lang, target_lang)
         self.state  = SessionState(
             user_id=user_id, lesson_id=lesson_id,
             native_lang=native_lang, target_lang=target_lang,
-            language_pair=language_pair,
+            language_pair=language_pair, unit_id=unit_id,
         )
         self._step_start: dict[int, float] = {}
+
+    def _fill_missing_translations(self, native_lang: str, target_lang: str) -> None:
+        """
+        Best-effort on-demand translation for phrases loaded without native
+        and/or target text -- currently only engine.cefr_j_vocab_loader's
+        CEFR-J Vocabulary content (one canonical English `source_en`
+        sentence per row, CLAUDE.md 2026-08-22: the same word list is
+        now the Vocabulary source for every target_lang, not just English).
+        Rather than pre-translating ~9.8k rows per language upfront,
+        engine.gemini.translate_phrase is called here for just the ~10
+        phrases of the lesson actually opened (cached both in-process and
+        in Supabase's phrase_translations, so repeat opens -- by this
+        student or any other -- are free). translate_phrase is paid-gated
+        -- a free-tier user just gets the English source text left in the
+        missing column too (lesson stays usable, monolingual), same
+        "free = zero live AI" fallback used everywhere else Gemini is
+        optional. Not called at all when every row already has native and
+        target text (every other loader in the app).
+        """
+        if "source_en" not in self.df.columns:
+            return
+        from engine import gemini
+        for col, lang in (("native", native_lang), ("target", target_lang)):
+            if col not in self.df.columns:
+                continue
+            missing = self.df[col].isna() | (self.df[col].astype(str).str.strip() == "")
+            if not missing.any():
+                continue
+            if lang == "English":
+                self.df.loc[missing, col] = self.df.loc[missing, "source_en"]
+                continue
+            for idx in self.df.index[missing]:
+                source_text = self.df.at[idx, "source_en"]
+                try:
+                    self.df.at[idx, col] = gemini.translate_phrase(
+                        source_text, "English", lang)
+                except gemini.PaidFeatureRequired:
+                    self.df.loc[missing, col] = self.df.loc[missing, "source_en"]
+                    break
+                except Exception:
+                    self.df.at[idx, col] = source_text
 
     # ── Step timing ──────────────────────────────────────────────────────
 
@@ -86,25 +130,19 @@ class LessonSession:
               phrase_id: int | None = None,
               duration_ms: int | None = None) -> dict:
         """
-        Evaluate and log.
-        duration_ms: if provided (audio recording duration), use instead of
-                     wall-clock elapsed time for more accurate logging.
+        Evaluate the answer and feed the result to the recommender (mastery +
+        SRS update for self.state.unit_id), if this session is tracked.
         """
-        actual_step   = step if step is not None else self.state.current_step
-        elapsed       = duration_ms if duration_ms is not None else self.elapsed_ms(actual_step)
-        result        = evaluate(user_input, expected)
-        log_phrase_id = phrase_id if phrase_id is not None else 0
-
-        self.logger.log(
-            lesson_id        = self.state.lesson_id,
-            phrase_id        = log_phrase_id,
-            step             = actual_step,
-            similarity       = result["score"],
-            response_time_ms = elapsed,
-            attempts         = 1,
-            success          = result["passed"],
-            mode             = "lesson",
-        )
+        result = evaluate(user_input, expected)
+        if self.state.unit_id:
+            try:
+                from engine import recommender
+                recommender.record_result(
+                    self.state.user_id, self.state.target_lang,
+                    self.state.unit_id, result["passed"],
+                )
+            except Exception:
+                pass
         return result
 
     def score_phrase(self, user_input: str, phrase: dict, step: int) -> dict:
@@ -116,5 +154,14 @@ class LessonSession:
         )
 
     def complete(self):
-        """Call when lesson is fully done — saves progress to Google Sheets."""
-        self.logger.complete_lesson(self.state.lesson_id, step=7)
+        """Call when lesson is fully done — updates the resume pointer."""
+        if self.state.unit_id:
+            try:
+                from engine import recommender
+                module = self.state.unit_id.split(":", 1)[0]
+                recommender.save_pointer(
+                    self.state.user_id, self.state.target_lang,
+                    module, self.state.unit_id, step=99,
+                )
+            except Exception:
+                pass

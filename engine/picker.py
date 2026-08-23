@@ -20,6 +20,7 @@ LESSON_IMG_DIR = _APP_ROOT / "static" / "lesson_images"
 
 from engine.loader import TTS_LANG, WHISPER_LANG
 from engine.session import LessonSession
+from engine import recommender as _recommender
 
 # ═══════════════════════════════════════════════════════════════════════════
 # Hierarchical vocabulary navigator (Category -> Topic -> Lesson)
@@ -259,22 +260,23 @@ build();
 
 
 def _start_grammar_lesson(lid, cfg, native, target, user_id, lang_pair):
-    """Start a grammar/vocab lesson directly — no URL navigation required."""
+    """Start a grammar/vocab/phrasebook lesson directly — no URL navigation required."""
     try:
-        # Vocab: resolve topic so we lazy-load only that one sheet
-        extra = {}
-        if cfg.get("lang_suffix") == "vocab":
-            from engine.vocab_loader import get_topic_for_lesson
-            _topic, _ = get_topic_for_lesson(str(cfg["db_path"]), lid)
-            if _topic:
-                extra["topic"] = _topic
-        df = cfg["load"](str(cfg["db_path"]), native, target, **extra)
+        # Vocab/Phrasebook: resolve the topic for unit_id_for below -- CEFR-J's
+        # one small CSV is always loaded whole, no topic kwarg needed for it.
+        _topic = None
+        if cfg.get("lang_suffix") in ("vocab", "phrasebook"):
+            from engine.recommender import vocab_topic_for_lesson
+            _topic = vocab_topic_for_lesson(lid, target, cfg["db_path"])
+        df = cfg["load"](str(cfg["db_path"]), native, target)
         lesson_df = cfg["get_lesson"](df, lid)
         if not lesson_df.empty:
+            from engine.recommender import unit_id_for
             st.session_state.update({
                 "session":     LessonSession(user_id, lesson_df, lid,
                                               native, target,
-                                              language_pair=lang_pair),
+                                              language_pair=lang_pair,
+                                              unit_id=unit_id_for(cfg.get("lang_suffix"), lid, _topic)),
                 "lesson_step": 1,
                 "tts_lang":    TTS_LANG.get(target, "en"),
                 "wh_lang":     WHISPER_LANG.get(target),
@@ -290,7 +292,7 @@ def _start_grammar_lesson(lid, cfg, native, target, user_id, lang_pair):
 def _render_wave_plotly(
     lessons, lesson_names, lesson_counts,
     default_lid, resume_step, key_suffix="wave",
-    show_lesson_image=True,
+    show_lesson_image=True, done_lids=None,
 ):
     """
     Snake-path lesson picker using Plotly interactive scatter chart.
@@ -299,6 +301,11 @@ def _render_wave_plotly(
     Each row holds COLS lessons and forms a sine arc.
     Returns the lesson ID that was clicked, or None.
     Requires plotly + Streamlit >= 1.33 (on_select support).
+
+    Node color encodes real status, not a decorative index cycle:
+      not started → neutral surface fill
+      attempted   → mint fill + mint ring (engine.recommender.lesson_progress_map)
+      current     → indigo ring + larger size (always wins over the mint ring)
     """
     import math, inspect
     try:
@@ -313,7 +320,15 @@ def _render_wave_plotly(
     if n == 0:
         return None
 
-    COLORS = ['#CECBF6','#9FE1CB','#F5C4B3','#B5D4F4','#C0DD97','#FAC775','#F4C0D1','#D3D1C7']
+    done_lids = done_lids or set()
+    # mova tokens (static/mova/tokens.css) — Plotly renders its own SVG and
+    # won't resolve CSS custom properties, so these are the literal values of
+    # --mova-surface-3 / --mova-mint-soft / --mova-mint / --mova-indigo.
+    FILL_NEW     = '#ECE6DE'
+    FILL_DONE    = '#DDF4EA'
+    RING_DONE    = '#1FB888'
+    RING_CURRENT = '#4F46E5'
+    RING_NEUTRAL = '#FFFFFF'
     COLS  = 7     # lessons per row
     ROW_H = 120   # vertical distance between row baselines (data units)
     AMP   = 40    # sine arc amplitude
@@ -340,9 +355,13 @@ def _render_wave_plotly(
     counts = [lesson_counts.get(lid, 0) for lid in lessons]
     shorts = [(nm[:12] + "…") if len(nm) > 12 else nm for nm in names]
 
-    m_colors = [COLORS[i % len(COLORS)] for i in range(n)]
-    b_colors = ['#5865F2' if lid == default_lid else '#ffffff' for lid in lessons]
-    b_widths = [4 if lid == default_lid else 2 for lid in lessons]
+    m_colors = [FILL_DONE if lid in done_lids else FILL_NEW for lid in lessons]
+    b_colors = [
+        RING_CURRENT if lid == default_lid
+        else (RING_DONE if lid in done_lids else RING_NEUTRAL)
+        for lid in lessons
+    ]
+    b_widths = [4 if lid == default_lid else (2.5 if lid in done_lids else 2) for lid in lessons]
     m_sizes  = [52 if lid == default_lid else 42 for lid in lessons]
 
     hover = [
@@ -385,7 +404,7 @@ def _render_wave_plotly(
             text=f"↩{resume_step}",
             showarrow=False,
             font=dict(size=9, color='white'),
-            bgcolor='#5865F2', bordercolor='#5865F2',
+            bgcolor=RING_CURRENT, bordercolor=RING_CURRENT,
             borderwidth=1, borderpad=3,
         )
 
@@ -510,7 +529,7 @@ def _render_lesson_dropdown_fallback(
 def _render_flat_wave_nav(
     df, cfg, lang_pair, native, target, user_id,
     lessons, default_idx, resume_step, resume_msg, progress,
-    counts_by_lid, topics_map,
+    counts_by_lid, topics_map, level_map=None,
 ):
     """Flat wave lesson picker with category/unit filter and dropdown fallback."""
     if resume_msg:
@@ -519,9 +538,9 @@ def _render_flat_wave_nav(
     default_gid = lessons[default_idx]
 
     def _lesson_name(lid):
-        if topics_map and lid in topics_map:
-            return topics_map[lid]
-        return f"{cfg['lesson_word']} {lid}"
+        base = topics_map[lid] if topics_map and lid in topics_map else f"{cfg['lesson_word']} {lid}"
+        lvl  = level_map.get(lid) if level_map else None
+        return f"{base} · {lvl}" if lvl else base
 
     lesson_names = {lid: _lesson_name(lid) for lid in lessons}
 
@@ -573,6 +592,11 @@ def _render_flat_wave_nav(
         st.warning("No lessons available in this category.")
         return
 
+    try:
+        done_lids = _recommender.lesson_progress_map(user_id, target, module)
+    except Exception:
+        done_lids = {}
+
     _key = f"{lang_pair}_{cfg.get('lang_suffix', 'g')}"
     clicked = _render_wave_plotly(
         lessons=filtered,
@@ -581,6 +605,7 @@ def _render_flat_wave_nav(
         default_lid=default_gid,
         resume_step=resume_step,
         key_suffix=_key,
+        done_lids=set(done_lids),
     )
     if clicked is not None:
         _start_grammar_lesson(clicked, cfg, native, target, user_id, lang_pair)

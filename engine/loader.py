@@ -19,6 +19,8 @@ LANG_COLUMNS = {
     "Italian":    "it",
     "Polish":     "pl",
     "Russian":    "ru",
+    "Catalan":    "ca",
+    "Dutch":      "nl",
 }
 
 # Whisper language codes
@@ -35,6 +37,8 @@ WHISPER_LANG = {
     "Italian":    "it",
     "Polish":     "pl",
     "Russian":    "ru",
+    "Catalan":    "ca",
+    "Dutch":      "nl",
 }
 
 # gTTS language codes
@@ -51,6 +55,8 @@ TTS_LANG = {
     "Italian":    "it",
     "Polish":     "pl",
     "Russian":    "ru",
+    "Catalan":    "ca",
+    "Dutch":      "nl",
 }
 
 

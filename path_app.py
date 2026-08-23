@@ -1,8 +1,12 @@
 """
 path_app.py — "My Path" guided learning screen for IMLLS.
 
-Shows the student's progress through the structured curriculum and
-launches the next lesson with a single click.
+Shows the student's progress and launches the recommender's top-scored lesson
+with a single click. Unlike the old fixed curriculum sequence, this is a live
+snapshot: finishing a lesson updates mastery/SRS immediately (via
+LessonSession.score()/complete() in engine/session.py), so the recommendation
+can reorder itself on the very next render — there is no "advance to index N"
+step to run when returning here, get_stats() just reflects current state.
 
 Flow:
   1. User clicks "My Path" on the launcher → app.py sets active_module="path"
@@ -11,8 +15,8 @@ Flow:
   4. app.py routes to grammar / vocab / reading module for that lesson
      (curriculum_mode=True is preserved in session state)
   5. When the lesson finishes, _clear_all() / clear_all() in grammar/reading sees
-     curriculum_mode → sets active_module="path" + curriculum_advance_pending=True
-  6. On next render path_app.main() calls advance() and shows updated progress
+     curriculum_mode → sets active_module="path"
+  6. path_app.main() re-renders with fresh mastery/SRS-driven stats
 """
 from __future__ import annotations
 
@@ -20,32 +24,27 @@ from urllib.parse import quote as _quote
 
 import streamlit as st
 
-from engine.curriculum import (
-    advance,
-    build_path,
-    get_stats,
-    reset_progress,
-    LANG_TO_CODE,
-)
+from engine import recommender as _recommender
 
-# ── Stage metadata ───────────────────────────────────────────────────────────
+# ── Level metadata (CEFR label -> icon/name/description) ───────────────────
 
-_STAGE_META = {
-    0: ("🔤", "Foundation",         "Sounds & script — alphabet and reading rules"),
-    1: ("🌱", "Absolute Beginner",   "First words, greetings, basic sentences"),
-    2: ("📗", "Beginner",            "Daily life, food, transport & routines"),
-    3: ("📘", "Elementary",          "Travel, emotions, shopping & more"),
-    4: ("📙", "Pre-Intermediate",    "Work, school, family & city life"),
-    5: ("📕", "Intermediate",        "Technology, health, culture & sports"),
-    6: ("🏆", "Upper-Intermediate",  "Deep vocabulary, complex grammar"),
+_LEVEL_META = {
+    "A1": ("🌱", "Beginner",           "First words, greetings, basic sentences"),
+    "A2": ("📗", "Elementary",         "Daily life, food, transport & routines"),
+    "B1": ("📘", "Intermediate",       "Travel, emotions, shopping & more"),
+    "B2": ("📙", "Upper-Intermediate", "Work, school, family & city life"),
+    "C1": ("📕", "Advanced",           "Technology, health, culture & sports"),
+    "C2": ("🏆", "Mastery",            "Deep vocabulary, complex grammar"),
 }
 
-_TYPE_ICON  = {"reading": "🔤", "grammar": "🗣️", "vocabulary": "📖"}
-_TYPE_LABEL = {"reading": "Reading",    "grammar": "Grammar",    "vocabulary": "Vocabulary"}
+_TYPE_ICON  = {"reading": "🔤", "grammar": "🗣️", "vocab": "📖", "phrasebook": "💬"}
+_TYPE_LABEL = {"reading": "Reading",    "grammar": "Grammar",    "vocab": "Vocabulary",
+               "phrasebook": "Phrasebook"}
 _TYPE_COLOR = {
-    "reading":    "var(--mova-mint)",
-    "grammar":    "var(--mova-indigo)",
-    "vocabulary": "#f59e0b",
+    "reading": "var(--mova-mint)",
+    "grammar": "var(--mova-indigo)",
+    "vocab":   "#f59e0b",
+    "phrasebook": "var(--mova-coral)",
 }
 
 
@@ -57,37 +56,45 @@ def _launch_unit(unit: dict, user: str, native: str, target: str) -> None:
     at the right lesson.  Uses the existing vnav_lesson query-param bridge
     that grammar.py and reading_app.py already support.
     """
-    utype = unit["type"]
+    parsed = _recommender.parse_unit_id(unit["unit_id"])
+    utype  = parsed["module"]
+    lid    = parsed["lesson_id"]
 
-    # Keep launcher prefs + curriculum mode across the clear
     st.session_state["curriculum_mode"] = True
 
     if utype == "reading":
-        lang_code = unit.get("lang_code", LANG_TO_CODE.get(target, "en"))
+        lang_code = parsed["lang_code"]
         st.session_state["r_lang"] = lang_code
         st.session_state["active_module"] = "reading"
         st.query_params.update({
             "module":       "reading",
-            "vnav_lesson":  str(unit["lesson_id"]),
+            "vnav_lesson":  str(lid),
             "r_lang":       lang_code,
             "vnav_user":    _quote(user),
         })
-
     elif utype == "grammar":
         st.session_state["active_module"] = "grammar"
         st.query_params.update({
             "module":       "grammar",
-            "vnav_lesson":  str(unit["lesson_id"]),
+            "vnav_lesson":  str(lid),
             "vnav_native":  _quote(native),
             "vnav_target":  _quote(target),
             "vnav_user":    _quote(user),
         })
-
-    elif utype == "vocabulary":
+    elif utype == "vocab":
         st.session_state["active_module"] = "vocab"
         st.query_params.update({
             "module":       "vocab",
-            "vnav_lesson":  str(unit["lesson_id"]),
+            "vnav_lesson":  str(lid),
+            "vnav_native":  _quote(native),
+            "vnav_target":  _quote(target),
+            "vnav_user":    _quote(user),
+        })
+    elif utype == "phrasebook":
+        st.session_state["active_module"] = "phrasebook"
+        st.query_params.update({
+            "module":       "phrasebook",
+            "vnav_lesson":  str(lid),
             "vnav_native":  _quote(native),
             "vnav_target":  _quote(target),
             "vnav_user":    _quote(user),
@@ -112,11 +119,9 @@ def main() -> None:
     native = st.session_state.get("launcher_native", "Ukrainian")
     target = st.session_state.get("launcher_target", "English")
 
-    # Advance curriculum if returning from a completed lesson
-    if st.session_state.pop("curriculum_advance_pending", False):
-        advance(user, target)
+    st.session_state.pop("curriculum_advance_pending", None)  # no-op under the recommender
 
-    stats = get_stats(user, target)
+    stats = _recommender.get_stats(user, target)
 
     # ── Sidebar ──────────────────────────────────────────────────────────────
     with st.sidebar:
@@ -132,10 +137,10 @@ def main() -> None:
         pct = stats["pct"]
         st.markdown(
             f'<div style="font-size:.7rem;color:#aaa;text-transform:uppercase;'
-            f'letter-spacing:.06em;margin-bottom:3px">Overall</div>'
+            f'letter-spacing:.06em;margin-bottom:3px">Coverage</div>'
             f'{_pct_bar(pct)}'
             f'<div style="font-size:.72rem;color:#aaa;margin-top:2px">'
-            f'{stats["current_index"]} / {stats["total"]} · {pct:.0f}%</div>',
+            f'{stats["done_total"]} / {stats["total_units"]} · {pct:.0f}%</div>',
             unsafe_allow_html=True,
         )
         st.markdown("---")
@@ -172,17 +177,25 @@ def main() -> None:
         st.metric("Reading",    f"{stats['done_reading']} / {stats['total_reading']}")
 
     st.progress(stats["pct"] / 100)
-    st.caption(f"{stats['current_index']} of {stats['total']} units complete · {stats['pct']:.0f}%")
+    st.caption(f"{stats['done_total']} of {stats['total_units']} lessons attempted · {stats['pct']:.0f}%")
 
-    # ── Current stage card ───────────────────────────────────────────────────
-    stage      = stats["current_stage"]
-    s_icon, s_name, s_desc = _STAGE_META.get(stage, ("📚", f"Stage {stage}", ""))
+    if stats["total_units"] == 0:
+        st.info(
+            "No content is tagged yet — run `python scripts/seed_content_units.py` "
+            "against the database to populate the learning path."
+        )
+        return
+
+    # ── Current level card ───────────────────────────────────────────────────
+    unit  = stats.get("current_unit")
+    level = (unit or {}).get("level") or "A1"
+    s_icon, s_name, s_desc = _LEVEL_META.get(level, ("📚", level, ""))
     st.markdown(
         f'<div style="background:var(--mova-card);border:1px solid var(--mova-line);'
         f'border-left:4px solid var(--mova-indigo);border-radius:10px;'
         f'padding:14px 20px;margin:14px 0 8px">'
         f'<div style="font-size:.7rem;color:#aaa;text-transform:uppercase;'
-        f'letter-spacing:.06em">Stage {stage}</div>'
+        f'letter-spacing:.06em">Level {level}</div>'
         f'<div style="font-size:1.25rem;font-weight:700;margin:3px 0">'
         f'{s_icon} {s_name}</div>'
         f'<div style="color:var(--mova-ink-2);font-size:.9rem">{s_desc}</div>'
@@ -190,37 +203,27 @@ def main() -> None:
         unsafe_allow_html=True,
     )
 
-    # ── Completed / not started ───────────────────────────────────────────────
-    unit = stats.get("current_unit")
-
     if unit is None:
-        st.success(
-            "🎉 **You've completed the entire learning path!**\n\n"
-            "You've covered all reading, grammar, and vocabulary lessons."
-        )
+        st.success("🎉 **You're all caught up!** No lessons are due for review right now.")
         if st.button("🔄 Start over", type="secondary"):
-            reset_progress(user, target)
+            _recommender.reset_user(user, target)
             st.rerun()
         return
 
     # ── Next lesson card ─────────────────────────────────────────────────────
     st.markdown("### ▶ Next lesson")
 
-    utype  = unit["type"]
+    utype  = unit["module"]
     u_icon = _TYPE_ICON.get(utype, "📚")
     u_lbl  = _TYPE_LABEL.get(utype, utype.title())
     u_col  = _TYPE_COLOR.get(utype, "var(--mova-indigo)")
-    topic  = unit["topic_en"]
-    lid    = unit["lesson_id"]
-    sheet  = unit.get("sheet") or ""
+    topic  = unit.get("topic") or "General"
+    parsed = _recommender.parse_unit_id(unit["unit_id"])
+    lid    = parsed["lesson_id"]
 
-    # Sub-label line
-    if utype == "vocabulary" and sheet and sheet != topic:
-        sub = f"Lesson {lid} · {sheet}"
-    else:
-        sub = f"Lesson {lid}"
-    if unit.get("difficulty"):
-        sub += f" · difficulty {unit['difficulty']}"
+    sub = f"Lesson {lid}"
+    if unit.get("level"):
+        sub += f" · {unit['level']}"
 
     left, right = st.columns([4, 1])
     with left:
@@ -243,19 +246,21 @@ def main() -> None:
     upcoming = stats.get("upcoming", [])[1:]  # skip current (already shown above)
     if upcoming:
         st.markdown("### Coming up")
+        st.caption("A live snapshot — finishing the lesson above can reorder this list.")
         for u in upcoming:
-            _u_icon  = _TYPE_ICON.get(u["type"], "📚")
-            _u_label = _TYPE_LABEL.get(u["type"], u["type"].title())
-            _u_color = _TYPE_COLOR.get(u["type"], "var(--mova-indigo)")
+            _u_icon  = _TYPE_ICON.get(u["module"], "📚")
+            _u_label = _TYPE_LABEL.get(u["module"], u["module"].title())
+            _u_color = _TYPE_COLOR.get(u["module"], "var(--mova-indigo)")
+            _u_lid   = _recommender.parse_unit_id(u["unit_id"])["lesson_id"]
             st.markdown(
                 f'<div style="background:var(--mova-card);border:1px solid var(--mova-line);'
                 f'border-radius:8px;padding:10px 16px;margin:4px 0;'
                 f'display:flex;align-items:center;gap:12px">'
                 f'<span style="font-size:1.2rem">{_u_icon}</span>'
                 f'<div>'
-                f'<div style="font-weight:600;font-size:.9rem">{u["topic_en"]}</div>'
+                f'<div style="font-weight:600;font-size:.9rem">{u.get("topic") or "General"}</div>'
                 f'<div style="font-size:.75rem;color:#aaa">'
-                f'{_u_label} · Lesson {u["lesson_id"]}</div>'
+                f'{_u_label} · Lesson {_u_lid}</div>'
                 f'</div></div>',
                 unsafe_allow_html=True,
             )
@@ -263,5 +268,7 @@ def main() -> None:
     # ── Skip button ──────────────────────────────────────────────────────────
     st.markdown("")
     if st.button("⏭ Skip this lesson", type="secondary", key="path_skip"):
-        advance(user, target)
+        # No fixed sequence to advance past — nudge this unit's SRS due date
+        # forward so a different lesson surfaces next time.
+        _recommender.record_result(user, target, unit["unit_id"], correct=True)
         st.rerun()
