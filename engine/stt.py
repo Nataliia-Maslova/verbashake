@@ -1,72 +1,63 @@
 """
-engine/stt.py - Google Cloud Speech-to-Text (replaces OpenAI Whisper).
+engine/stt.py - local speech-to-text via faster-whisper (replaces Google Cloud
+Speech-to-Text — no per-call API cost, no GCP credentials needed).
 
 Same public API: transcribe_bytes(), transcribe_file(), whisper_available().
-Credentials: reuses st.secrets["gcp_service_account"] already configured for gspread.
+Model size is configurable via st.secrets["WHISPER_MODEL"] or env WHISPER_MODEL
+(default: "small" — better accuracy than "base" for uk/ko, still CPU-friendly
+with int8 quantization). Downloaded from Hugging Face Hub on first use.
 """
 from __future__ import annotations
+import io
 import os
+
 import streamlit as st
 
-_LANG_CODES: dict[str, str] = {
-    "en": "en-US", "uk": "uk-UA", "de": "de-DE", "es": "es-ES",
-    "ko": "ko-KR", "fr": "fr-FR", "ja": "ja-JP", "zh": "zh-CN",
-    "pt": "pt-BR", "it": "it-IT", "pl": "pl-PL", "ru": "ru-RU",
-}
+_DEFAULT_MODEL = "small"
 
 
 @st.cache_resource(show_spinner=False)
-def _get_client():
-    from google.cloud import speech
-    from google.oauth2.service_account import Credentials
+def _get_model():
+    from faster_whisper import WhisperModel
     try:
-        creds_dict = dict(st.secrets["gcp_service_account"])
-        creds = Credentials.from_service_account_info(
-            creds_dict,
-            scopes=["https://www.googleapis.com/auth/cloud-platform"],
-        )
-        return speech.SpeechClient(credentials=creds)
+        secret_model = st.secrets.get("WHISPER_MODEL")
     except Exception:
-        return speech.SpeechClient()
-
-
-def _detect_encoding(audio_bytes: bytes):
-    """Return (encoding, sample_rate) based on audio header."""
-    from google.cloud import speech
-    if audio_bytes[:4] == b"RIFF":
-        # WAV — read sample rate from header bytes 24-27
-        import struct
-        rate = struct.unpack_from("<I", audio_bytes, 24)[0]
-        return speech.RecognitionConfig.AudioEncoding.LINEAR16, rate
-    # Default: browser MediaRecorder → WEBM/OPUS
-    return speech.RecognitionConfig.AudioEncoding.WEBM_OPUS, 48000
+        secret_model = None
+    model_size = secret_model or os.environ.get("WHISPER_MODEL", _DEFAULT_MODEL)
+    return WhisperModel(model_size, device="cpu", compute_type="int8")
 
 
 def transcribe_bytes(audio_bytes: bytes, language: str | None = None) -> str:
     try:
-        from google.cloud import speech
-        client = _get_client()
-        bcp47 = _LANG_CODES.get(language or "en", "en-US")
-        encoding, sample_rate = _detect_encoding(audio_bytes)
-        audio_obj = speech.RecognitionAudio(content=audio_bytes)
-        config = speech.RecognitionConfig(
-            encoding=encoding,
-            sample_rate_hertz=sample_rate,
-            language_code=bcp47,
-            enable_automatic_punctuation=True,
+        model = _get_model()
+        segments, _info = model.transcribe(
+            io.BytesIO(audio_bytes),
+            language=language or None,
+            vad_filter=True,
         )
-        response = client.recognize(config=config, audio=audio_obj)
-        texts = [r.alternatives[0].transcript for r in response.results if r.alternatives]
-        return " ".join(texts).strip()
+        return " ".join(s.text.strip() for s in segments).strip()
     except Exception as e:
         st.warning(f"STT error: {e}")
         return ""
 
 
 def transcribe_file(file_path: str, language: str | None = None) -> str:
-    with open(file_path, "rb") as f:
-        return transcribe_bytes(f.read(), language)
+    try:
+        model = _get_model()
+        segments, _info = model.transcribe(
+            file_path,
+            language=language or None,
+            vad_filter=True,
+        )
+        return " ".join(s.text.strip() for s in segments).strip()
+    except Exception as e:
+        st.warning(f"STT error: {e}")
+        return ""
 
 
 def whisper_available() -> bool:
-    return True
+    try:
+        import faster_whisper  # noqa: F401
+        return True
+    except ImportError:
+        return False
