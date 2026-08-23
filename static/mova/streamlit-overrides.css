@@ -74,7 +74,16 @@ header[data-testid="stHeader"] {
 .stFormSubmitButton > button {
   font-family: var(--mova-font-sans) !important;
   font-weight: var(--mova-fw-bold) !important;
-  font-size: var(--mova-fs-body) !important;
+  /* Was a flat --mova-fs-body (15px) on every button regardless of column
+     width. This app puts buttons in a lot of narrow columns (phase nav,
+     "Skip ->", per-module launcher cards) and translated labels vary a lot
+     in length across 14 languages -- a fixed 15px bold label routinely
+     didn't fit, and browsers can only wrap a label with no space in it by
+     splitting the word mid-syllable ("Пропустит|и"). Responsive instead of
+     fixed so narrow buttons get a smaller, still-legible size on their own,
+     without needing a bespoke CSS override at every call site
+     (design review, 2026-08-23). */
+  font-size: clamp(0.74rem, 1.3vw, 0.95rem) !important;
   letter-spacing: var(--mova-tracking-tight);
   border-radius: var(--mova-radius-2) !important;
   min-height: 48px;                /* ≥ 44px tap target */
@@ -83,6 +92,18 @@ header[data-testid="stHeader"] {
   transition: transform var(--mova-dur-1) var(--mova-ease),
               background var(--mova-dur-2) var(--mova-ease),
               box-shadow var(--mova-dur-2) var(--mova-ease);
+}
+
+/* Streamlit wraps button labels at any character when the column is
+   narrower than the text ("Vocabulary" -> "Vocabular/y"). Prefer breaking
+   at word boundaries in every UI language; only fall back to a mid-word
+   break if a single word truly can't fit on its own line. */
+.stButton > button,
+.stButton > button p,
+.stButton > button div,
+.stButton > button span {
+  word-break: keep-all;
+  overflow-wrap: break-word;
 }
 
 /* Primary — Coral, single per screen */

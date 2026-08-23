@@ -1,0 +1,596 @@
+lang,topic_key,level,sentence
+Ukrainian,uk_gender_agreement,A1,Цей новий стіл стояв там.
+Ukrainian,uk_gender_agreement,A1,Ця цікава книга була моя.
+Ukrainian,uk_gender_agreement,A1,Це гарне вікно було тут.
+Ukrainian,uk_gender_agreement,A1,Мій брат читав стару книжку.
+Ukrainian,uk_gender_agreement,A1,Та добра мама готувала суп.
+Ukrainian,uk_gender_agreement,A1,Те яскраве сонце світило вчора.
+Ukrainian,uk_cases_basic,A2,Я читаю книгу.
+Ukrainian,uk_cases_basic,A2,Він п'є каву.
+Ukrainian,uk_cases_basic,A2,Ми не маємо часу.
+Ukrainian,uk_cases_basic,A2,Вона хоче чашку чаю.
+Ukrainian,uk_cases_basic,A2,Ти не їси м'яса.
+Ukrainian,uk_cases_basic,A2,У мене є багато друзів.
+Ukrainian,uk_aspect_basic,A2,Кожного ранку я готую сніданок для родини.
+Ukrainian,uk_aspect_basic,A2,Вчора ввечері я приготував смачну вечерю.
+Ukrainian,uk_aspect_basic,A2,"Ми дивилися фільм, коли задзвонив телефон."
+Ukrainian,uk_aspect_basic,A2,Я вже подивився цей фільм і він мені дуже сподобався.
+Ukrainian,uk_aspect_basic,A2,"Він довго шукав свої окуляри, але не знайшов їх."
+Ukrainian,uk_aspect_basic,A2,Завтра я прочитаю нову книгу.
+Ukrainian,uk_aspect_past,B1,Кожного ранку я читав газети.
+Ukrainian,uk_aspect_past,B1,Вчора я прочитав цікаву книгу.
+Ukrainian,uk_aspect_past,B1,Раніше ми часто їли піцу по п'ятницях.
+Ukrainian,uk_aspect_past,B1,Я вже з'їв свій обід.
+Ukrainian,uk_aspect_past,B1,В дитинстві мій брат робив багато іграшок.
+Ukrainian,uk_aspect_past,B1,Він зробив домашнє завдання за годину.
+Ukrainian,uk_aspect_past,B1,Щодня ми ходили в парк гуляти.
+Ukrainian,uk_aspect_past,B1,Вчора я сходив до магазину за хлібом.
+Ukrainian,uk_motion_verbs,B1,Куди ти йдеш так швидко?
+Ukrainian,uk_motion_verbs,B1,Я люблю ходити пішки вранці.
+Ukrainian,uk_motion_verbs,B1,Завтра ми йдемо в новий ресторан.
+Ukrainian,uk_motion_verbs,B1,"Ми ходили в магазин за молоком, але він був зачинений."
+Ukrainian,uk_motion_verbs,B1,Ми вже їдемо до вас на таксі.
+Ukrainian,uk_motion_verbs,B1,Моя сестра часто їздить на роботу на велосипеді.
+Ukrainian,uk_motion_verbs,B1,На наступному тижні він їде у відрядження до Львова.
+Ukrainian,uk_motion_verbs,B1,Діти вміють їздити на роликах?
+Ukrainian,uk_aspect_imperative,B1,Читай українські книжки!
+Ukrainian,uk_aspect_imperative,B1,"Прочитай цю статтю, будь ласка."
+Ukrainian,uk_aspect_imperative,B1,Розмовляй українською мовою частіше!
+Ukrainian,uk_aspect_imperative,B1,Розкажи мені свою історію.
+Ukrainian,uk_aspect_imperative,B1,Роби домашні завдання регулярно.
+Ukrainian,uk_aspect_imperative,B1,Зроби салат на вечерю.
+Ukrainian,uk_aspect_imperative,B1,Дивись на дорогу уважно.
+Ukrainian,uk_aspect_imperative,B1,Подивись на цю картину!
+Ukrainian,uk_participles,B2,Прочитана книга залишила глибоке враження.
+Ukrainian,uk_participles,B2,"Студент, написавши реферат, відразу пішов додому."
+Ukrainian,uk_participles,B2,"Працюючи в саду, ми насолоджувались свіжим повітрям."
+Ukrainian,uk_participles,B2,Приготована їжа була дуже смачною.
+Ukrainian,uk_participles,B2,"Відвідавши Львів, ми зробили багато гарних фотографій."
+Ukrainian,uk_participles,B2,"Йдучи до університету, він слухав музику."
+Ukrainian,uk_participles,B2,Зроблена вчасно робота завжди цінується.
+Ukrainian,uk_participles,B2,"Побачивши друзів, діти радісно побігли до них."
+Russian,ru_gender_agreement,A1,Это большой стол.
+Russian,ru_gender_agreement,A1,Это новая книга.
+Russian,ru_gender_agreement,A1,Это старое окно.
+Russian,ru_gender_agreement,A1,Мальчик читал.
+Russian,ru_gender_agreement,A1,Девочка гуляла.
+Russian,ru_gender_agreement,A1,Солнце светило.
+Russian,ru_gender_agreement,A1,Дом был большой.
+Russian,ru_gender_agreement,A1,Машина была новая.
+Russian,ru_cases_basic,A2,Мама готовит обед.
+Russian,ru_cases_basic,A2,Студент читает книгу.
+Russian,ru_cases_basic,A2,Я не вижу стола.
+Russian,ru_cases_basic,A2,Она не пьет молока.
+Russian,ru_cases_basic,A2,У меня есть две сестры.
+Russian,ru_cases_basic,A2,В парке много деревьев.
+Russian,ru_cases_basic,A2,Мы купили три яблока.
+Russian,ru_cases_basic,A2,Он не ест мяса.
+Russian,ru_aspect_basic,A2,Каждое утро я пью кофе.
+Russian,ru_aspect_basic,A2,Я уже выпил весь сок.
+Russian,ru_aspect_basic,A2,Она всегда пишет письма бабушке.
+Russian,ru_aspect_basic,A2,Мы написали ему короткое сообщение.
+Russian,ru_aspect_basic,A2,Что ты делаешь?
+Russian,ru_aspect_basic,A2,Я уже сделал завтрак.
+Russian,ru_aspect_basic,A2,Они обычно покупают продукты в этом магазине.
+Russian,ru_aspect_basic,A2,Вчера я купил новый телефон.
+Russian,ru_aspect_past,B1,Каждое утро он пил кофе с молоком.
+Russian,ru_aspect_past,B1,Сегодня утром он выпил только чай.
+Russian,ru_aspect_past,B1,"Когда я жил в Москве, я часто ездил на метро."
+Russian,ru_aspect_past,B1,Вчера я съездил в центр на автобусе.
+Russian,ru_aspect_past,B1,В школе мы всегда писали диктанты по пятницам.
+Russian,ru_aspect_past,B1,Вчера учительница написала на доске новое правило.
+Russian,ru_aspect_past,B1,Раньше она готовила ужин каждый вечер.
+Russian,ru_aspect_past,B1,Вчера она приготовила очень вкусный суп.
+Russian,ru_motion_verbs,B1,Сегодня вечером я иду в кино с друзьями.
+Russian,ru_motion_verbs,B1,Мой брат часто ходит в спортзал после работы.
+Russian,ru_motion_verbs,B1,"Когда я был маленьким, я не мог ходить без помощи."
+Russian,ru_motion_verbs,B1,"Вчера он шёл домой очень медленно, потому что устал."
+Russian,ru_motion_verbs,B1,"Мы едем на вокзал, чтобы встретить родителей."
+Russian,ru_motion_verbs,B1,Летом моя семья часто ездит на дачу на машине.
+Russian,ru_motion_verbs,B1,Мой дедушка уже не может ездить за рулём.
+Russian,ru_motion_verbs,B1,Завтра я еду в другой город по работе.
+Russian,ru_motion_prefixes,B2,Мы пришли в кафе ровно в семь вечера.
+Russian,ru_motion_prefixes,B2,Он уехал из города на неделю.
+Russian,ru_motion_prefixes,B2,Дети быстро выбежали во двор.
+Russian,ru_motion_prefixes,B2,Я должен зайти к другу после работы.
+Russian,ru_motion_prefixes,B2,"Когда ты войдёшь в здание, поверни направо."
+Russian,ru_motion_prefixes,B2,Машина подъехала к дому и остановилась.
+Russian,ru_motion_prefixes,B2,Мы быстро прошли мимо старого парка.
+Russian,ru_motion_prefixes,B2,Нам осталось дойти всего один километр.
+Russian,ru_participles,B2,"Прочитав новую книгу, он почувствовал себя счастливым."
+Russian,ru_participles,B2,"Она шла по улице, весело напевая любимую песню."
+Russian,ru_participles,B2,"Не зная русского языка, турист с трудом объяснялся с местными жителями."
+Russian,ru_participles,B2,"Студенты, готовящиеся к экзамену, сидели в библиотеке до поздней ночи."
+Russian,ru_participles,B2,"Человек, пришедший первым на встречу, получил небольшой подарок."
+Russian,ru_participles,B2,"Книга, написанная известным автором, стала бестселлером."
+Russian,ru_participles,B2,"Вопросы, обсуждаемые на конференции, были очень важными."
+Russian,ru_participles,B2,"Закончив работу раньше срока, мы смогли поехать отдыхать."
+Polish,pl_gender_agreement,A1,To jest wysoki chłopiec.
+Polish,pl_gender_agreement,A1,Oni są dobrzy studenci.
+Polish,pl_gender_agreement,A1,Ona jest miła studentka.
+Polish,pl_gender_agreement,A1,To jest nowe auto.
+Polish,pl_gender_agreement,A1,Ten dom jest duży.
+Polish,pl_gender_agreement,A1,Mój pies jest mały.
+Polish,pl_gender_agreement,A1,Te kobiety są młode.
+Polish,pl_gender_agreement,A1,Te samochody są drogie.
+Polish,pl_cases_basic,A2,Pies je kość.
+Polish,pl_cases_basic,A2,Ja piję wodę.
+Polish,pl_cases_basic,A2,Nie mam samochodu.
+Polish,pl_cases_basic,A2,"Widzisz stół, ale nie widzisz krzesła."
+Polish,pl_cases_basic,A2,Mamy dużo jedzenia.
+Polish,pl_cases_basic,A2,On ma mało pieniędzy.
+Polish,pl_cases_basic,A2,Oni czytają pięć gazet.
+Polish,pl_cases_basic,A2,"Jem jabłko, ale nie mam banana."
+Polish,pl_aspect_basic,A2,Zawsze czytam książki wieczorem.
+Polish,pl_aspect_basic,A2,Wczoraj przeczytałem jedną książkę.
+Polish,pl_aspect_basic,A2,Ona teraz gotuje obiad.
+Polish,pl_aspect_basic,A2,Ona ugotowała pyszny obiad.
+Polish,pl_aspect_basic,A2,Często kupuję warzywa na targu.
+Polish,pl_aspect_basic,A2,Kupiłem bilet do kina.
+Polish,pl_aspect_basic,A2,On długo pisał list do babci.
+Polish,pl_aspect_basic,A2,On napisał ten list w godzinę.
+Polish,pl_aspect_past_future,B1,Codziennie czytałem wiadomości w Internecie.
+Polish,pl_aspect_past_future,B1,Wczoraj przeczytałem ciekawą książkę.
+Polish,pl_aspect_past_future,B1,W poniedziałek będę pisać raport przez cały dzień.
+Polish,pl_aspect_past_future,B1,Do końca tygodnia napiszę ten raport.
+Polish,pl_aspect_past_future,B1,"Gotowałem obiad, ale nagle zabrakło prądu."
+Polish,pl_aspect_past_future,B1,Mama ugotowała pyszny rosół na niedzielę.
+Polish,pl_aspect_past_future,B1,W wakacje będziemy jeździć na rowerach po okolicy.
+Polish,pl_aspect_past_future,B1,Jutro pojedziemy na wycieczkę w góry.
+Polish,pl_virile_plural,B1,Chłopcy grali w piłkę nożną przez dwie godziny.
+Polish,pl_virile_plural,B1,Dziewczynki grały w piłkę nożną przez dwie godziny.
+Polish,pl_virile_plural,B1,Ci nowi studenci są bardzo ambitni i inteligentni.
+Polish,pl_virile_plural,B1,Te nowe studentki są bardzo ambitne i inteligentne.
+Polish,pl_virile_plural,B1,Widziałem tych miłych panów wczoraj na spacerze.
+Polish,pl_virile_plural,B1,Widziałem te miłe panie wczoraj na spacerze.
+Polish,pl_virile_plural,B1,Anna i Piotr poszli do kina na nowy film.
+Polish,pl_virile_plural,B1,Anna i Magda poszły do kina na nowy film.
+Polish,pl_participles,B2,Ludzie czekający na autobus wyglądają na zmęczonych.
+Polish,pl_participles,B2,Prezent kupiony wczoraj leży na stole.
+Polish,pl_participles,B2,"Jedząc obiad, oglądałem telewizję."
+Polish,pl_participles,B2,"Przeczytawszy książkę, oddałem ją do biblioteki."
+Polish,pl_participles,B2,Dziewczynka śpiewająca piosenkę ma piękny głos.
+Polish,pl_participles,B2,Samochód naprawiony w zeszłym tygodniu działa idealnie.
+Polish,pl_participles,B2,"Będąc zmęczonym, zasnął szybko."
+Polish,pl_participles,B2,"Otworzywszy drzwi, wszedłem do środka."
+Spanish,es_ser_estar,A1,Yo soy Pedro.
+Spanish,es_ser_estar,A1,Mi perro es grande.
+Spanish,es_ser_estar,A1,Ella es de México.
+Spanish,es_ser_estar,A1,Hoy es viernes.
+Spanish,es_ser_estar,A1,El libro está en la mesa.
+Spanish,es_ser_estar,A1,Tú estás feliz.
+Spanish,es_ser_estar,A1,La puerta está abierta.
+Spanish,es_ser_estar,A1,Nosotros estamos en casa.
+Spanish,es_gender_agreement,A1,El perro es bueno.
+Spanish,es_gender_agreement,A1,La casa es bonita.
+Spanish,es_gender_agreement,A1,El libro es nuevo.
+Spanish,es_gender_agreement,A1,La flor es roja.
+Spanish,es_gender_agreement,A1,El café es caliente.
+Spanish,es_gender_agreement,A1,La mesa es pequeña.
+Spanish,es_gender_agreement,A1,El hombre es alto.
+Spanish,es_gender_agreement,A1,La mujer es alta.
+Spanish,es_reflexive,A2,Yo me levanto a las siete de la mañana.
+Spanish,es_reflexive,A2,¿Cómo te llamas tú?
+Spanish,es_reflexive,A2,Ella se ducha antes de ir a trabajar.
+Spanish,es_reflexive,A2,Nosotros nos lavamos las manos con jabón.
+Spanish,es_reflexive,A2,Vosotros os sentáis en estas sillas.
+Spanish,es_reflexive,A2,Ellos se acuestan temprano por la noche.
+Spanish,es_reflexive,A2,Mi hermano se viste muy rápido cada día.
+Spanish,es_reflexive,A2,Usted se mira en el espejo antes de salir.
+Spanish,es_object_pronouns,A2,"¿Tienes el libro? Sí, lo tengo."
+Spanish,es_object_pronouns,A2,"¿Ves la casa? No, no la veo."
+Spanish,es_object_pronouns,A2,Voy a leer el menú. Quiero leerlo ahora.
+Spanish,es_object_pronouns,A2,Necesito una pluma. Voy a comprarla.
+Spanish,es_object_pronouns,A2,Mi hermano me llama. Yo le hablo.
+Spanish,es_object_pronouns,A2,"¿Puedes ayudarme? Sí, voy a ayudarte."
+Spanish,es_object_pronouns,A2,El profesor me explica. Me explica la lección.
+Spanish,es_object_pronouns,A2,Quiero dar un regalo a mi amigo. Voy a darle un regalo.
+Spanish,es_preterite_imperfect,B1,Yo estudiaba cuando mi hermana me llamó por teléfono.
+Spanish,es_preterite_imperfect,B1,"Cada mañana corría en el parque, pero ayer solo caminé un poco."
+Spanish,es_preterite_imperfect,B1,Hacía mucho calor y la gente buscaba sombra en la plaza.
+Spanish,es_preterite_imperfect,B1,"Cuando tenía ocho años, visité la playa por primera vez."
+Spanish,es_preterite_imperfect,B1,"Siempre comíamos paella los domingos, pero el sábado pasado fuimos a un restaurante italiano."
+Spanish,es_preterite_imperfect,B1,"La casa era vieja y pequeña, pero la pintamos el mes pasado."
+Spanish,es_preterite_imperfect,B1,"Ella estaba enferma, así que no fue a trabajar el martes."
+Spanish,es_preterite_imperfect,B1,"Mientras leía un libro en mi cuarto, mi perro ladró muy fuerte."
+Spanish,es_subjunctive_present,B1,Quiero que estudies para el examen.
+Spanish,es_subjunctive_present,B1,Espero que tengas un buen día.
+Spanish,es_subjunctive_present,B1,Dudo que él venga a la reunión.
+Spanish,es_subjunctive_present,B1,Me alegra que te guste mi regalo.
+Spanish,es_subjunctive_present,B1,Es importante que comas sano.
+Spanish,es_subjunctive_present,B1,Necesitamos que nos ayudes con esto.
+Spanish,es_subjunctive_present,B1,Siento que no puedas venir a la fiesta.
+Spanish,es_subjunctive_present,B1,Te aconsejo que leas este libro.
+Spanish,es_subjunctive_past_si,B2,"Si tuviera más tiempo libre, leería muchos más libros."
+Spanish,es_subjunctive_past_si,B2,"Si supieras la verdad, no estarías tan sorprendido."
+Spanish,es_subjunctive_past_si,B2,"Si pudiéramos, viajaríamos a España el próximo verano."
+Spanish,es_subjunctive_past_si,B2,"Si ella estudiara más, sacaría mejores notas en todas las materias."
+Spanish,es_subjunctive_past_si,B2,"Si lloviera mañana, no iríamos al parque con los niños."
+Spanish,es_subjunctive_past_si,B2,"Si tuvieran un coche más grande, llevarían a todos sus amigos."
+Spanish,es_subjunctive_past_si,B2,"Si fuera necesario, te ayudaría con tu tarea sin problema."
+Spanish,es_subjunctive_past_si,B2,"Si vinieran antes, podríamos cenar todos juntos en casa."
+French,fr_gender_agreement,A1,Le livre est grand.
+French,fr_gender_agreement,A1,La table est petite.
+French,fr_gender_agreement,A1,Les garçons sont gentils.
+French,fr_gender_agreement,A1,Les filles sont belles.
+French,fr_gender_agreement,A1,Mon chat est noir.
+French,fr_gender_agreement,A1,Ma voiture est noire.
+French,fr_gender_agreement,A1,J'ai un crayon bleu et une gomme bleue.
+French,fr_gender_agreement,A1,Le café est chaud et la soupe est chaude.
+French,fr_passe_compose_imparfait,A2,"Quand j'étais enfant, je regardais beaucoup de dessins animés."
+French,fr_passe_compose_imparfait,A2,"Hier soir, j'ai mangé une pizza avec ma famille."
+French,fr_passe_compose_imparfait,A2,La maison était grande et avait un beau jardin.
+French,fr_passe_compose_imparfait,A2,Il a acheté un nouveau vélo samedi dernier.
+French,fr_passe_compose_imparfait,A2,Nous dormions quand un bruit nous a réveillés.
+French,fr_passe_compose_imparfait,A2,"Il faisait froid, alors j'ai mis mon manteau."
+French,fr_passe_compose_imparfait,A2,"Chaque été, nous allions à la plage en Italie."
+French,fr_passe_compose_imparfait,A2,"J'ai fini mon travail, puis j'ai pris le bus pour rentrer."
+French,fr_partitive,A2,Il boit du café noir le matin.
+French,fr_partitive,A2,Nous mangeons du pain avec le fromage.
+French,fr_partitive,A2,Elle achète de la viande au supermarché.
+French,fr_partitive,A2,Vous avez de la chance aujourd'hui !
+French,fr_partitive,A2,Je bois de l'eau quand j'ai soif.
+French,fr_partitive,A2,Nous avons de l'argent pour les vacances.
+French,fr_partitive,A2,Les enfants aiment manger des fruits.
+French,fr_partitive,A2,Ils regardent des films à la télévision.
+French,fr_object_pronouns,B1,Je les lui ai données.
+French,fr_object_pronouns,B1,"Oui, je te le prête."
+French,fr_object_pronouns,B1,Nous les y mettons.
+French,fr_object_pronouns,B1,"Non, je ne les en ai pas prises."
+French,fr_object_pronouns,B1,"Oui, je leur en ai parlé."
+French,fr_object_pronouns,B1,Il y en a beaucoup.
+French,fr_object_pronouns,B1,Le professeur le lui y a rendu.
+French,fr_object_pronouns,B1,"Oui, je t'y ai vu."
+French,fr_subjunctive_present,B1,Il faut que tu finisses ton travail avant de partir.
+French,fr_subjunctive_present,B1,Il est important que nous comprenions la leçon.
+French,fr_subjunctive_present,B1,Je veux que tu viennes à ma fête samedi.
+French,fr_subjunctive_present,B1,Je souhaite qu'il fasse beau demain pour la promenade.
+French,fr_subjunctive_present,B1,Je doute qu'elle sache la réponse à cette question.
+French,fr_subjunctive_present,B1,Il est possible qu'il pleuve cet après-midi.
+French,fr_subjunctive_present,B1,Je suis content que vous soyez tous là.
+French,fr_subjunctive_present,B1,Je regrette qu'elle ne puisse pas venir avec nous.
+Italian,it_gender_agreement,A1,Il libro è rosso.
+Italian,it_gender_agreement,A1,La penna è rossa.
+Italian,it_gender_agreement,A1,I libri sono rossi.
+Italian,it_gender_agreement,A1,Le penne sono rosse.
+Italian,it_gender_agreement,A1,Il cane è grande.
+Italian,it_gender_agreement,A1,La casa è grande.
+Italian,it_gender_agreement,A1,I cani sono grandi.
+Italian,it_gender_agreement,A1,Le case sono grandi.
+Italian,it_passato_prossimo_imperfetto,A2,Ieri ho studiato per due ore.
+Italian,it_passato_prossimo_imperfetto,A2,Da bambino giocavo sempre a calcio.
+Italian,it_passato_prossimo_imperfetto,A2,L'anno scorso siamo andati in Italia.
+Italian,it_passato_prossimo_imperfetto,A2,Faceva freddo e pioveva.
+Italian,it_passato_prossimo_imperfetto,A2,"Mentre leggevo, il telefono è suonato."
+Italian,it_passato_prossimo_imperfetto,A2,"Prima ho cucinato, poi ho pulito la casa."
+Italian,it_passato_prossimo_imperfetto,A2,"Quando ero giovane, lavoravo in un negozio."
+Italian,it_passato_prossimo_imperfetto,A2,"Eravamo stanchi, ma abbiamo camminato molto."
+Italian,it_pronominal_particles,B1,"Vai spesso in palestra? Sì, ci vado tre volte a settimana."
+Italian,it_pronominal_particles,B1,"Pensi al tuo esame di italiano? Certo che ci penso, è importante!"
+Italian,it_pronominal_particles,B1,In questa città non ci sono molti negozi aperti la domenica.
+Italian,it_pronominal_particles,B1,"Conti sui tuoi amici per il progetto? Sì, ci conto molto."
+Italian,it_pronominal_particles,B1,Quante mele hai comprato? Ne ho comprate solo due.
+Italian,it_pronominal_particles,B1,"Hai del tempo libero oggi? Sì, ne ho un po' dopo pranzo."
+Italian,it_pronominal_particles,B1,"Sei soddisfatto del tuo nuovo computer? Sì, ne sono molto contento."
+Italian,it_pronominal_particles,B1,"Sei già tornato dall'ufficio? No, ne esco tra poco."
+Italian,it_subjunctive_present,B1,Spero che tu stia bene oggi.
+Italian,it_subjunctive_present,B1,Credo che lei arrivi presto alla riunione.
+Italian,it_subjunctive_present,B1,Sono contento che voi veniate alla mia festa.
+Italian,it_subjunctive_present,B1,Dubito che loro sappiano tutta la verità.
+Italian,it_subjunctive_present,B1,È importante che noi studiamo per l'esame finale.
+Italian,it_subjunctive_present,B1,Voglio che tu faccia i compiti prima di uscire.
+Italian,it_subjunctive_present,B1,Penso che questo libro sia molto interessante.
+Italian,it_subjunctive_present,B1,Ho paura che piova domani e rovini la gita.
+Portuguese,pt_ser_estar,A1,Eu sou Maria.
+Portuguese,pt_ser_estar,A1,O livro está aqui.
+Portuguese,pt_ser_estar,A1,A casa é azul.
+Portuguese,pt_ser_estar,A1,Eu estou feliz.
+Portuguese,pt_ser_estar,A1,Ele é professor.
+Portuguese,pt_ser_estar,A1,Você está cansado?
+Portuguese,pt_ser_estar,A1,Nós somos estudantes.
+Portuguese,pt_ser_estar,A1,A porta está aberta.
+Portuguese,pt_preterite_imperfect,A2,Eu lia um livro quando a minha amiga ligou.
+Portuguese,pt_preterite_imperfect,A2,"Ela ia à escola de autocarro, mas hoje foi a pé."
+Portuguese,pt_preterite_imperfect,A2,A festa era divertida até que a música parou.
+Portuguese,pt_preterite_imperfect,A2,"Enquanto eu cozinhava, o meu irmão via televisão."
+Portuguese,pt_preterite_imperfect,A2,"Nós morávamos em Lisboa, mas no ano passado nos mudamos para o Porto."
+Portuguese,pt_preterite_imperfect,A2,O tempo estava bom quando saímos de casa.
+Portuguese,pt_preterite_imperfect,A2,Ele estudava para o exame e depois foi dormir.
+Portuguese,pt_preterite_imperfect,A2,"Quando eu era criança, brincava muito, mas um dia quebrei a perna."
+Portuguese,pt_subjunctive_present,B1,Espero que você venha à festa.
+Portuguese,pt_subjunctive_present,B1,É importante que nós estudemos para o teste.
+Portuguese,pt_subjunctive_present,B1,Duvido que ele saiba a resposta correta.
+Portuguese,pt_subjunctive_present,B1,Fico feliz que vocês gostem do presente.
+Portuguese,pt_subjunctive_present,B1,É possível que chova amanhã à tarde.
+Portuguese,pt_subjunctive_present,B1,Quero que ela faça o jantar hoje.
+Portuguese,pt_subjunctive_present,B1,Aconselho que você descanse um pouco.
+Portuguese,pt_subjunctive_present,B1,Tenho medo que eles estejam atrasados para a reunião.
+Portuguese,pt_personal_infinitive,B1,É importante eles chegarem a tempo para a reunião.
+Portuguese,pt_personal_infinitive,B1,"Para nós entendermos a explicação, ela precisa ser clara."
+Portuguese,pt_personal_infinitive,B1,"Antes de vocês saírem, fechem todas as janelas."
+Portuguese,pt_personal_infinitive,B1,"Depois de eu chegar em casa, vou preparar o jantar."
+Portuguese,pt_personal_infinitive,B1,Seria bom ele estudar mais para passar no exame.
+Portuguese,pt_personal_infinitive,B1,O médico recomendou eles fazerem mais exercícios físicos.
+Portuguese,pt_personal_infinitive,B1,É essencial você aprender os verbos irregulares.
+Portuguese,pt_personal_infinitive,B1,"Para eles comprarem a casa, precisam de um bom empréstimo."
+Portuguese,pt_future_subjunctive,B2,"Quando eu chegar ao escritório, vou te ligar."
+Portuguese,pt_future_subjunctive,B2,"Assim que eles terminarem o trabalho, podemos ir para casa."
+Portuguese,pt_future_subjunctive,B2,"Se você precisar de ajuda, por favor, me avise."
+Portuguese,pt_future_subjunctive,B2,"Quando nós formos à praia, vamos nadar muito."
+Portuguese,pt_future_subjunctive,B2,"Depois que ela souber a verdade, ela vai entender tudo."
+Portuguese,pt_future_subjunctive,B2,"Enquanto você estiver aqui, aproveite a festa."
+Portuguese,pt_future_subjunctive,B2,"Até que eles voltem, precisamos esperar um pouco mais."
+Portuguese,pt_future_subjunctive,B2,"Caso chova amanhã, ficaremos em casa lendo livros."
+Catalan,ca_gender_agreement,A1,El cotxe és blanc.
+Catalan,ca_gender_agreement,A1,La flor és blanca.
+Catalan,ca_gender_agreement,A1,El llibre és petit.
+Catalan,ca_gender_agreement,A1,La taula és petita.
+Catalan,ca_gender_agreement,A1,El gos és vermell.
+Catalan,ca_gender_agreement,A1,La poma és vermella.
+Catalan,ca_gender_agreement,A1,El menjar és bo.
+Catalan,ca_gender_agreement,A1,L'aigua és bona.
+Catalan,ca_pronominal_adverbs,A2,"Vas al parc? Sí, hi vaig cada dia."
+Catalan,ca_pronominal_adverbs,A2,"El meu llibre és a la taula. Sí, hi és."
+Catalan,ca_pronominal_adverbs,A2,"Penses en les vacances? Sí, hi penso molt."
+Catalan,ca_pronominal_adverbs,A2,"Estàs content amb el teu regal? Sí, hi estic molt content."
+Catalan,ca_pronominal_adverbs,A2,"Tens molts amics? Sí, en tinc molts."
+Catalan,ca_pronominal_adverbs,A2,"Vols més cafè? No, gràcies, no en vull."
+Catalan,ca_pronominal_adverbs,A2,"Parles del partit d'ahir? Sí, en parlo."
+Catalan,ca_pronominal_adverbs,A2,"Véns de la platja? Sí, en vinc ara."
+Catalan,ca_subjunctive_present,B1,Vull que vagis a comprar el pa.
+Catalan,ca_subjunctive_present,B1,Cal que facis els deures avui.
+Catalan,ca_subjunctive_present,B1,M'agrada que siguis tan amable amb tothom.
+Catalan,ca_subjunctive_present,B1,Dubto que ella vingui a la festa.
+Catalan,ca_subjunctive_present,B1,És important que llegeixis les instruccions abans.
+Catalan,ca_subjunctive_present,B1,No vull que paris tan fort a la biblioteca.
+Catalan,ca_subjunctive_present,B1,Tinc por que plogui demà i no puguem sortir.
+Catalan,ca_subjunctive_present,B1,No crec que ell sàpiga la resposta correcta.
+German,de_gender_der_die_das,A1,Der Stuhl ist braun.
+German,de_gender_der_die_das,A1,Die Lampe ist neu.
+German,de_gender_der_die_das,A1,Das Buch ist gut.
+German,de_gender_der_die_das,A1,Der Apfel schmeckt süß.
+German,de_gender_der_die_das,A1,Die Banane ist gelb.
+German,de_gender_der_die_das,A1,Das Wasser ist kalt.
+German,de_gender_der_die_das,A1,Der Kaffee ist heiß.
+German,de_gender_der_die_das,A1,Die Tür ist zu.
+German,de_cases_nom_akk,A1,Der Mann trinkt den Kaffee.
+German,de_cases_nom_akk,A1,Ich sehe den Hund.
+German,de_cases_nom_akk,A1,Du kaufst den Tisch.
+German,de_cases_nom_akk,A1,Der Junge isst den Apfel.
+German,de_cases_nom_akk,A1,Wir suchen den Schlüssel.
+German,de_cases_nom_akk,A1,Er hat den Computer.
+German,de_cases_nom_akk,A1,Der Lehrer fragt den Schüler.
+German,de_cases_nom_akk,A1,Ich mag den Film.
+German,de_dative,A2,Ich gebe dem Mann einen Apfel.
+German,de_dative,A2,Sie hilft ihrer Schwester bei den Hausaufgaben.
+German,de_dative,A2,Wir fahren mit unseren Freunden in die Stadt.
+German,de_dative,A2,Die Geschichte gefällt den Kindern sehr gut.
+German,de_dative,A2,Kannst du mir bitte das Buch geben?
+German,de_dative,A2,Das Essen schmeckt dem Koch ausgezeichnet.
+German,de_dative,A2,Er schreibt seiner Mutter eine lange E-Mail.
+German,de_dative,A2,Ich antworte dem Lehrer auf seine Frage.
+German,de_separable_verbs,A2,Ich stehe jeden Morgen früh auf.
+German,de_separable_verbs,A2,Er ruft seine Mutter oft an.
+German,de_separable_verbs,A2,Wir kaufen am Samstag im Supermarkt ein.
+German,de_separable_verbs,A2,Kommst du heute Abend mit?
+German,de_separable_verbs,A2,Meine Eltern sehen abends gerne fern.
+German,de_separable_verbs,A2,Mach bitte das Fenster zu!
+German,de_separable_verbs,A2,Geht ihr am Wochenende aus?
+German,de_separable_verbs,A2,Die Lehrerin liest den Kindern eine Geschichte vor.
+German,de_genitive,B1,Das Auto des Lehrers ist sehr schnell.
+German,de_genitive,B1,Der Name der Chefin ist Frau Müller.
+German,de_genitive,B1,Das Dach des Hauses ist rot.
+German,de_genitive,B1,Die Meinungen der Freunde sind wichtig.
+German,de_genitive,B1,Wegen des starken Windes mussten wir drinnen bleiben.
+German,de_genitive,B1,Wegen der Grippe konnte er nicht zur Arbeit kommen.
+German,de_genitive,B1,Trotz des kalten Wetters sind die Kinder draußen.
+German,de_genitive,B1,Trotz der vielen Aufgaben hatte er noch Zeit für Sport.
+German,de_word_order_v2,B1,"Ich bleibe zu Hause, weil ich müde bin."
+German,de_word_order_v2,B1,"Er lernt Deutsch, weil er in Deutschland arbeiten möchte."
+German,de_word_order_v2,B1,"Wir hoffen, dass das Wetter morgen schön wird."
+German,de_word_order_v2,B1,"Sie sagt, dass sie keine Zeit hat."
+German,de_word_order_v2,B1,"Ich helfe dir, wenn du mich brauchst."
+German,de_word_order_v2,B1,"Wenn es regnet, bleiben wir drinnen."
+German,de_word_order_v2,B1,"Ich mache die Tür auf, wenn du ankommst."
+German,de_word_order_v2,B1,"Er denkt, dass er heute nicht kommen kann."
+German,de_modal_particles,B2,Komm doch einfach mal vorbei!
+German,de_modal_particles,B2,"Ach, du bist doch tatsächlich schon hier!"
+German,de_modal_particles,B2,Kannst du mir mal kurz helfen?
+German,de_modal_particles,B2,"Schau mal, ob der Ofen schon heiß ist."
+German,de_modal_particles,B2,Das Wetter ist ja heute wirklich schön.
+German,de_modal_particles,B2,"Pass ja auf, dass du nichts vergisst!"
+German,de_modal_particles,B2,"Es ist, wie es ist, da kann man eben nichts machen."
+German,de_modal_particles,B2,Du hast die Tür offen gelassen? Dann ist es eben so kalt.
+Dutch,nl_gender_de_het,A1,De stoel is blauw.
+Dutch,nl_gender_de_het,A1,Het boek ligt op tafel.
+Dutch,nl_gender_de_het,A1,De vrouw drinkt thee.
+Dutch,nl_gender_de_het,A1,Het kind speelt buiten.
+Dutch,nl_gender_de_het,A1,Waar is de sleutel?
+Dutch,nl_gender_de_het,A1,Het huis is groot.
+Dutch,nl_gender_de_het,A1,De fiets is nieuw.
+Dutch,nl_gender_de_het,A1,Ik eet het brood.
+Dutch,nl_word_order_v2,A2,Ik drink water omdat ik dorst heb.
+Dutch,nl_word_order_v2,A2,"Omdat hij ziek is, gaat hij niet naar school."
+Dutch,nl_word_order_v2,A2,Zij zegt dat het eten lekker is.
+Dutch,nl_word_order_v2,A2,Wij weten dat zij vanavond komt.
+Dutch,nl_word_order_v2,A2,Ik lees een boek als ik tijd heb.
+Dutch,nl_word_order_v2,A2,"Als het mooi weer is, fietsen wij naar het park."
+Dutch,nl_word_order_v2,A2,Hij koopt een nieuwe telefoon omdat zijn oude kapot is.
+Dutch,nl_word_order_v2,A2,Wij hopen dat jullie het leuk vinden.
+Dutch,nl_separable_verbs,A2,Ik sta elke dag om zeven uur op.
+Dutch,nl_separable_verbs,A2,De trein komt om half drie aan.
+Dutch,nl_separable_verbs,A2,Ik doe het licht uit.
+Dutch,nl_separable_verbs,A2,Wil je je jas uitdoen?
+Dutch,nl_separable_verbs,A2,Ik neem mijn boek mee naar school.
+Dutch,nl_separable_verbs,A2,Wanneer kom je terug van vakantie?
+Dutch,nl_separable_verbs,A2,Hij eet zijn soep snel op.
+Dutch,nl_separable_verbs,A2,Wij gaan morgen vroeg weg.
+Dutch,nl_separable_verbs,A2,De kinderen ruimen hun speelgoed op.
+Dutch,nl_verb_clusters,B1,Ik hoop dat je morgen kunt komen.
+Dutch,nl_verb_clusters,B1,Hij zei dat hij moest werken tot laat.
+Dutch,nl_verb_clusters,B1,Wij vinden dat we meer moeten oefenen.
+Dutch,nl_verb_clusters,B1,Ze wist dat ze eerder had moeten gaan.
+Dutch,nl_verb_clusters,B1,Ik ben blij dat ik je heb kunnen helpen.
+Dutch,nl_verb_clusters,B1,Het spijt me dat ik het niet heb kunnen doen.
+Dutch,nl_verb_clusters,B1,Ze dacht dat hij zou willen eten.
+Dutch,nl_verb_clusters,B1,Wij waren verbaasd dat ze het heeft durven vragen.
+Dutch,nl_modal_particles,B1,Het regent toch al?
+Dutch,nl_modal_particles,B1,Je bent toch niet boos op me?
+Dutch,nl_modal_particles,B1,Ik vind die film wel leuk.
+Dutch,nl_modal_particles,B1,"Doe wel voorzichtig, alsjeblieft!"
+Dutch,nl_modal_particles,B1,Kun je me even helpen?
+Dutch,nl_modal_particles,B1,Ik kom zo even kijken.
+Dutch,nl_modal_particles,B1,Ga maar zitten.
+Dutch,nl_modal_particles,B1,Probeer het gewoon maar eens.
+Japanese,ja_wa_ga,A1,私は学生です。
+Japanese,ja_wa_ga,A1,日本はきれいです。
+Japanese,ja_wa_ga,A1,猫がいます。
+Japanese,ja_wa_ga,A1,メアリーさんが来ます。
+Japanese,ja_wa_ga,A1,これは本です。
+Japanese,ja_wa_ga,A1,これが私の本です。
+Japanese,ja_wa_ga,A1,私はりんごが好きです。
+Japanese,ja_wa_ga,A1,空が青いです。
+Japanese,ja_core_particles,A1,わたしは パン を たべます。
+Japanese,ja_core_particles,A1,わたしは うち に かえります。
+Japanese,ja_core_particles,A1,えき で でんしゃ に のります。
+Japanese,ja_core_particles,A1,わたしは とうきょう へ いきます。
+Japanese,ja_core_particles,A1,けんさんは ごご くじ に テレビ を みます。
+Japanese,ja_core_particles,A1,わたしは バス で がっこう に いきます。
+Japanese,ja_core_particles,A1,まりこさんは コーヒー を のみます。
+Japanese,ja_core_particles,A1,ねこは いす の うえ に います。
+Japanese,ja_te_form,A2,ちょっと待ってください。
+Japanese,ja_te_form,A2,スーパーへ行って、ジュースを買いました。
+Japanese,ja_te_form,A2,ここで写真を撮ってもいいですか。
+Japanese,ja_te_form,A2,このケーキを食べてもいいですよ。
+Japanese,ja_te_form,A2,ドアを開けてください。
+Japanese,ja_te_form,A2,起きて、コーヒーを飲みました。
+Japanese,ja_te_form,A2,ペンを借りてもいいですか。
+Japanese,ja_te_form,A2,日本語を勉強して、映画を見ました。
+Japanese,ja_plain_polite,A2,私は田中です。
+Japanese,ja_plain_polite,A2,僕は田中。
+Japanese,ja_plain_polite,A2,毎日日本語を勉強します。
+Japanese,ja_plain_polite,A2,毎日日本語を勉強する。
+Japanese,ja_plain_polite,A2,このかばんは高いです。
+Japanese,ja_plain_polite,A2,このかばんは高い。
+Japanese,ja_plain_polite,A2,彼は学生です。
+Japanese,ja_plain_polite,A2,彼は学生だ。
+Japanese,ja_verb_groups,B1,彼は毎日新聞を読みます。
+Japanese,ja_verb_groups,B1,友達に会って、たくさん話しました。
+Japanese,ja_verb_groups,B1,まだ宿題を書いていません。
+Japanese,ja_verb_groups,B1,私は毎日、朝ごはんを食べます。
+Japanese,ja_verb_groups,B1,テレビを見て、日本語を勉強します。
+Japanese,ja_verb_groups,B1,昨日は早く起きませんでした。
+Japanese,ja_verb_groups,B1,彼が来たら、パーティーを始めましょう。
+Japanese,ja_verb_groups,B1,週末に友達とサッカーをしました。
+Japanese,ja_counters,B1,田中さんの家族は四人です。
+Japanese,ja_counters,B1,Tシャツを二枚買いました。
+Japanese,ja_counters,B1,ビールを三本ください。
+Japanese,ja_counters,B1,本を一冊読みました。
+Japanese,ja_counters,B1,猫を二匹飼っています。
+Japanese,ja_counters,B1,車が一台あります。
+Japanese,ja_counters,B1,りんごを三個ください。
+Japanese,ja_counters,B1,コーヒーを一杯飲みました。
+Japanese,ja_keigo_basic,B2,先生は明日、弊社にお越しになります。
+Japanese,ja_keigo_basic,B2,鈴木様には、後ほど私からご連絡いたします。
+Japanese,ja_keigo_basic,B2,部長はいつも朝食を召し上がらないそうです。
+Japanese,ja_keigo_basic,B2,先生の新しい本を、ぜひ拝見したいです。
+Japanese,ja_keigo_basic,B2,社長はどのようなお仕事をなさっていますか。
+Japanese,ja_keigo_basic,B2,来週、お客様の会社へご挨拶に伺います。
+Japanese,ja_keigo_basic,B2,課長はもう資料をご覧になりましたか。
+Japanese,ja_keigo_basic,B2,来週、東京でお目にかかれるのを楽しみにしております。
+Korean,ko_topic_subject_particles,A1,저는 학생이에요.
+Korean,ko_topic_subject_particles,A1,책이 없어요.
+Korean,ko_topic_subject_particles,A1,이것은 펜이에요.
+Korean,ko_topic_subject_particles,A1,커피가 맛있어요.
+Korean,ko_topic_subject_particles,A1,저는 물을 마셔요.
+Korean,ko_topic_subject_particles,A1,친구가 와요.
+Korean,ko_topic_subject_particles,A1,이 사람은 선생님이에요.
+Korean,ko_topic_subject_particles,A1,사과가 있어요.
+Korean,ko_speech_levels,A1,밥 먹었어요?
+Korean,ko_speech_levels,A1,이것은 김치입니다.
+Korean,ko_speech_levels,A1,배고파.
+Korean,ko_speech_levels,A1,커피 마셔요?
+Korean,ko_speech_levels,A1,어서 오십시오.
+Korean,ko_speech_levels,A1,어디 가?
+Korean,ko_speech_levels,A1,책 읽으세요.
+Korean,ko_speech_levels,A1,저는 한국 사람입니다.
+Korean,ko_counters,A2,빵 세 개 주세요.
+Korean,ko_counters,A2,우리 반에 학생 열여덟 명이 있어요.
+Korean,ko_counters,A2,고양이 한 마리가 자고 있어요.
+Korean,ko_counters,A2,책 네 권을 읽었어요.
+Korean,ko_counters,A2,주스 한 잔 주세요.
+Korean,ko_counters,A2,맥주 다섯 병을 샀어요.
+Korean,ko_counters,A2,종이 두 장이 필요해요.
+Korean,ko_counters,A2,신발 세 켤레를 샀어요.
+Korean,ko_irregular_verbs,A2,겨울에는 날씨가 정말 추워요.
+Korean,ko_irregular_verbs,A2,친구가 숙제를 도와줘서 고마웠어요.
+Korean,ko_irregular_verbs,A2,이 문제는 생각보다 쉬워요.
+Korean,ko_irregular_verbs,A2,저는 매일 아침 라디오를 들어요.
+Korean,ko_irregular_verbs,A2,공원에서 한 시간 동안 걸었어요.
+Korean,ko_irregular_verbs,A2,"죄송하지만, 그 길을 잘 몰라요."
+Korean,ko_irregular_verbs,A2,지하철이 버스보다 훨씬 빨라요.
+Korean,ko_irregular_verbs,A2,주말에 친구들과 노래를 불렀어요.
+Korean,ko_honorifics,B1,아버지께서 신문을 읽으세요.
+Korean,ko_honorifics,B1,할머니는 지금 주무세요.
+Korean,ko_honorifics,B1,"선생님, 어디에 계세요?"
+Korean,ko_honorifics,B1,사장님은 커피를 드셨어요.
+Korean,ko_honorifics,B1,어머니께서 말씀하셨어요.
+Korean,ko_honorifics,B1,할아버지 댁은 서울에 있어요.
+Korean,ko_honorifics,B1,이 분이 저희 아버지세요.
+Korean,ko_honorifics,B1,교수님께서 저에게 책을 주셨어요.
+Korean,ko_connectives,B1,저는 아침에 일찍 일어나고 운동했어요.
+Korean,ko_connectives,B1,이 음식은 맛있고 싸요.
+Korean,ko_connectives,B1,한국말은 어렵지만 재미있어요.
+Korean,ko_connectives,B1,저는 커피를 좋아하지만 제 친구는 차를 좋아해요.
+Korean,ko_connectives,B1,비가 와서 집에 있었어요.
+Korean,ko_connectives,B1,숙제가 많아서 피곤해요.
+Korean,ko_connectives,B1,지금 저녁을 먹는데 친구에게서 전화가 왔어요.
+Korean,ko_connectives,B1,날씨가 좋은데 우리 산책할까요?
+Chinese,zh_measure_words,A1,我有一个朋友。
+Chinese,zh_measure_words,A1,她有两本书。
+Chinese,zh_measure_words,A1,爸爸喝了三杯水。
+Chinese,zh_measure_words,A1,老师有四支笔。
+Chinese,zh_measure_words,A1,妈妈买了五个苹果。
+Chinese,zh_measure_words,A1,这是一个电脑。
+Chinese,zh_measure_words,A1,你有几件衣服？
+Chinese,zh_measure_words,A1,我喜欢两只小狗。
+Chinese,zh_aspect_markers,A2,我喝了水。
+Chinese,zh_aspect_markers,A2,她学了中文。
+Chinese,zh_aspect_markers,A2,我没去过美国。
+Chinese,zh_aspect_markers,A2,你吃过饺子吗？
+Chinese,zh_aspect_markers,A2,窗户开着。
+Chinese,zh_aspect_markers,A2,他坐着看书。
+Chinese,zh_aspect_markers,A2,天气冷了。
+Chinese,zh_aspect_markers,A2,老师站着说。
+Chinese,zh_resultative_complements,B1,我听懂了老师说的话。
+Chinese,zh_resultative_complements,B1,我很快就做完了作业。
+Chinese,zh_resultative_complements,B1,我在公园里看见了很多花。
+Chinese,zh_resultative_complements,B1,他很努力，所以学好了汉语。
+Chinese,zh_resultative_complements,B1,我终于找到我的钥匙了。
+Chinese,zh_resultative_complements,B1,孩子们把盘子里的饭都吃完了。
+Chinese,zh_resultative_complements,B1,我要把我的车洗干净。
+Chinese,zh_resultative_complements,B1,他不小心写错了名字。
+Chinese,zh_comparison_bi,B1,这个苹果比那个苹果大。
+Chinese,zh_comparison_bi,B1,今天比昨天热。
+Chinese,zh_comparison_bi,B1,他比我高。
+Chinese,zh_comparison_bi,B1,这本书比那本书便宜。
+Chinese,zh_comparison_bi,B1,这辆车比那辆车快。
+Chinese,zh_comparison_bi,B1,汉语比英语难吗？
+Chinese,zh_comparison_bi,B1,她比她姐姐漂亮。
+Chinese,zh_comparison_bi,B1,我们学校比公园远。
+Chinese,zh_ba_construction,B1,我把书放在桌子上了。
+Chinese,zh_ba_construction,B1,请你把门关上。
+Chinese,zh_ba_construction,B1,他把咖啡喝完了。
+Chinese,zh_ba_construction,B1,妈妈把菜做好了。
+Chinese,zh_ba_construction,B1,你把垃圾扔了吧。
+Chinese,zh_ba_construction,B1,老师把名字写在白板上。
+Chinese,zh_ba_construction,B1,我把手机借给朋友了。
+Chinese,zh_ba_construction,B1,请把这个词翻译成英文。
+Chinese,zh_potential_directional,B2,这箱子太重了，我一个人搬不上去。
+Chinese,zh_potential_directional,B2,电影说得太快了，我听不懂他们在说什么。
+Chinese,zh_potential_directional,B2,这本书虽然有点难，但是我看得懂。
+Chinese,zh_potential_directional,B2,请你帮我把笔拿过来。
+Chinese,zh_potential_directional,B2,他快步跑进教室。
+Chinese,zh_potential_directional,B2,门太小了，这张桌子搬不进去。
+Chinese,zh_potential_directional,B2,作业太多了，我今天晚上做不完。
+Chinese,zh_potential_directional,B2,老师让我们把书翻开到第一页。

@@ -96,6 +96,8 @@ from engine import youtube_links
 from engine import recommender as _recommender
 from engine.picker import _render_flat_wave_nav
 from engine import i18n
+from engine import target_grammar_paths as _target_grammar_paths
+from engine import target_grammar_loader as _target_grammar_loader
 from engine.character_widget import show_character
 
 _FULL_SEQ = [1, 2, 3, 4, 5, 6, 7, 8]
@@ -168,6 +170,31 @@ def _load_vocabulary(db_path, native_lang, target_lang, **kwargs):
     return _cefrj_vocab.load_cefrj_vocab(str(_cefrj_vocab.CSV_PATH), native_lang, target_lang)
 
 
+def _load_grammar(db_path, native_lang, target_lang, **kwargs):
+    """
+    "Grammar" module content: imlls_database_with_titles.xlsx's 182 lessons
+    plus, spliced onto the end, any engine.target_grammar_paths topics
+    registered for target_lang (2026-08-23, Natalia's request -- e.g.
+    Ukrainian case system as a real lesson inside "Nouns & Quantities",
+    not just a Phase 3 practice-only option). Same {lesson_id, phrase_id,
+    difficulty, native, target, topic_en, topic_uk, ...} shape either way
+    (engine.target_grammar_loader.build_grammar_lesson_rows), so every
+    downstream consumer (engine/picker.py's Category filter, Select Lesson
+    dropdown, wave path, session.phrases(), Phase 1-8) needs no special
+    case for where a given lesson_id actually came from.
+
+    Empty concat operand (target_lang has no registered topics, or none are
+    batch-generated yet) is just an empty dataframe with the right columns
+    -- pd.concat no-ops, `load_phrases`'s 182 lessons come through
+    unchanged, exactly as before this function existed.
+    """
+    df = load_phrases(str(db_path), native_lang, target_lang)
+    extra = _target_grammar_loader.build_grammar_lesson_rows(target_lang, native_lang)
+    if extra.empty:
+        return df
+    return pd.concat([df, extra], ignore_index=True)
+
+
 def _module_config(module: str) -> dict:
     """Return loader dispatch + UI labels for the chosen practice module."""
     if module == "vocab":
@@ -212,7 +239,7 @@ def _module_config(module: str) -> dict:
         }
     return {
         "db_path":     DB_PATH,
-        "load":        load_phrases,
+        "load":        _load_grammar,
         "get_lesson":  get_lesson,
         "get_lessons": get_available_lessons,
         # Grammar topics come from the loaded DataFrame (optional topic_en/topic_uk)
@@ -683,7 +710,7 @@ def step_hdr(step, title=None, desc=None, total=8, show_image=False):
     st.markdown(f"""
     <div class="step-header step-type-{s_type}">
       <div class="step-icon-row">
-        <span class="step-icon-big">{icon}</span>
+        <span class="mova-icon-tile" data-step="{step}">{icon}</span>
         <div style="flex:1">
           <div class="step-title">{title}</div>
           <div class="step-desc">{desc}</div>
@@ -741,11 +768,64 @@ def do_score(session: LessonSession, audio: bytes, expected: str,
 # ═══════════════════════════════════════════════════════════════════════════
 # Step 1 — Read all phrases (both languages visible)
 # ═══════════════════════════════════════════════════════════════════════════
+def _render_rule_explanation(session: LessonSession, phrases: list[dict]) -> None:
+    """
+    Step 1 ("Read out loud") just lists translated phrases with no
+    explanation of the pattern behind them -- this adds an optional,
+    Premium-only "explain the rule" block (CLAUDE.md idea A, 2026-08-23).
+    Grammar only for now: vocab/phrasebook lessons don't have a "rule" the
+    same way a grammar topic does.
+
+    Cached keyed by lesson_id (not just topic/level/lang) so a stale
+    explanation from a previously-viewed lesson in this same browser
+    session can never show under a different one -- explain_lesson_rule
+    itself is cached server-side by (topic, level, target_lang, native_lang)
+    across ALL students, this session_state key just avoids an unnecessary
+    re-fetch within one student's own session.
+    """
+    state       = session.state
+    target_lang = state.target_lang
+    native_lang = state.native_lang
+    level       = _lesson_level(session)
+    # session.state has no real `topic` field (unlike the Phase 3/4 "daily
+    # life" fallback elsewhere in this file, which reads a getattr that's
+    # never actually set) -- the real per-lesson topic name lives in the
+    # topic_{lang_code} columns already loaded onto session.df, read via the
+    # same get_grammar_topics() the lesson picker itself uses.
+    topic = get_grammar_topics(session.df, native_lang=native_lang).get(state.lesson_id, "") or "grammar"
+    state_key = f"s1_explanation_{state.lesson_id}"
+
+    with st.expander(i18n.get(native_lang, "rule_explanation_title"), expanded=False):
+        if state_key not in st.session_state:
+            if st.button(i18n.get(native_lang, "rule_explanation_btn"), key="s1_explain_btn"):
+                try:
+                    with st.spinner("..."):
+                        st.session_state[state_key] = _gemini.explain_lesson_rule(
+                            topic, level, target_lang, native_lang,
+                            [p["target"] for p in phrases],
+                        )
+                except _gemini.PaidFeatureRequired:
+                    _show_upsell("s1_explain")
+
+        explanation = st.session_state.get(state_key)
+        if explanation:
+            st.markdown(explanation.get("rule", ""))
+            for ex in explanation.get("examples", []):
+                st.markdown(f"- **{ex.get('target', '')}** — {ex.get('native', '')}")
+            if explanation.get("exceptions"):
+                st.markdown(f"**{i18n.get(native_lang, 'rule_exceptions_label')}**")
+                for exc in explanation["exceptions"]:
+                    st.markdown(f"- {exc}")
+
+
 def step1(session: LessonSession, tts_lang, wh_lang):
     session.start_step(1)
     step_hdr(1, show_image=True)
     phrases = session.phrases()
     scores  = st.session_state.get("s1_scores", {})
+
+    if _current_module() == "grammar":
+        _render_rule_explanation(session, phrases)
 
     # Mic at the top so mobile users don't need to scroll past the phrase list
     audio = audio_input("s1")
@@ -1248,9 +1328,19 @@ def render_setup():
     _setup_img_name = "vocab_basic.jpg" if module == "vocab" else "vocab_school.jpg"
     _setup_img = APP_IMG_DIR / _setup_img_name
     if _setup_img.exists():
-        _, _mid, _ = st.columns([1, 2, 1])
-        with _mid:
-            st.image(str(_setup_img), use_container_width=True)
+        # Capped height (was a full st.image() column that scaled to ~500px
+        # tall, pushing the lesson picker below the fold on every module
+        # entry) -- same base64<img> pattern already used for module cards
+        # in app.py, just shorter so the wave nav is reachable without a
+        # full scroll first.
+        _setup_b64 = base64.b64encode(_setup_img.read_bytes()).decode()
+        st.markdown(
+            f'<div style="text-align:center;margin-bottom:20px">'
+            f'<img src="data:image/jpeg;base64,{_setup_b64}" '
+            f'style="max-height:180px;width:auto;max-width:100%;'
+            f'object-fit:cover;border-radius:var(--mova-radius-4)"/></div>',
+            unsafe_allow_html=True,
+        )
 
     db_path = cfg["db_path"]
     if not db_path.exists():
@@ -1398,15 +1488,59 @@ def render_setup():
             rec_lid = _recommender.parse_unit_id(top[0]["unit_id"])["lesson_id"]
             if rec_lid in lessons and rec_lid != lessons[default_idx]:
                 lvl = top[0].get("level") or ""
+                cur_lid = lessons[default_idx]
+                # cfg['lesson_word'] is always the English canonical value
+                # ("Lesson"/"Topic"/"Phrase") -- map it to the matching
+                # engine.i18n key added for the launcher (2026-08-23) instead
+                # of duplicating a second English-only word list here.
+                _WORD_I18N_KEY = {
+                    "Lesson": "word_lesson", "Topic": "topic_label", "Phrase": "word_phrase",
+                }
+                _word = i18n.get(native, _WORD_I18N_KEY.get(cfg["lesson_word"], "word_lesson"))
+                # Ukrainian/Russian/Polish decline nouns by case -- a bare
+                # nominative "word" reads slightly foreign after "до"/"к"/"do"
+                # (needs oblique case) or "на"/"na" (needs locative), e.g.
+                # "повернутися до Урок 84" should be "до Уроку 84". Every
+                # other language here either has no case system for this or
+                # its case doesn't visibly change the noun, so the plain
+                # i18n word already reads naturally there (follow-up to
+                # design review, 2026-08-23, at Natalia's request to
+                # localize this banner).
+                _SLAVIC_DECLENSION = {
+                    "Ukrainian": {"Lesson": ("Уроку", "Уроці"),
+                                  "Topic":  ("Теми", "Темі"),
+                                  "Phrase": ("Фрази", "Фразі")},
+                    "Russian":   {"Lesson": ("Уроку", "Уроке"),
+                                  "Topic":  ("Теме", "Теме"),
+                                  "Phrase": ("Фразе", "Фразе")},
+                    "Polish":    {"Lesson": ("Lekcji", "Lekcji"),
+                                  "Topic":  ("Tematu", "Temacie"),
+                                  "Phrase": ("Frazy", "Frazie")},
+                }
+                _decl = _SLAVIC_DECLENSION.get(native, {}).get(cfg["lesson_word"])
+                _word_obl = _decl[0] if _decl else _word  # reason clause ("до"/"к"/"do")
+                _word_loc = _decl[1] if _decl else _word  # saved-place clause ("на"/"na")
+                # Say *why* and reassure that saved progress isn't touched --
+                # without this, "Lesson 84 might fit you better" when the
+                # learner is already resuming at 91 reads as "did I lose my
+                # progress?" instead of a helpful suggestion (design review,
+                # 2026-08-23; localized to all 14 UI languages per Natalia's
+                # follow-up request the same day).
+                if rec_lid < cur_lid:
+                    _reason = i18n.get(native, "rec_reason_revisit").format(word=_word_obl, lid=rec_lid)
+                else:
+                    _reason = i18n.get(native, "rec_reason_skip_ahead").format(word=_word_obl, lid=rec_lid)
                 c_rec, c_btn = st.columns([5, 2])
                 with c_rec:
                     st.info(
-                        f"💡 Based on your placement quiz / activity, "
-                        f"{cfg['lesson_word']} {rec_lid} ({lvl}) might fit you better."
+                        i18n.get(native, "rec_banner_main").format(
+                            reason=_reason, level=lvl, word=_word_loc, cur_lid=cur_lid,
+                        )
                     )
                 with c_btn:
                     st.markdown("<div style='margin-top:1.6rem'></div>", unsafe_allow_html=True)
-                    if st.button(f"Jump to {rec_lid} →", use_container_width=True,
+                    _jump_label = i18n.get(native, "rec_jump_button").format(lid=rec_lid)
+                    if st.button(_jump_label, use_container_width=True,
                                  key=f"jump_btn_{cfg['lang_suffix']}"):
                         st.session_state["_jump_recommended_lid"] = rec_lid
                         st.rerun()
@@ -2053,7 +2187,12 @@ def phase1_warmup(session: LessonSession, tts_lang: str, wh_lang: str) -> bool:
 
     _init_errors("warmup")
 
-    col_title, col_skip = st.columns([5, 1])
+    # [5, 1] used to leave the Skip button too narrow for longer translated
+    # labels ("Пропустити →") to fit on one line at any readable font size --
+    # word-break had nowhere to break the (space-free) word itself, so it
+    # split mid-syllable regardless of font-size tweaks (design review,
+    # 2026-08-23).
+    col_title, col_skip = st.columns([4, 1.5])
     with col_title:
         st.markdown(f"## {i18n.get(native_lang, 'warmup_title')}")
         st.caption(i18n.get(native_lang, "warmup_strategy"))
@@ -2200,6 +2339,36 @@ def phase3_practice(session: LessonSession, tts_lang: str, wh_lang: str) -> bool
     # languages fall back to a plain "use simple vocabulary" instruction
     # (CLAUDE.md, 2026-08-22 — no open CEFR+POS list exists for uk/es/ko).
     _drill_available = module == "grammar"
+    # target_grammar: topics genuine to target_lang with no imlls_database
+    # lesson at all (Slavic aspect, ser/estar, subjunctive, Japanese/Korean
+    # particles...) -- see engine.target_grammar_paths / LINGUISTIC_AUDIT.md
+    # section 1. Only offered where a roadmap for target_lang is registered.
+    _target_grammar_topics = (
+        _target_grammar_paths.paths_for_language(target_lang) if module == "grammar" else []
+    )
+
+    # Auto-select target_grammar + this exact topic when the CURRENT lesson
+    # IS one of these synthetic "мовні шляхи" lessons (lesson_id >= 1000,
+    # spliced into the Grammar curriculum by
+    # engine.target_grammar_loader.build_grammar_lesson_rows) -- Наталія's
+    # request, 2026-08-23: the New Material topic should carry over into
+    # Practice instead of the student re-picking it manually every time.
+    # Pre-seeds the widgets' own session_state BEFORE they're instantiated
+    # (Streamlit reads an existing session_state[key] as the widget's
+    # initial value), gated on "haven't already auto-set this for the
+    # CURRENT lesson_id" so the student can still freely switch away
+    # afterward without it snapping back on every rerun.
+    if _target_grammar_topics and st.session_state.get("p3_auto_lesson_id") != session.state.lesson_id:
+        _auto_topic = _target_grammar_paths.topic_for_lesson_id(session.state.lesson_id)
+        if _auto_topic and _auto_topic.get("target_lang") == target_lang:
+            _auto_idx = next(
+                (i for i, t in enumerate(_target_grammar_topics) if t["key"] == _auto_topic["key"]),
+                None,
+            )
+            if _auto_idx is not None:
+                st.session_state["p3_type"]     = "target_grammar"
+                st.session_state["p3_tg_topic"] = _auto_idx
+        st.session_state["p3_auto_lesson_id"] = session.state.lesson_id
 
     _init_errors("practice")
 
@@ -2233,6 +2402,8 @@ def phase3_practice(session: LessonSession, tts_lang: str, wh_lang: str) -> bool
         _test_types.append("sentence_transformation")
     if _drill_available:
         _test_types.append("construction_drill")
+    if _target_grammar_topics:
+        _test_types.append("target_grammar")
     test_type = st.selectbox(
         i18n.get(native_lang, "test_type_label"),
         _test_types,
@@ -2242,9 +2413,27 @@ def phase3_practice(session: LessonSession, tts_lang: str, wh_lang: str) -> bool
             "translation":             i18n.get(native_lang, "translation_type"),
             "sentence_transformation": i18n.get(native_lang, "sentence_transformation"),
             "construction_drill":      i18n.get(native_lang, "construction_drill"),
+            "target_grammar":          i18n.get(native_lang, "target_grammar"),
         }.get,
         key="p3_type",
     )
+
+    # target_grammar needs a second picker: WHICH topic from target_lang's
+    # roadmap (engine.target_grammar_paths) -- these aren't tied to the
+    # current lesson, so there's no single implicit choice like
+    # construction_drill has via the lesson's own topic.
+    _target_grammar_choice = None
+    if test_type == "target_grammar":
+        _tg_idx = st.selectbox(
+            i18n.get(native_lang, "target_grammar_topic_label"),
+            range(len(_target_grammar_topics)),
+            format_func=lambda i: (
+                f"[{_target_grammar_topics[i]['level']}] {_target_grammar_topics[i]['title']} "
+                f"({_target_grammar_topics[i]['gloss_en']})"
+            ),
+            key="p3_tg_topic",
+        )
+        _target_grammar_choice = _target_grammar_topics[_tg_idx]
 
     col1, col2 = st.columns([3, 1])
     with col1:
@@ -2275,6 +2464,43 @@ def phase3_practice(session: LessonSession, tts_lang: str, wh_lang: str) -> bool
                         "items": [
                             {"question": it["native"], "answer": it["target"], "options": []}
                             for it in drill.get("items", [])
+                        ],
+                    }
+                elif test_type == "target_grammar":
+                    # A topic from target_lang's own grammar roadmap
+                    # (engine.target_grammar_paths) -- not tied to the
+                    # current lesson at all, unlike construction_drill.
+                    # Pulled from the pre-generated pool
+                    # (data/target_grammar_drills.csv, batch-generated once
+                    # by scripts/generate_target_grammar_drills.py — CLAUDE.md
+                    # 2026-08-23) with the viewer's native translation filled
+                    # lazily (engine.target_grammar_loader, same
+                    # translate_phrase + phrase_translations cache the
+                    # CEFR-J Vocabulary module already uses). Falls back to a
+                    # live Gemini call only if the topic hasn't been batch-
+                    # generated yet, so a newly-added registry entry doesn't
+                    # just silently show nothing before the next batch run.
+                    items = _target_grammar_loader.load_topic_drills(
+                        target_lang, _target_grammar_choice["key"], native_lang,
+                    )
+                    if not items:
+                        drill = _gemini.generate_target_grammar_drill(
+                            _target_grammar_choice["title"],
+                            _target_grammar_choice["description"],
+                            _target_grammar_choice["level"],
+                            native_lang, target_lang,
+                        )
+                        items = drill.get("items", [])
+                    st.session_state["p3_tg_unit_id"] = _recommender.target_grammar_unit_id(
+                        target_lang, _target_grammar_choice["key"],
+                    )
+                    st.session_state["p3_test"] = {
+                        "instructions": f"{_target_grammar_choice['title']} "
+                                        f"({_target_grammar_choice['gloss_en']}) — "
+                                        f"{i18n.get(native_lang, 'translation_type')}",
+                        "items": [
+                            {"question": it["native"], "answer": it["target"], "options": []}
+                            for it in items
                         ],
                     }
                 else:
@@ -2337,6 +2563,21 @@ def phase3_practice(session: LessonSession, tts_lang: str, wh_lang: str) -> bool
                         res.get("feedback", ""), "practice",
                         native_prompt=item["question"],
                     )
+                # target_grammar is the only Phase-3 test_type that writes to
+                # mastery/SRS (CLAUDE.md 2026-08-23) -- every other test_type
+                # here has always been ephemeral practice (session.score()
+                # already covers the underlying lesson's own phrases in
+                # Phase 2), but target_grammar topics have no Phase-2
+                # equivalent at all, so without this they'd never
+                # accumulate any progress anywhere.
+                if test_type == "target_grammar" and st.session_state.get("p3_tg_unit_id"):
+                    try:
+                        _recommender.record_result(
+                            session.state.user_id, target_lang,
+                            st.session_state["p3_tg_unit_id"], res["correct"],
+                        )
+                    except Exception:
+                        pass
         except _gemini.PaidFeatureRequired:
             _show_upsell("p3_check")
             return False
@@ -2545,6 +2786,31 @@ def phase4_expression(session: LessonSession, tts_lang: str, wh_lang: str) -> bo
 # Phase 5 - Pidsumok / Summary
 # =============================================================================
 
+def _video_ai_search_prompt(target_lang: str, native_lang: str, level: str, interest: str) -> str:
+    """
+    Copy-paste prompt for the student's OWN AI chat (ChatGPT/Gemini/etc.) --
+    not a live call from this app (CLAUDE.md idea B, 2026-08-23). Written in
+    English since that's the language the target/native names are already
+    in throughout engine/gemini.py's own prompts, and instructs the AI to
+    reply in native_lang so the student still gets an explanation they can
+    read. Explicitly told not to invent URLs -- same "no fabricated links"
+    principle the project already applies to its own YouTube curation
+    (CLAUDE.md, Фаза A).
+    """
+    topic = interest.strip() or "[describe your interests here, e.g. football, cooking, video games, true crime...]"
+    return (
+        f"I'm learning {target_lang} at CEFR level {level}. Please answer in {native_lang}.\n\n"
+        f"Suggest 4-5 YouTube channels or types of videos in {target_lang} that would suit "
+        f"my level and match this interest: {topic}\n\n"
+        f"For each suggestion, give:\n"
+        f"- the channel name (or a specific video only if you're confident it's real)\n"
+        f"- why it fits a {level} learner (vocabulary, speaking speed, subtitles)\n"
+        f"- 2-3 search terms I can type into YouTube myself to find similar content\n\n"
+        f"Don't invent URLs -- only mention channels/videos you're actually confident exist, "
+        f"and remind me to verify by searching, since you may not have live access to YouTube."
+    )
+
+
 def phase5_video(session: LessonSession) -> bool:
     """
     Phase 5: curated YouTube channels for the student's target language and
@@ -2585,6 +2851,20 @@ def phase5_video(session: LessonSession) -> bool:
         st.markdown(i18n.get(native_lang, "video_channels_intro"))
         for c in channels:
             st.markdown(f"- [{c['name']}]({c['url']})")
+
+    # AI-search prompt: zero Gemini calls of our own -- just a template the
+    # student copies into their own AI chat. Fills the gap left by
+    # beyond_curated (B2+ had nothing actionable beyond "watch whatever"),
+    # but shown at every level since even a curated channel list can't match
+    # a student's specific interests (CLAUDE.md idea B, 2026-08-23).
+    with st.expander(i18n.get(native_lang, "video_ai_search_title"), expanded=beyond_curated):
+        st.markdown(i18n.get(native_lang, "video_ai_search_intro"))
+        interest = st.text_input(
+            i18n.get(native_lang, "video_ai_search_interest_label"),
+            placeholder=i18n.get(native_lang, "video_ai_search_interest_placeholder"),
+            key="p5_ai_search_interest",
+        )
+        st.code(_video_ai_search_prompt(target_lang, native_lang, level, interest), language=None)
 
     st.markdown("---")
     if st.button(i18n.get(native_lang, "to_main_menu"), type="primary", key="p5_done"):
@@ -2714,17 +2994,32 @@ def main(module: str = "grammar"):
                                               native_lang=state.native_lang,
                                               target_lang=state.target_lang)
                     total_lessons = max(len(cu_df), 1)
+                    _lesson_ids_for_total = None
                 else:
                     df_all_for_total = cfg["load"](str(cfg["db_path"]),
                                                    state.native_lang, state.target_lang)
-                    total_lessons = max(len(cfg["get_lessons"](df_all_for_total)), 1)
+                    _lesson_ids_for_total = cfg["get_lessons"](df_all_for_total)
+                    total_lessons = max(len(_lesson_ids_for_total), 1)
             except Exception:
                 total_lessons = TOTAL_LESSONS
+                _lesson_ids_for_total = None
 
             # ── User path: which exercise out of all, % to finish ──
-            # "Completed" = fully-finished lessons (lesson_id - 1).
-            # We still show "lesson N / M" so the user knows which one is open.
-            completed_lessons = max(state.lesson_id - 1, 0)
+            # "Completed" = how many lessons come before this one in the
+            # sorted lesson list. Position-in-list, NOT "lesson_id - 1" --
+            # that arithmetic silently assumed lesson_id is a contiguous
+            # 1..N sequence, which broke the moment
+            # engine.target_grammar_paths introduced lesson_id >= 1000
+            # (2026-08-23): a lesson_id of 1000 read as "999 lessons done"
+            # even on someone's very first lesson, and 1000/189 as a
+            # percentage is obvious nonsense (>100%, confirmed live).
+            # We still show "lesson N / M" so the user knows which one is
+            # open -- N is the raw lesson_id (a stable identifier, not a
+            # position), same as before.
+            if _lesson_ids_for_total and state.lesson_id in _lesson_ids_for_total:
+                completed_lessons = _lesson_ids_for_total.index(state.lesson_id)
+            else:
+                completed_lessons = max(state.lesson_id - 1, 0)
             lesson_pct = round(completed_lessons / total_lessons * 100, 1)
             st.markdown(
                 f'<div style="background:var(--mova-card);border:1px solid var(--mova-line);'
@@ -2925,16 +3220,34 @@ def main(module: str = "grammar"):
         5: i18n.get(_nl, "phase_video"),
     }
     _phase = st.session_state.get("lesson_phase", 1)
-    # Clickable phase navigation
-    _nav_cols = st.columns(len(_PHASE_LABELS))
-    for col, (k, v) in zip(_nav_cols, _PHASE_LABELS.items()):
-        with col:
-            if k == _phase:
-                st.markdown(f"**{v}**", help=None)
-            else:
-                if st.button(v, key=f"phase_nav_{k}", use_container_width=True):
-                    st.session_state["lesson_phase"] = k
-                    st.rerun()
+    # Clickable phase navigation. Scoped font-size cut for this row only --
+    # some translated single-word labels ("Висловлювання") are long enough
+    # that the global button font-size (--mova-fs-body, 15px bold) makes
+    # them wider than a quarter of the row, and since a single word has no
+    # space to wrap at, the browser's overflow-wrap fallback was splitting
+    # it mid-syllable ("Висловлюван|ня") no matter what word-break says
+    # (design review, 2026-08-23). Two-word labels ("Новий матеріал") still
+    # wrap normally at the space -- only the font shrank.
+    with st.container(key="phase_nav_row"):
+        st.markdown(
+            """<style>
+            .st-key-phase_nav_row .stButton > button,
+            .st-key-phase_nav_row .stButton > button p,
+            .st-key-phase_nav_row .stMarkdown p {
+                font-size: 0.7rem !important;
+            }
+            </style>""",
+            unsafe_allow_html=True,
+        )
+        _nav_cols = st.columns(len(_PHASE_LABELS))
+        for col, (k, v) in zip(_nav_cols, _PHASE_LABELS.items()):
+            with col:
+                if k == _phase:
+                    st.markdown(f"**{v}**", help=None)
+                else:
+                    if st.button(v, key=f"phase_nav_{k}", use_container_width=True):
+                        st.session_state["lesson_phase"] = k
+                        st.rerun()
 
     # ── Phase 1: Rozminka ─────────────────────────────────────────────────────
     if _phase == 1:

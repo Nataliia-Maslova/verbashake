@@ -27,9 +27,15 @@
 -- CEFR-J-based Vocabulary module instead, see engine/vocab_loader.py's
 -- WORD_BANK_SHEETS) are thematic collocations/phrases, not raw word lists --
 -- split into their own module rather than lumped under "vocab".
+-- 'target_grammar' added 2026-08-23: engine/target_grammar_paths.py's
+-- roadmap of grammar topics genuine to one specific target language (Slavic
+-- aspect, ser/estar, keigo...) with no imlls_database lesson at all --
+-- unit_id = target_grammar:<lang_code>:<topic_key>, source_lesson =
+-- <lang_code> (locks each unit to its one target language, same mechanism
+-- "reading" already uses -- see engine/recommender.py::_candidates()).
 CREATE TABLE IF NOT EXISTS content_units (
     unit_id       TEXT PRIMARY KEY,
-    module        TEXT NOT NULL CHECK (module IN ('grammar', 'vocab', 'reading', 'phrasebook')),
+    module        TEXT NOT NULL CHECK (module IN ('grammar', 'vocab', 'reading', 'phrasebook', 'target_grammar')),
     source_lesson TEXT NOT NULL,      -- original lesson_id (grammar/vocab) or lang_code (reading)
     source_item   TEXT,               -- unused in V1, reserved for future finer-than-lesson tracking
     level         TEXT,               -- CEFR label: A1 | A2 | B1 | B2 | C1 | C2
@@ -138,6 +144,23 @@ CREATE TABLE IF NOT EXISTS phrase_translations (
     to_lang      TEXT NOT NULL,
     phrase       TEXT NOT NULL,
     translation  TEXT NOT NULL,
+    created_at   TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
+-- ── lesson_explanations ─────────────────────────────────────────────────────
+-- Step 1 ("Read out loud") rule explanation cache (CLAUDE.md idea A,
+-- 2026-08-23; engine/gemini.py::explain_lesson_rule). Same reasoning as
+-- phrase_translations above: the rule/examples/exceptions for a given
+-- (topic, level, target_lang, native_lang) are identical for every student
+-- who opens that lesson, so this is a one-time Gemini cost per lesson x
+-- language pair for the whole project, not per pageview.
+CREATE TABLE IF NOT EXISTS lesson_explanations (
+    explanation_hash TEXT PRIMARY KEY,  -- sha256(target_lang|native_lang|level|topic)
+    topic        TEXT NOT NULL,
+    level        TEXT NOT NULL,
+    target_lang  TEXT NOT NULL,
+    native_lang  TEXT NOT NULL,
+    explanation  JSONB NOT NULL,
     created_at   TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 

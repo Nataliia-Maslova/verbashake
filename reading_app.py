@@ -827,6 +827,8 @@ READING_UI = {
         "lang_label": '🌐 Мова для вивчення',
         "name_label": "👤 Ім'я",
         "unit_label": '📚 Розділ',
+        "select_prefix": 'Обери',
+        "start_prefix":  'Почати',
         "resume_next": '▶ Продовжуєш з уроку {next_lesson} (останній пройдений: {saved_lesson})',
         "resume_step": '⏯ Повернешся до уроку {saved_lesson} на крок {resume_step}',
         "try_first":       "Спочатку виконай завдання",
@@ -882,6 +884,8 @@ READING_UI = {
         "lang_label": '🌐 Language to learn',
         "name_label": '👤 Name',
         "unit_label": '📚 Unit',
+        "select_prefix": 'Select',
+        "start_prefix":  'Start',
         "resume_next": '▶ Continue from Lesson {next_lesson} (last completed: {saved_lesson})',
         "resume_step": '⏯ Resume Lesson {saved_lesson} at Step {resume_step}',
         "try_first":       "Complete the exercise first",
@@ -937,6 +941,8 @@ READING_UI = {
         "lang_label": '🌐 Idioma a aprender',
         "name_label": '👤 Nombre',
         "unit_label": '📚 Unidad',
+        "select_prefix": 'Selecciona',
+        "start_prefix":  'Empezar',
         "resume_next": '▶ Continuar desde Lección {next_lesson} (última completada: {saved_lesson})',
         "resume_step": '⏯ Retomar Lección {saved_lesson} en el Paso {resume_step}',
         "try_first":       "Primero completa el ejercicio",
@@ -992,6 +998,8 @@ READING_UI = {
         "lang_label": '🌐 학습할 언어',
         "name_label": '👤 이름',
         "unit_label": '📚 단원',
+        "select_prefix": '선택',
+        "start_prefix":  '시작',
         "resume_next": '▶ 수업 {next_lesson}에서 계속 (마지막 완료: {saved_lesson})',
         "resume_step": '⏯ 수업 {saved_lesson} 단계 {resume_step}에서 재개',
         "try_first":       "먼저 연습을 완료하세요",
@@ -1641,33 +1649,39 @@ def render_setup():
     except Exception:
         _r_done_lids = {}
 
-    _r_clicked = _render_wave_plotly(
-        lessons=_filtered_r,
-        lesson_names=_r_lesson_names,
-        lesson_counts=_r_lesson_counts,
-        default_lid=_r_default_lid,
-        resume_step=resume_step,
-        key_suffix=f"reading_{chosen_lang}",
-        show_lesson_image=False,
-        done_lids=set(_r_done_lids),
+    # Primary, always-reliable picker: dropdown + Start button, right here --
+    # same fix as engine/picker.py::_render_flat_wave_nav (design review,
+    # 2026-08-23). The Plotly click-to-select doesn't always register, and
+    # even when it does, this confirm UI used to render only *after* the
+    # whole snake path -- for a long reading unit that's a lot of scrolling
+    # away from wherever in the path the click actually happened.
+    _r_opts  = [_r_lesson_names.get(_lid, f"{_lesson_word} {_lid}") for _lid in _filtered_r]
+    _r_def_i = _filtered_r.index(_r_default_lid) if _r_default_lid in _filtered_r else 0
+    _r_sel   = st.selectbox(
+        f"{_ui('select_prefix')} {_lesson_word}", _r_opts, index=_r_def_i,
+        key=f"r_dd_{chosen_lang}",
     )
-    if _r_clicked is not None:
-        _start_reading_lesson(_r_clicked)
-    else:
-        # Clean dropdown fallback — replaces the circular button grid
-        _r_opts  = [_r_lesson_names.get(_lid, f"{_lesson_word} {_lid}") for _lid in _filtered_r]
-        _r_def_i = _filtered_r.index(_r_default_lid) if _r_default_lid in _filtered_r else 0
-        _r_sel   = st.selectbox(
-            f"Select {_lesson_word}", _r_opts, index=_r_def_i,
-            key=f"r_dd_{chosen_lang}",
+    _r_sel_lid   = _filtered_r[_r_opts.index(_r_sel)]
+    _r_is_resume = (_r_sel_lid == _r_default_lid and resume_step > 1)
+    _r_btn_lbl   = (f"▶ Resume at Step {resume_step}" if _r_is_resume
+                    else f"▶ {_ui('start_prefix')} {_lesson_word}")
+    if st.button(_r_btn_lbl, type="primary", use_container_width=True,
+                 key=f"r_dd_btn_{chosen_lang}"):
+        _start_reading_lesson(_r_sel_lid)
+
+    with st.expander("🗺️ Or browse the path"):
+        _r_clicked = _render_wave_plotly(
+            lessons=_filtered_r,
+            lesson_names=_r_lesson_names,
+            lesson_counts=_r_lesson_counts,
+            default_lid=_r_default_lid,
+            resume_step=resume_step,
+            key_suffix=f"reading_{chosen_lang}",
+            show_lesson_image=False,
+            done_lids=set(_r_done_lids),
         )
-        _r_sel_lid   = _filtered_r[_r_opts.index(_r_sel)]
-        _r_is_resume = (_r_sel_lid == _r_default_lid and resume_step > 1)
-        _r_btn_lbl   = (f"▶ Resume at Step {resume_step}" if _r_is_resume
-                        else f"▶ Start {_lesson_word}")
-        if st.button(_r_btn_lbl, type="primary", use_container_width=True,
-                     key=f"r_dd_btn_{chosen_lang}"):
-            _start_reading_lesson(_r_sel_lid)
+        if _r_clicked is not None:
+            _start_reading_lesson(_r_clicked)
 
 
 # ═══════════════════════════════════════════════════════════════════════════

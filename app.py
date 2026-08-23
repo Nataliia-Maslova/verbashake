@@ -54,6 +54,7 @@ from engine.vocab_loader import (             # noqa: E402
 )
 from engine.custom_store import list_user_lessons  # noqa: E402
 from engine import placement_quiz                   # noqa: E402
+from engine import i18n                              # noqa: E402
 
 
 def _app_url() -> str:
@@ -279,7 +280,7 @@ def _module_progress(user_id: str, target: str, module: str, total: int) -> dict
             "done":    completed >= total,
         })
     else:
-        completed = max(saved_lesson - 1, 0)
+        completed = min(max(saved_lesson - 1, 0), total)
         info.update({
             "current": min(saved_lesson, total),
             "pct":     round(completed / total * 100, 1),
@@ -295,19 +296,19 @@ def _module_progress_card(module_key: str, native: str, target: str,
         r_lang = _st.session_state.get("r_lang", "en")
         total  = _count_reading_lessons(lang=r_lang)
         module = "reading"
-        word   = "Lesson"
+        word   = i18n.get(native, "word_lesson")
     elif module_key == "grammar":
         total  = _count_grammar_lessons(native, target)
         module = "grammar"
-        word   = "Lesson"
+        word   = i18n.get(native, "word_lesson")
     elif module_key == "vocab":
         total  = _count_vocab_lessons(native, target)
         module = "vocab"
-        word   = "Topic"
+        word   = i18n.get(native, "topic_label")
     elif module_key == "phrasebook":
         total  = _count_phrasebook_lessons(native, target)
         module = "phrasebook"
-        word   = "Phrase"
+        word   = i18n.get(native, "word_phrase")
     elif module_key == "path":
         try:
             from engine import recommender as _recommender
@@ -315,11 +316,11 @@ def _module_progress_card(module_key: str, native: str, target: str,
             return {
                 "current": stats["done_total"] + 1, "total": stats["total_units"],
                 "pct": stats["pct"], "done": False,
-                "lesson_word": "Unit", "module_key": "path",
+                "lesson_word": i18n.get(native, "word_unit"), "module_key": "path",
             }
         except Exception:
             return {"current": 1, "total": 0, "pct": 0.0, "done": False,
-                    "lesson_word": "Unit", "module_key": "path"}
+                    "lesson_word": i18n.get(native, "word_unit"), "module_key": "path"}
     else:
         try:
             total = len(list_user_lessons(user_id, native_lang=native,
@@ -327,7 +328,7 @@ def _module_progress_card(module_key: str, native: str, target: str,
         except Exception:
             total = 0
         module = "custom"
-        word   = "Lesson"
+        word   = i18n.get(native, "word_lesson")
     pr = _module_progress(user_id, target, module, total)
     pr["lesson_word"] = word
     pr["module_key"]  = module_key
@@ -376,16 +377,25 @@ def render_launcher():
     .mode-card:hover{
         border-color:var(--mova-indigo);
         background:var(--mova-surface-3);
+        transform:translateY(-3px);
+        box-shadow:var(--mova-shadow-3);
     }
     .mode-icon{font-size:2.4rem;margin-bottom:6px;}
     .mode-title{
         color:var(--mova-ink);
-        font-size:clamp(.85rem, 2.4vw, 1.1rem);
+        /* 6 equal columns leave ~78px of text width even on a wide desktop
+           viewport (vw-based sizing here doesn't track actual card width,
+           which stays roughly constant as columns grow) -- at the old
+           .85-1.1rem range, 10-letter labels like "Vocabulary" /
+           "Phrasebook" didn't fit and broke mid-word. Sized down so the
+           longest real label fits on one line without needing
+           word-break to fall back to a character split. */
+        font-size:clamp(.68rem, 1.6vw, .82rem);
         font-weight:600;
         line-height:1.25;
         margin:6px 0;
-        overflow-wrap:break-word;
-        hyphens:auto;
+        white-space:nowrap;
+        overflow:visible;
     }
     .mode-tag{color:var(--mova-ink-2);font-size:.88rem;margin-bottom:14px;}
     .pb-wrap{background:var(--mova-surface-3);border-radius:8px;height:8px;margin:8px 0 6px;
@@ -453,7 +463,11 @@ def render_launcher():
                 unsafe_allow_html=True,
             )
         with c2:
-            native = st.selectbox("🌐 Native language", LANGUAGES,
+            # Labelled in the student's last-known native language, same as
+            # the rest of the launcher below (was hardcoded English even
+            # when the sidebar gamification widget right next to it was
+            # already fully localized -- design review, 2026-08-23).
+            native = st.selectbox(i18n.get(default_native, "native_language"), LANGUAGES,
                                   index=LANGUAGES.index(default_native)
                                   if default_native in LANGUAGES else 0,
                                   key="launcher_native_input")
@@ -461,7 +475,7 @@ def render_launcher():
             target_options = [l for l in LANGUAGES if l != native]
             target_default_idx = (target_options.index(default_target)
                                   if default_target in target_options else 0)
-            target = st.selectbox("🎯 Target language", target_options,
+            target = st.selectbox(i18n.get(native, "target_language"), target_options,
                                   index=target_default_idx,
                                   key="launcher_target_input")
 
@@ -520,15 +534,27 @@ def render_launcher():
 
             # Build progress block — varies by state
             if tot <= 0:
+                # Was a two-span flex row mirroring the "N% " column of the
+                # other cards, but the empty state has no percentage to show
+                # -- the placeholder "—" span just forced longer translations
+                # ("Ще немає уроків") to wrap awkwardly against it. A single
+                # centered line reads cleaner and needs no dash filler
+                # (design review follow-up, 2026-08-23).
+                _no_lessons = i18n.get(native, "no_lessons_yet")
                 progress_html = (
-                    '<div class="pb-info"><span class="pb-empty">No lessons yet</span>'
-                    '<span class="pb-empty">—</span></div>'
+                    f'<div class="pb-info" style="justify-content:center">'
+                    f'<span class="pb-empty">{_no_lessons}</span></div>'
                     '<div class="pb-wrap"><div class="pb-fill" style="width:0%"></div></div>'
                 )
             elif pr["done"]:
+                # English pluralizes by appending "s" ("lessons"); other
+                # languages don't work that way, so only do it for English --
+                # everywhere else the bare localized word reads fine on its
+                # own in this short a label.
+                _word_done = f"{word.lower()}s" if native == "English" else word
                 progress_html = (
                     f'<div class="pb-info">'
-                    f'<span class="pb-done">All {tot} {word.lower()}s done!</span>'
+                    f'<span class="pb-done">All {tot} {_word_done} done!</span>'
                     f'<span class="pb-done">100%</span></div>'
                     f'<div class="pb-wrap">'
                     f'<div class="pb-fill pb-fill-done" style="width:100%"></div></div>'
@@ -556,7 +582,13 @@ def render_launcher():
               {progress_html}
             </div>
             """, unsafe_allow_html=True)
-            if st.button(f"Start {info['label']}", key=f"pick_{key}",
+            # Just "Start", not "Start {ModuleName}" -- the module name is
+            # already the card title right above this button, and repeating
+            # it doubled the label length right when it was translated into
+            # a non-English word, overflowing these already-narrow columns
+            # again (design review, 2026-08-23).
+            _start_label = f"▶ {i18n.get(native, 'start_prefix')}"
+            if st.button(_start_label, key=f"pick_{key}",
                          use_container_width=True,
                          type="primary" if key == "path" else "secondary"):
                 _switch_to(key)
@@ -651,6 +683,35 @@ def main():
     # Mova design system — Phase 1. Loaded on every rerun so it overrides
     # the sub-apps' legacy CSS via cascade.
     _inject_mova_css()
+
+    # 🌙 Dark mode — tokens.css already ships a full [data-theme="dark"]
+    # palette (design review, 2026-08-23: it just had nothing that ever set
+    # the attribute activating it). Session-only, not persisted per-user --
+    # a nice-to-have toggle, not worth a DB round-trip. st.markdown can't run
+    # a <script> tag (browsers don't execute script from innerHTML), so the
+    # attribute is set via components.html's iframe -> window.parent, the
+    # same pattern already used elsewhere in this app (grammar.py's audio
+    # player) for reaching into the real page from a component.
+    with st.sidebar:
+        _dark = st.toggle("🌙 Dark mode", key="_dark_mode")
+    import streamlit.components.v1 as _components
+    # Setting the data-theme attribute alone wasn't enough: .stApp's
+    # background never actually switched even though --mova-surface's
+    # computed value did change to the dark hex (verified via devtools) --
+    # something in Streamlit's own generated CSS keeps winning the cascade
+    # for that one property. An inline style set with 'important' priority
+    # via the DOM API outranks every selector-based rule regardless (inline
+    # specificity beats class/attribute selectors outright), so set it
+    # directly instead of trusting inheritance through the class rule.
+    _components.html(
+        "<script>"
+        "const d = window.parent.document;"
+        f"d.documentElement.setAttribute('data-theme', '{'dark' if _dark else 'light'}');"
+        "const app = d.querySelector('.stApp');"
+        "if (app) app.style.setProperty('background', 'var(--mova-surface)', 'important');"
+        "</script>",
+        height=0,
+    )
 
     # ── Login gate — must pass before anything else is shown ────────────────
     if not auth_gate.check_and_gate():

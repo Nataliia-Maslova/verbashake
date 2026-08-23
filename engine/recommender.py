@@ -40,7 +40,7 @@ CEFR_RANK: dict[str, int] = {"A1": 0, "A2": 1, "B1": 2, "B2": 3, "C1": 4, "C2": 
 # canonical list for anything that needs to touch "all modules" at once,
 # e.g. seeding placement-quiz mastery across the whole cross-module My Path,
 # not just the one module the quiz happened to test.
-ALL_MODULES: tuple[str, ...] = ("grammar", "vocab", "reading", "phrasebook")
+ALL_MODULES: tuple[str, ...] = ("grammar", "vocab", "reading", "phrasebook", "target_grammar")
 
 # imlls_database's "phrases"/"lessons" sheets tag every grammar lesson with a
 # difficulty column, not a CEFR string — this is the single source of truth
@@ -97,6 +97,8 @@ def parse_unit_id(unit_id: str) -> dict:
         return {"module": "phrasebook", "sheet": parts[1], "lesson_id": int(parts[2])}
     if module == "reading":
         return {"module": "reading", "lang_code": parts[1], "lesson_id": int(parts[2])}
+    if module == "target_grammar":
+        return {"module": "target_grammar", "lang_code": parts[1], "topic_key": parts[2]}
     if module == "custom":
         return {"module": "custom", "lesson_id": int(parts[1])}
     raise ValueError(f"Unrecognised unit_id: {unit_id!r}")
@@ -117,6 +119,13 @@ def unit_id_for(lang_suffix: str, lesson_id: int, topic: str | None = None) -> s
     if lang_suffix == "phrasebook" and topic:
         return f"phrasebook:{topic}:{lesson_id}"
     return None
+
+
+def target_grammar_unit_id(target_lang: str, topic_key: str) -> str:
+    """content_units key for an engine.target_grammar_paths topic — always
+    seeded in advance (scripts/seed_content_units.py), unlike grammar/vocab/
+    phrasebook's unit_id_for() which builds one for a lesson at launch time."""
+    return f"target_grammar:{LANG_TO_CODE.get(target_lang, target_lang)}:{topic_key}"
 
 
 def lookup_unit(unit_id: str) -> dict | None:

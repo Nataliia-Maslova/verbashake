@@ -85,7 +85,7 @@ def load_phrases(db_path: str, native_lang: str, target_lang: str) -> pd.DataFra
     df = df[mask].copy()
 
     keep = ["lesson_id", "phrase_id", "difficulty", native_col, target_col]
-    for opt in ("topic_en", "topic_uk", "topic_es", "topic_ko"):
+    for opt in (f"topic_{c}" for c in LANG_COLUMNS.values()):
         if opt in df.columns:
             keep.append(opt)
     result = df[keep].copy()
@@ -102,12 +102,7 @@ def get_available_lessons(df: pd.DataFrame) -> list[int]:
     return sorted(df["lesson_id"].unique().tolist())
 
 
-_TOPIC_COL_FOR_LANG = {
-    "English":   "topic_en",
-    "Ukrainian": "topic_uk",
-    "Spanish":   "topic_es",
-    "Korean":    "topic_ko",
-}
+_TOPIC_COL_FOR_LANG = {lang: f"topic_{code}" for lang, code in LANG_COLUMNS.items()}
 
 
 def get_lesson_topics(df: pd.DataFrame, native_lang: str = "English") -> dict:

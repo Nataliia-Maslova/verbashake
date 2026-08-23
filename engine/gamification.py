@@ -649,7 +649,8 @@ def sidebar_widget(user_id: str) -> None:
 
         st.markdown(
             f'<div style="background:var(--mova-card);border:1px solid var(--mova-line);'
-            f'border-radius:10px;padding:10px 12px;margin-bottom:8px">'
+            f'border-radius:10px;padding:10px 12px;margin-bottom:8px;'
+            f'box-shadow:var(--mova-shadow-1)">'
             # row 1: streak + level
             f'<div style="display:flex;justify-content:space-between;align-items:center">'
             f'<span style="color:{streak_color};font-size:1rem;font-weight:700">🔥 {streak_label}</span>'

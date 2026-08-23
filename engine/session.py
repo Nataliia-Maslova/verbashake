@@ -53,6 +53,18 @@ class LessonSession:
         optional. Not called at all when every row already has native and
         target text (every other loader in the app).
         """
+        # engine.target_grammar_paths topics promoted to real Grammar lessons
+        # (2026-08-23, engine.target_grammar_loader.build_grammar_lesson_rows)
+        # -- canonical text is already in `target` (it's a real sentence in
+        # target_lang itself, not a separate English source column like
+        # CEFR-J below), only `native` ever needs filling. Bounded to this
+        # one lesson's ~8 rows, same "translate only what's actually being
+        # opened" principle as the CEFR-J branch.
+        if "native_needs_translation" in self.df.columns:
+            from engine import target_grammar_loader
+            self.df = target_grammar_loader.translate_rows_native(
+                self.df, target_lang, native_lang)
+
         if "source_en" not in self.df.columns:
             return
         from engine import gemini

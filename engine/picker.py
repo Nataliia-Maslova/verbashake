@@ -21,6 +21,7 @@ LESSON_IMG_DIR = _APP_ROOT / "static" / "lesson_images"
 from engine.loader import TTS_LANG, WHISPER_LANG
 from engine.session import LessonSession
 from engine import recommender as _recommender
+from engine import target_grammar_paths as _target_grammar_paths
 
 # ═══════════════════════════════════════════════════════════════════════════
 # Hierarchical vocabulary navigator (Category -> Topic -> Lesson)
@@ -353,7 +354,24 @@ def _render_wave_plotly(
 
     names  = [lesson_names.get(lid, f"Lesson {lid}") for lid in lessons]
     counts = [lesson_counts.get(lid, 0) for lid in lessons]
-    shorts = [(nm[:12] + "…") if len(nm) > 12 else nm for nm in names]
+
+    def _short_keep_level(nm: str, limit: int = 12) -> str:
+        # lesson_names built in _lesson_name() as "{topic} · {CEFR}" -- a
+        # flat 12-char cut swallows the level suffix on almost every real
+        # topic name, which defeats the whole point of showing it (the app
+        # added CEFR labels specifically so learners could tell A1 from A2
+        # lessons apart in this picker without hovering each node). Keep
+        # the level intact and truncate the topic part instead.
+        if len(nm) <= limit:
+            return nm
+        if " · " in nm:
+            base, lvl = nm.rsplit(" · ", 1)
+            suffix = f"·{lvl}"
+            keep = max(limit - len(suffix) - 1, 3)
+            return f"{base[:keep]}…{suffix}"
+        return nm[:limit] + "…"
+
+    shorts = [_short_keep_level(nm) for nm in names]
 
     m_colors = [FILL_DONE if lid in done_lids else FILL_NEW for lid in lessons]
     b_colors = [
@@ -507,7 +525,7 @@ def _render_wave_native(
 
 def _render_lesson_dropdown_fallback(
     lessons, lesson_names, default_lid, resume_step,
-    cfg, native, target, user_id, lang_pair,
+    cfg, native, target, user_id, lang_pair, df=None,
 ):
     """Clean dropdown + Start button — replaces the circular-button grid fallback."""
     if not lessons:
@@ -518,6 +536,38 @@ def _render_lesson_dropdown_fallback(
     sel  = st.selectbox(f"Select {lw}", opts, index=defi,
                         key=f"dd_{lang_pair}")
     sel_lid    = lessons[opts.index(sel)]
+
+    # Preview the lesson's own phrases right here, before committing to
+    # "Start" -- Natalia asked to see them on this screen instead of only
+    # after entering the lesson (2026-08-23). `df` is the already-loaded
+    # native/target dataframe for the current language pair (same one
+    # get_lesson()/get_vocab_lesson() slice by lesson_id everywhere else in
+    # this module) -- optional param so the one dead-code caller
+    # (_render_vocab_nav, unused since the Category→Topic nav was replaced
+    # by this flat picker, CLAUDE.md 2026-08-22) doesn't need updating too.
+    if df is not None and cfg.get("get_lesson"):
+        try:
+            preview_df = cfg["get_lesson"](df, sel_lid)
+        except Exception:
+            preview_df = None
+        if preview_df is not None and not preview_df.empty and {"native", "target"} <= set(preview_df.columns):
+            # target_grammar-as-lesson rows (engine.target_grammar_loader)
+            # carry `native` as an untranslated placeholder (see that
+            # module's docstring for why) -- resolve it here, bounded to
+            # just this ONE lesson's ~8 rows (preview_df is already sliced
+            # to sel_lid), not the whole picker dataframe.
+            if "native_needs_translation" in preview_df.columns:
+                from engine import target_grammar_loader
+                preview_df = target_grammar_loader.translate_rows_native(
+                    preview_df, target, native)
+            with st.expander(f"👀 {lesson_names.get(sel_lid, f'{lw} {sel_lid}')}", expanded=True):
+                st.dataframe(
+                    preview_df[["native", "target"]].rename(
+                        columns={"native": native, "target": target}
+                    ),
+                    hide_index=True, use_container_width=True,
+                )
+
     is_resume  = (sel_lid == default_lid and resume_step > 1)
     btn_label  = (f"▶ Resume at Step {resume_step}" if is_resume
                   else f"▶ Start {lw}")
@@ -551,13 +601,28 @@ def _render_flat_wave_nav(
     available_set = set(lessons)
 
     if module == "grammar":
+        # lesson_id in a category's numeric range covers the original 182
+        # imlls_database lessons; ids >= 1000 are synthetic
+        # engine.target_grammar_paths lessons (2026-08-23) that never fall
+        # in ANY range (all ranges top out at 999) -- those carry their own
+        # explicit "category" field instead, looked up here so they group
+        # with the real lessons on the same grammar concept (e.g. Ukrainian
+        # cases alongside "Nouns & Quantities") instead of forming their
+        # own uncategorized bucket.
+        def _cat_of(lid):
+            if lid >= 1000:
+                topic = _target_grammar_paths.topic_for_lesson_id(lid)
+                return topic["category"] if topic else None
+            return next((c["id"] for c in _GRAMMAR_CATEGORIES
+                         if c["range"][0] <= lid <= c["range"][1]), None)
+
+        lid_cats = {lid: _cat_of(lid) for lid in available_set}
         cats = [c for c in _GRAMMAR_CATEGORIES
-                if any(c["range"][0] <= lid <= c["range"][1] for lid in available_set)]
+                if any(v == c["id"] for v in lid_cats.values())]
         if cats:
             cat_labels = [f'{c["icon"]} {c["name"]}' for c in cats]
             def_cat_idx = next(
-                (i for i, c in enumerate(cats)
-                 if c["range"][0] <= default_gid <= c["range"][1]),
+                (i for i, c in enumerate(cats) if lid_cats.get(default_gid) == c["id"]),
                 0,
             )
             sel_cat_lbl = st.selectbox(
@@ -565,8 +630,7 @@ def _render_flat_wave_nav(
                 key=f"gram_cat_{lang_pair}",
             )
             sel_cat = cats[cat_labels.index(sel_cat_lbl)]
-            filtered = [lid for lid in lessons
-                        if sel_cat["range"][0] <= lid <= sel_cat["range"][1]]
+            filtered = [lid for lid in lessons if lid_cats.get(lid) == sel_cat["id"]]
         else:
             filtered = lessons
     else:
@@ -592,35 +656,45 @@ def _render_flat_wave_nav(
         st.warning("No lessons available in this category.")
         return
 
+    # Primary, always-reliable picker: dropdown + Start button, right here --
+    # no scrolling required. The snake-path visual below is now a secondary,
+    # optional way to browse (design review, 2026-08-23): clicking a node in
+    # the Plotly chart is meant to jump straight into the lesson, but the
+    # click-to-select event doesn't always register, and even when it does,
+    # the confirm UI used to live only *after the whole path* -- for a
+    # 173-lesson grammar path that's thousands of pixels of scrolling away
+    # from wherever the user actually clicked, regardless of which node.
+    _render_lesson_dropdown_fallback(
+        lessons=filtered,
+        lesson_names=lesson_names,
+        default_lid=default_gid,
+        resume_step=resume_step,
+        cfg=cfg,
+        native=native,
+        target=target,
+        user_id=user_id,
+        lang_pair=lang_pair,
+        df=df,
+    )
+
     try:
         done_lids = _recommender.lesson_progress_map(user_id, target, module)
     except Exception:
         done_lids = {}
 
     _key = f"{lang_pair}_{cfg.get('lang_suffix', 'g')}"
-    clicked = _render_wave_plotly(
-        lessons=filtered,
-        lesson_names=lesson_names,
-        lesson_counts=counts_by_lid,
-        default_lid=default_gid,
-        resume_step=resume_step,
-        key_suffix=_key,
-        done_lids=set(done_lids),
-    )
-    if clicked is not None:
-        _start_grammar_lesson(clicked, cfg, native, target, user_id, lang_pair)
-    else:
-        _render_lesson_dropdown_fallback(
+    with st.expander("🗺️ Or browse the path"):
+        clicked = _render_wave_plotly(
             lessons=filtered,
             lesson_names=lesson_names,
+            lesson_counts=counts_by_lid,
             default_lid=default_gid,
             resume_step=resume_step,
-            cfg=cfg,
-            native=native,
-            target=target,
-            user_id=user_id,
-            lang_pair=lang_pair,
+            key_suffix=_key,
+            done_lids=set(done_lids),
         )
+        if clicked is not None:
+            _start_grammar_lesson(clicked, cfg, native, target, user_id, lang_pair)
 
 def _render_vocab_nav(
     df, cfg, db_path, lang_pair, native, target, user_id,

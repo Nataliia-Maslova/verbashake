@@ -307,6 +307,126 @@ def correct_grammar(text: str, target_lang: str, native_lang: str) -> dict:
 
 
 # ─────────────────────────────────────────────────────────────────────────────
+# STEP 1 (New Material): rule explanation — CLAUDE.md idea A, 2026-08-23
+# ─────────────────────────────────────────────────────────────────────────────
+
+@_require_paid
+@_cache.memoize()
+def explain_lesson_rule(
+    topic: str, level: str, target_lang: str, native_lang: str,
+    seed_phrases: list[str],
+) -> dict:
+    """
+    Rule + examples + exceptions for the grammar point a lesson teaches,
+    shown at Step 1 ("Read out loud") which otherwise just lists translated
+    phrases with no explanation of the pattern behind them.
+
+    Persistently cached in Postgres (lesson_explanations, schema.sql), same
+    "pay once for the whole project" pattern as translate_phrase's
+    phrase_translations: (topic, level, target_lang, native_lang) is the
+    same for EVERY student who opens this lesson, so this is a one-time
+    Gemini cost per lesson×language pair, not per pageview or per user --
+    no daily quota needed on top of @_require_paid, unlike a free-form
+    tutor chat would need.
+
+    seed_phrases: a few real example sentences from the lesson, for context
+    only (same "for reference, write NEW ones" framing as
+    generate_practice_test -- the returned examples should illustrate the
+    rule freshly, not just restate the lesson's own sentences).
+
+    Returns:
+        {
+          "rule": str,                                    # in native_lang
+          "examples": [{"target": str, "native": str}],    # 2-4 new pairs
+          "exceptions": [str]                              # in native_lang, may be empty
+        }
+    """
+    cached = _lesson_explanation_from_db(topic, level, target_lang, native_lang)
+    if cached is not None:
+        return cached
+
+    example_block = "\n".join(f"  - {s}" for s in seed_phrases[:4])
+    context_note = (
+        f"Real {target_lang} example sentences from this lesson (ground your "
+        f"explanation in these -- write NEW ones below, don't just repeat "
+        f"them):\n{example_block}\n\n"
+        if example_block else ""
+    )
+    prompt = (
+        f"THE LANGUAGE BEING TAUGHT (the one you must explain) is "
+        f"{target_lang}. The student's NATIVE language, to write your "
+        f"explanation in, is {native_lang}. Do not swap these.\n\n"
+        f"You are a {target_lang} teacher explaining a grammar point to a "
+        f"{level} CEFR student whose native language is {native_lang}.\n"
+        f"Grammar topic label: \"{topic}\" -- this label may be borrowed "
+        f"from English grammar terminology (this app's curriculum was "
+        f"originally built from English grammar categories). Your job is "
+        f"to explain how {target_lang} itself expresses this idea, NOT to "
+        f"explain English grammar -- unless target_lang is literally "
+        f"English, never mention English grammar rules. If {target_lang} "
+        f"has no direct equivalent of this English-derived category, say so "
+        f"briefly and explain what {target_lang} actually does instead to "
+        f"express the same meaning.\n\n"
+        f"{context_note}"
+        f"Explain the rule simply enough for {level} level, write the "
+        f"explanation in {native_lang}. Give 2-4 NEW example sentences in "
+        f"{target_lang} (each with a {native_lang} translation) that "
+        f"illustrate the rule. List common exceptions or mistakes learners "
+        f"make with this rule, in {native_lang} -- an empty list if there "
+        f"genuinely are none, don't invent one.\n\n"
+        "Return JSON only — no markdown fences:\n"
+        "{\n"
+        f'  "rule": "explanation in {native_lang}, about {target_lang} grammar",\n'
+        f'  "examples": [{{"target": "... in {target_lang}", "native": "... in {native_lang}"}}],\n'
+        '  "exceptions": ["..."]\n'
+        "}"
+    )
+    result = _parse_json(
+        _model(_FLASH).generate_content(prompt).text,
+        fallback={"rule": "", "examples": [], "exceptions": []},
+    )
+    _save_lesson_explanation_to_db(topic, level, target_lang, native_lang, result)
+    return result
+
+
+def _explanation_hash(topic: str, level: str, target_lang: str, native_lang: str) -> str:
+    import hashlib
+    return hashlib.sha256(
+        f"{target_lang}|{native_lang}|{level}|{topic}".encode("utf-8")
+    ).hexdigest()
+
+
+def _lesson_explanation_from_db(topic: str, level: str, target_lang: str, native_lang: str) -> dict | None:
+    try:
+        from engine import db
+        row = db.fetch_one(
+            "SELECT explanation FROM lesson_explanations WHERE explanation_hash = :h",
+            {"h": _explanation_hash(topic, level, target_lang, native_lang)},
+        )
+        return json.loads(row["explanation"]) if row else None
+    except Exception:
+        return None  # DATABASE_URL not configured, or DB unreachable -- fall through to a live call
+
+
+def _save_lesson_explanation_to_db(
+    topic: str, level: str, target_lang: str, native_lang: str, explanation: dict,
+) -> None:
+    try:
+        from engine import db
+        db.upsert(
+            "lesson_explanations",
+            keys={"explanation_hash": _explanation_hash(topic, level, target_lang, native_lang)},
+            values={
+                "topic": topic, "level": level, "target_lang": target_lang,
+                "native_lang": native_lang, "explanation": json.dumps(explanation),
+            },
+            touch_updated_at=False,
+        )
+    except Exception:
+        pass  # best-effort -- an explanation that isn't persisted just gets redone later
+
+
+# ─────────────────────────────────────────────────────────────────────────────
 # PHASE 3: Практика — generated tests
 # ─────────────────────────────────────────────────────────────────────────────
 
@@ -514,6 +634,58 @@ def generate_lesson_construction_drill(
         f"Generate {n} example sentences in {target_lang} that practice this "
         f"grammar pattern:\n{pattern_block}\n\n"
         f"The student's level is {user_level}. {vocab_instruction}\n\n"
+        "Return JSON only — no markdown fences:\n"
+        "{\n"
+        '  "items": [\n'
+        "    {\n"
+        f'      "target": "sentence in {target_lang}",\n'
+        f'      "native": "translation in {native_lang}"\n'
+        "    }\n"
+        "  ]\n"
+        "}"
+    )
+    return _parse_json(
+        _model(_FLASH).generate_content(prompt).text,
+        fallback={"items": []},
+    )
+
+
+@_require_paid
+def generate_target_grammar_drill(
+    title: str,
+    description: str,
+    level: str,
+    native_lang: str,
+    target_lang: str,
+    n: int = 5,
+) -> dict:
+    """
+    Drill a grammar point from engine.target_grammar_paths -- topics genuine
+    to target_lang that imlls_database has no lesson for at all (verbal
+    aspect for Slavic languages, ser/estar and the subjunctive for Romance
+    languages, particles and speech levels for Japanese/Korean, German's
+    case system, Chinese aspect markers... see LINGUISTIC_AUDIT.md section 1
+    for why the 182-lesson curriculum can't cover these: it was built from
+    English grammar categories, and these have no English equivalent to
+    translate from).
+
+    Same shape and same "construction + level-appropriate vocabulary" idea
+    as generate_lesson_construction_drill, but there's no imlls_database
+    lesson_id / seed_phrases to infer the pattern from -- title+description
+    (from the registry) ARE the seed. No engine.cefr_wordlist path either:
+    that list is English-only, so every target_lang here uses the same
+    "simple, common vocabulary for the level" instruction
+    generate_lesson_construction_drill already falls back to for non-English
+    targets.
+
+    Returns: {"items": [{"target": str, "native": str}, ...]}
+    """
+    prompt = (
+        f"Generate {n} example sentences in {target_lang} that practice this "
+        f"grammar point, which is specific to {target_lang} and has no direct "
+        f"English equivalent:\n{title} -- {description}\n\n"
+        f"The student's level is {level}. Use simple, common {target_lang} "
+        f"vocabulary that a {level} CEFR-level student would already know.\n\n"
         "Return JSON only — no markdown fences:\n"
         "{\n"
         '  "items": [\n'
