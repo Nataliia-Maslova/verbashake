@@ -19,6 +19,7 @@ reading_app.py  —  IMLLS Reading Practice
     - Інші букви (Aa, Bb):        edge-tts SSML phoneme → fallback gTTS carrier
     - Слова (Bad, Man):           edge-tts / gTTS
 """
+from __future__ import annotations
 
 import asyncio
 import json
@@ -143,9 +144,9 @@ try:
 except Exception:
     SCORER_OK = False
 
-# ── logging (CSV + Google Sheets via engine.logger) ───────────────────────
+# ── progress + mastery (engine.recommender, DATABASE_URL-backed) ──────────
 try:
-    from engine.logger import SessionLogger, get_last_lesson, get_progress, save_progress
+    from engine import recommender as _recommender
     LOGGER_OK = True
 except Exception:
     LOGGER_OK = False
@@ -157,6 +158,30 @@ except Exception:
     GAMI_OK = False
 
 
+def _reading_target_lang() -> str:
+    """Full language name for the reading language, matching grammar.py's
+    state.target_lang space (recommender.LANG_TO_CODE / CODE_TO_LANG)."""
+    return _recommender.CODE_TO_LANG.get(_r_lang(), "English")
+
+
+def _reading_unit_id(lesson_id: int) -> str:
+    return f"reading:{_r_lang()}:{int(lesson_id)}"
+
+
+def _get_progress(user_id: str) -> dict | None:
+    """Resume pointer, same shape the old engine.logger.get_progress returned."""
+    if not LOGGER_OK:
+        return None
+    ptr = _recommender.get_pointer(user_id, _reading_target_lang(), "reading")
+    if not ptr:
+        return None
+    try:
+        lesson_id = _recommender.parse_unit_id(ptr["unit_id"])["lesson_id"]
+    except Exception:
+        return None
+    return {"last_completed_lesson": lesson_id, "last_step": int(ptr["step"])}
+
+
 def _save_step_progress(lesson_id: int, step: int, user_id: str):
     """Persist current (lesson_id, step) so user can resume here next time.
     Saves at most once per (lesson_id, step) per session."""
@@ -166,56 +191,33 @@ def _save_step_progress(lesson_id: int, step: int, user_id: str):
     if st.session_state.get("_r_last_saved_progress") == key:
         return
     try:
-        save_progress(
-            user_id               = user_id,
-            language_pair         = _reading_lang_pair(),
-            last_completed_lesson = int(lesson_id),
-            last_step             = int(step),
+        _recommender.save_pointer(
+            user_id     = user_id,
+            target_lang = _reading_target_lang(),
+            module      = "reading",
+            unit_id     = _reading_unit_id(lesson_id),
+            step        = int(step),
         )
         st.session_state["_r_last_saved_progress"] = key
     except Exception as e:
         print(f"[reading_app] save_progress error: {e}")
 
-def _reading_lang_pair() -> str:
-    """Language pair key for progress logging, e.g. 'en-reading', 'uk-reading'."""
-    return f"{_r_lang()}-reading"
-
-
-def _get_logger():
-    """Return (and lazily create) the SessionLogger for this reading session."""
-    if not LOGGER_OK:
-        return None
-    if "r_logger" in st.session_state:
-        return st.session_state["r_logger"]
-    user_id = st.session_state.get("r_user", "anonymous")
-    try:
-        logger = SessionLogger(user_id, language_pair=_reading_lang_pair())
-        st.session_state["r_logger"] = logger
-        return logger
-    except Exception as e:
-        print(f"[reading_app] logger init failed: {e}")
-        return None
-
 
 def _log_score(step: int, phrase_id: int, similarity: float,
                response_time_ms: int, success: bool):
-    """Log a score event for the current reading lesson."""
-    logger = _get_logger()
-    if logger is None:
+    """Feed a reading-step result to the recommender (mastery + SRS update)."""
+    if not LOGGER_OK:
         return
     try:
-        logger.log(
-            lesson_id=int(st.session_state.get("r_lesson", 0)),
-            phrase_id=phrase_id,
-            step=step,
-            similarity=similarity,
-            response_time_ms=response_time_ms,
-            attempts=1,
-            success=success,
-            mode="reading",
+        lesson_id = int(st.session_state.get("r_lesson", 0))
+        _recommender.record_result(
+            st.session_state.get("r_user", "anonymous"),
+            _reading_target_lang(),
+            _reading_unit_id(lesson_id),
+            success,
         )
     except Exception as e:
-        print(f"[reading_app] log error: {e}")
+        print(f"[reading_app] record_result error: {e}")
 
 
 def score_audio(audio_bytes, expected_text, lang: str = None):
@@ -1479,7 +1481,11 @@ def render_setup():
             from urllib.parse import unquote as _uq
             _qp_lid  = int(_qp["vnav_lesson"])
             _qp_lang = _uq(_qp.get("r_lang", "en"))
-            _qp_user = _uq(_qp.get("vnav_user", "student1"))
+            # Identity must come from the authenticated session, never from the
+            # URL — vnav_user is only echoed there for the JS wave-nav widget
+            # to round-trip navigation; trusting it directly would let anyone
+            # edit the address bar to read/write another user's progress.
+            _qp_user = st.session_state.get("launcher_user", "student1")
             if _qp_lang not in TTS_CONFIG:
                 _qp_lang = "en"
             _qp_native = st.session_state.get("launcher_native", "Ukrainian")
@@ -1521,18 +1527,14 @@ def render_setup():
     saved_lang   = st.session_state.get("r_lang", "en")
     lang_idx     = lang_options.index(saved_lang) if saved_lang in lang_options else 0
 
-    col_lang, col_user = st.columns([2, 1])
-    with col_lang:
-        chosen_lang = st.selectbox(
-            _ui("lang_label"),
-            lang_options,
-            index=lang_idx,
-            format_func=lambda k: LANG_LABELS[k],
-            key="r_lang_select",
-        )
-    with col_user:
-        default_user = st.session_state.get("launcher_user", "student1")
-        user_id = st.text_input(_ui("name_label"), value=default_user)
+    chosen_lang = st.selectbox(
+        _ui("lang_label"),
+        lang_options,
+        index=lang_idx,
+        format_func=lambda k: LANG_LABELS[k],
+        key="r_lang_select",
+    )
+    user_id = st.session_state.get("launcher_user", "student1")
 
     # Reload data when language changes
     if chosen_lang != st.session_state.get("r_lang"):
@@ -1550,7 +1552,7 @@ def render_setup():
     resume_msg  = None
     if LOGGER_OK and user_id:
         try:
-            progress = get_progress(user_id, _reading_lang_pair())
+            progress = _get_progress(user_id)
         except Exception:
             progress = None
 
@@ -1633,6 +1635,12 @@ def render_setup():
     _r_default_lid    = default_lid if default_lid in _filtered_r else _filtered_r[0]
 
     # Plotly wave (Streamlit ≥ 1.33 + plotly installed), else dropdown fallback
+    from engine import recommender as _recommender
+    try:
+        _r_done_lids = _recommender.lesson_progress_map(user_id, chosen_lang, "reading")
+    except Exception:
+        _r_done_lids = {}
+
     _r_clicked = _render_wave_plotly(
         lessons=_filtered_r,
         lesson_names=_r_lesson_names,
@@ -1641,6 +1649,7 @@ def render_setup():
         resume_step=resume_step,
         key_suffix=f"reading_{chosen_lang}",
         show_lesson_image=False,
+        done_lids=set(_r_done_lids),
     )
     if _r_clicked is not None:
         _start_reading_lesson(_r_clicked)
@@ -1874,11 +1883,13 @@ def main():
         # Save progress (idempotent guard)
         if LOGGER_OK and not st.session_state.get("_r_progress_saved"):
             try:
-                save_progress(
-                    user_id              = st.session_state.get("r_user", "anonymous"),
-                    language_pair        = _reading_lang_pair(),
-                    last_completed_lesson= int(st.session_state.get("r_lesson", 0)),
-                    last_step            = 99,
+                _lesson_id = int(st.session_state.get("r_lesson", 0))
+                _recommender.save_pointer(
+                    user_id     = st.session_state.get("r_user", "anonymous"),
+                    target_lang = _reading_target_lang(),
+                    module      = "reading",
+                    unit_id     = _reading_unit_id(_lesson_id),
+                    step        = 99,
                 )
                 st.session_state["_r_progress_saved"] = True
             except Exception as e:

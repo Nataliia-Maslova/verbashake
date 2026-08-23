@@ -5,6 +5,8 @@ JS MediaRecorder for in-browser audio capture.
 
 Run: streamlit run app.py
 """
+from __future__ import annotations
+
 import sys, base64, random, time, json
 from pathlib import Path
 
@@ -81,25 +83,34 @@ from engine.loader  import (load_phrases, get_lesson, get_available_lessons,
                             TTS_LANG, WHISPER_LANG)
 from engine.vocab_loader import (
     load_vocab, get_vocab_lesson, get_available_vocab_lessons, get_lesson_topics,
+    WORD_BANK_SHEETS,
 )
+from engine import cefr_j_vocab_loader as _cefrj_vocab
 from engine.session import LessonSession
 from engine.scorer  import evaluate
 from engine.tts     import get_audio_path
 from engine.stt      import transcribe_bytes, whisper_available
-from engine.logger  import SessionLogger, get_last_lesson, get_progress, save_progress
-from engine.gec import correct as gec_correct, gec_available
 from engine.gamification import on_step_complete, on_lesson_complete, sidebar_widget
 from engine import gemini as _gemini
-from engine.picker import _render_flat_wave_nav, _render_vocab_nav
+from engine import youtube_links
+from engine import recommender as _recommender
+from engine.picker import _render_flat_wave_nav
 from engine import i18n
 from engine.character_widget import show_character
 
-try:
-    from engine.adaptive import AdaptiveEngine as _AdaptiveEngine, FULL_SEQUENCE as _FULL_SEQ
-    _ADAPTIVE_AVAILABLE = True
-except Exception:
-    _ADAPTIVE_AVAILABLE = False
-    _FULL_SEQ = [1, 2, 3, 4, 5, 6, 7, 8]
+_FULL_SEQ = [1, 2, 3, 4, 5, 6, 7, 8]
+
+
+def _get_progress(user_id: str, target_lang: str, module: str) -> dict | None:
+    """Resume pointer, same shape the old engine.logger.get_progress returned."""
+    ptr = _recommender.get_pointer(user_id, target_lang, module)
+    if not ptr:
+        return None
+    try:
+        lesson_id = _recommender.parse_unit_id(ptr["unit_id"])["lesson_id"]
+    except Exception:
+        return None
+    return {"last_completed_lesson": lesson_id, "last_step": int(ptr["step"])}
 
 # Prefer the workbook with lesson titles (topic_en / topic_uk columns) if it
 # exists; otherwise fall back to the original. Both have identical phrase data.
@@ -111,6 +122,7 @@ LANGUAGES      = [
     "English", "Ukrainian", "Spanish", "Korean",
     "French", "German", "Japanese", "Chinese",
     "Portuguese", "Italian", "Polish", "Russian",
+    "Catalan", "Dutch",
 ]
 
 # st.set_page_config is set up by main_app.py when used as a launcher.
@@ -125,12 +137,43 @@ except Exception:
 # ═══════════════════════════════════════════════════════════════════════════
 # Module dispatch — same 8-step flow for grammar and vocabulary
 # ═══════════════════════════════════════════════════════════════════════════
+def _load_phrasebook(db_path, native_lang, target_lang):
+    """
+    Vocabulary content minus the Word Bank sheets (vocab_loader.WORD_BANK_SHEETS)
+    -- the "Phrasebook" module (CLAUDE.md, 2026-08-21): thematic collocations
+    + example sentences, as opposed to Word Bank's raw alphabetically-bucketed
+    word lists (being replaced by the CEFR-J-based Vocabulary module instead).
+    Same lesson_id numbering as the "vocab" module (load_vocab's global index
+    is built over the whole workbook either way) -- existing unit_ids for
+    these sheets stay valid.
+    """
+    return load_vocab(db_path, native_lang, target_lang, exclude_sheets=WORD_BANK_SHEETS)
+
+
+def _load_vocabulary(db_path, native_lang, target_lang, **kwargs):
+    """
+    "Vocabulary" module content (CLAUDE.md, 2026-08-21/22, extended
+    2026-08-22): CEFR-J-based for every target language (9.8k words A1-C2,
+    one English example sentence each, translated on demand per lesson --
+    see engine.cefr_j_vocab_loader / engine.session._fill_missing_translations)
+    -- replaces the old Word Bank sheets, which only ever covered
+    en/uk/es/ko and had known data-quality issues (mistagged C2,
+    alphabetical bucketing). `db_path` is unused (CEFR-J's own CSV path is
+    fixed); kept as the first positional arg so this drops into
+    cfg["load"] exactly like every other module's loader. `**kwargs`
+    absorbs the `topic=` some callers still pass (leftover from the old
+    per-sheet lazy loading) -- CEFR-J always loads its one small CSV
+    whole, so it's simply ignored.
+    """
+    return _cefrj_vocab.load_cefrj_vocab(str(_cefrj_vocab.CSV_PATH), native_lang, target_lang)
+
+
 def _module_config(module: str) -> dict:
     """Return loader dispatch + UI labels for the chosen practice module."""
     if module == "vocab":
         return {
             "db_path":     VOCAB_DB_PATH,
-            "load":        load_vocab,
+            "load":        _load_vocabulary,
             "get_lesson":  get_vocab_lesson,
             "get_lessons": get_available_vocab_lessons,
             "topics":      get_lesson_topics,
@@ -138,6 +181,18 @@ def _module_config(module: str) -> dict:
             "icon":        "📖",
             "lang_suffix": "vocab",
             "lesson_word": "Topic",
+        }
+    if module == "phrasebook":
+        return {
+            "db_path":     VOCAB_DB_PATH,
+            "load":        _load_phrasebook,
+            "get_lesson":  get_vocab_lesson,
+            "get_lessons": get_available_vocab_lessons,
+            "topics":      get_lesson_topics,
+            "label":       "Phrasebook",
+            "icon":        "💬",
+            "lang_suffix": "phrasebook",
+            "lesson_word": "Phrase",
         }
     if module == "custom":
         # User-created lessons. Data is loaded on demand by custom_app,
@@ -1152,10 +1207,16 @@ def render_complete(session: LessonSession):
                     _clear_lesson()
                     # Clear adaptive so it reinitialises for the new lesson
                     st.session_state.pop("_adaptive_lesson_id", None)
+                    from engine.recommender import unit_id_for
+                    _next_topic = None
+                    if cfg.get("lang_suffix") in ("vocab", "phrasebook"):
+                        _next_topic = _recommender.vocab_topic_for_lesson(
+                            next_id, state.target_lang, cfg["db_path"])
                     st.session_state.update({
                         "session":     LessonSession(state.user_id, lesson_df, next_id,
                                                      state.native_lang, state.target_lang,
-                                                     language_pair=lang_pair),
+                                                     language_pair=lang_pair,
+                                                     unit_id=unit_id_for(cfg.get("lang_suffix"), next_id, _next_topic)),
                         "lesson_step": 1,
                     })
                     st.rerun()
@@ -1205,29 +1266,35 @@ def render_setup():
                 _qp_lid    = int(_qp["vnav_lesson"])
                 _qp_native = _uq(_qp.get("vnav_native", "English"))
                 _qp_target = _uq(_qp.get("vnav_target", "Ukrainian"))
-                _qp_user   = _uq(_qp.get("vnav_user",   "student1"))
+                # Identity must come from the authenticated session, never from
+                # the URL — vnav_user is only echoed there for the JS wave-nav
+                # widget to round-trip navigation; trusting it directly would
+                # let anyone edit the address bar to read/write another
+                # user's progress.
+                _qp_user   = st.session_state.get("launcher_user", "student1")
                 if _qp_native not in LANGUAGES:
                     _qp_native = "English"
                 if _qp_target not in LANGUAGES or _qp_target == _qp_native:
                     _qp_target = next(l for l in LANGUAGES if l != _qp_native)
                 st.query_params.clear()
-                # Vocab: lazy-load only the sheet that contains this lesson
-                _qp_extra = {}
-                if cfg.get("lang_suffix") == "vocab":
-                    from engine.vocab_loader import get_topic_for_lesson
-                    _qp_topic, _ = get_topic_for_lesson(str(db_path), _qp_lid)
-                    if _qp_topic:
-                        _qp_extra["topic"] = _qp_topic
-                _qp_df        = cfg["load"](str(db_path), _qp_native, _qp_target,
-                                            **_qp_extra)
+                # Vocab/Phrasebook: fetch the topic for unit_id_for below --
+                # CEFR-J's one small CSV is always loaded whole, no topic
+                # kwarg needed for the loader itself.
+                _qp_topic = None
+                if cfg.get("lang_suffix") in ("vocab", "phrasebook"):
+                    _qp_topic = _recommender.vocab_topic_for_lesson(
+                        _qp_lid, _qp_target, db_path)
+                _qp_df        = cfg["load"](str(db_path), _qp_native, _qp_target)
                 _qp_lesson_df = cfg["get_lesson"](_qp_df, _qp_lid)
                 if not _qp_lesson_df.empty:
+                    from engine.recommender import unit_id_for
                     _qp_lp = (f"{WHISPER_LANG.get(_qp_native,'?')}"
                               f"-{WHISPER_LANG.get(_qp_target,'?')}-{cfg['lang_suffix']}")
                     st.session_state.update({
                         "session":     LessonSession(_qp_user, _qp_lesson_df,
                                                      _qp_lid, _qp_native, _qp_target,
-                                                     language_pair=_qp_lp),
+                                                     language_pair=_qp_lp,
+                                                     unit_id=unit_id_for(cfg.get("lang_suffix"), _qp_lid, _qp_topic)),
                         "lesson_step": 1,
                         "tts_lang":    TTS_LANG.get(_qp_target, "en"),
                         "wh_lang":     WHISPER_LANG.get(_qp_target),
@@ -1257,27 +1324,20 @@ def render_setup():
                               index=target_idx)
 
     # ── Load lessons ──────────────────────────────────────────────────────────
-    # Vocab: lazy path — build lesson list from the lightweight index only.
-    # No phrase text is read here; sheets are loaded on demand when the user
-    # starts a lesson (_start_grammar_lesson passes topic= kwarg).
-    if module == "vocab":
-        from engine.vocab_loader import get_vocab_nav_data as _gnvd
-        _nav_data = _gnvd(str(db_path))
-        lessons       = sorted(l["gid"] for ls in _nav_data.values() for l in ls)
-        df            = None  # not needed for vocab navigation
-        counts_by_lid = {}    # phrase counts unknown until a sheet is loaded
-    else:
-        try:
-            df = cfg["load"](str(db_path), native, target)
-        except Exception as e:
-            st.error(f"Error: {e}"); st.stop()
-        lessons       = cfg["get_lessons"](df)
-        counts_by_lid = df.groupby("lesson_id").size().to_dict() if not df.empty else {}
+    # Eager path for every module, including vocab: CEFR-J (CLAUDE.md
+    # 2026-08-22) is one small CSV for every target_lang now, not the old
+    # multi-sheet Word Bank workbook, so there's no per-sheet laziness to
+    # gain from a separate lazy-index path anymore.
+    try:
+        df = cfg["load"](str(db_path), native, target)
+    except Exception as e:
+        st.error(f"Error: {e}"); st.stop()
+    lessons       = cfg["get_lessons"](df)
+    counts_by_lid = df.groupby("lesson_id").size().to_dict() if not df.empty else {}
 
     # Suffix language_pair with module so grammar/vocab progress are tracked separately
     lang_pair = f"{WHISPER_LANG.get(native,'?')}-{WHISPER_LANG.get(target,'?')}-{cfg['lang_suffix']}"
-    default_user = st.session_state.get("launcher_user", "student1")
-    user_id      = st.text_input("👤 Your name", value=default_user)
+    user_id = st.session_state.get("launcher_user", "student1")
 
     if not lessons:
         st.warning(f"⚠️ No {cfg['label'].lower()} lessons available for {native} → {target}. "
@@ -1287,7 +1347,7 @@ def render_setup():
     # Auto-select lesson based on saved progress.
     # progress = {"last_completed_lesson": int, "last_step": int}
     # last_step convention: 1..8 = mid-lesson; 99 = lesson done
-    progress      = get_progress(user_id, lang_pair) if user_id else None
+    progress      = _get_progress(user_id, target, cfg["lang_suffix"]) if user_id else None
     default_idx   = 0
     resume_step   = 1   # which step to start at when "Start" is pressed
     resume_msg    = None
@@ -1311,36 +1371,93 @@ def render_setup():
                 default_idx = lessons.index(saved_lesson)
                 resume_step = max(1, min(8, saved_step))
                 resume_msg  = f"⏯ Resume {cfg['lesson_word']} {saved_lesson} at Step {resume_step}"
+    # Apply a pending "jump to recommended lesson" click from the banner below
+    # (one-shot: popped so it doesn't stick past this render).
+    _jump_lid = st.session_state.pop("_jump_recommended_lid", None)
+    if _jump_lid in lessons:
+        default_idx = lessons.index(_jump_lid)
+        resume_step = 1
 
-    # Build topics map: either from the workbook (grammar) or a topic loader (vocab)
+    # ── Placement-quiz / mastery-based recommendation (CLAUDE.md item 3) ───
+    # Shown alongside whatever the resume pointer picked above — NOT a silent
+    # override — because a learner already mid-lesson shouldn't be yanked
+    # elsewhere without asking. Runs regardless of whether `progress` exists,
+    # so the quiz still has a visible, clickable effect even for a returning
+    # user who already has some resume history (e.g. from an earlier lesson
+    # started at a different level than the quiz estimated) — previously the
+    # recommendation only ever applied when there was NO resume pointer at
+    # all, which is why it silently did nothing here (2026-08-21, reported by
+    # Natalia: quiz said A2, Grammar still opened at lesson 1).
+    if user_id and _recommender.has_signal(user_id, target, cfg["lang_suffix"]):
+        try:
+            top = _recommender.get_next(user_id, target, module=cfg["lang_suffix"], limit=1)
+        except Exception as e:
+            st.caption(f"⚠️ Recommendation unavailable: {e}")
+            top = None
+        if top:
+            rec_lid = _recommender.parse_unit_id(top[0]["unit_id"])["lesson_id"]
+            if rec_lid in lessons and rec_lid != lessons[default_idx]:
+                lvl = top[0].get("level") or ""
+                c_rec, c_btn = st.columns([5, 2])
+                with c_rec:
+                    st.info(
+                        f"💡 Based on your placement quiz / activity, "
+                        f"{cfg['lesson_word']} {rec_lid} ({lvl}) might fit you better."
+                    )
+                with c_btn:
+                    st.markdown("<div style='margin-top:1.6rem'></div>", unsafe_allow_html=True)
+                    if st.button(f"Jump to {rec_lid} →", use_container_width=True,
+                                 key=f"jump_btn_{cfg['lang_suffix']}"):
+                        st.session_state["_jump_recommended_lid"] = rec_lid
+                        st.rerun()
+
+    # Build topics map: either from the workbook (grammar), a topic loader
+    # (phrasebook/Word Bank), or straight from df (vocab/CEFR-J — a lesson is
+    # 10 unrelated words at one CEFR level, no real theme to name it by, so
+    # the label previews the lesson's own first few headwords instead of a
+    # bare "Vocabulary 3" — lets a learner see at a glance what's inside
+    # before opening it, closer to what a real topic name gave Word
+    # Bank/Grammar. CLAUDE.md 2026-08-22: vocab is CEFR-J for every
+    # target_lang now, so this branch is unconditional on module=="vocab",
+    # not just target=="English". The CEFR band itself is added separately
+    # by level_map below, so it isn't repeated here.)
     if cfg["topics"] == "from_df":
         # Grammar: optional topic_en / topic_uk columns in the workbook
         topics_map = get_grammar_topics(df, native_lang=native)
+    elif module == "vocab":
+        _cefrj_preview = (
+            df.sort_values(["lesson_id", "phrase_id"])
+              .groupby("lesson_id")["headword"]
+              .apply(lambda s: ", ".join(s.head(3)))
+        )
+        topics_map = {int(lid): words for lid, words in _cefrj_preview.items()}
     elif cfg["topics"]:
-        # Vocab: topic loader that takes the db path (index-only, fast)
+        # Phrasebook/Word Bank: topic loader that takes the db path (index-only, fast)
         topics_map = cfg["topics"](str(db_path))
     else:
         topics_map = None
 
-    # ── Vocabulary: hierarchical navigator ───────────────────────────────────
-    if module == "vocab":
-        _render_vocab_nav(
-            df=df, cfg=cfg, db_path=db_path, lang_pair=lang_pair,
-            native=native, target=target, user_id=user_id,
-            lessons=lessons, default_idx=default_idx,
-            resume_step=resume_step, resume_msg=resume_msg,
-            progress=progress, counts_by_lid=counts_by_lid,
-        )
-        return  # nav handles st.rerun internally
-
-    # ── Grammar / Reading: wave navigator ───────────────────────────────────
+    # ── Grammar / Reading / Phrasebook / CEFR-J Vocabulary: flat wave nav ──
+    # Vocabulary's old hierarchical Category→Topic nav (_render_vocab_nav)
+    # only applied to Word Bank content, which CEFR-J has fully replaced for
+    # every target_lang (CLAUDE.md 2026-08-22) -- CEFR-J has no thematic
+    # categories to browse by (just a CEFR level), so it always uses the
+    # flat wave nav below instead, same as grammar/reading; level_map gives
+    # it the "· A1" annotation those already get (CLAUDE.md, 2026-08-21).
+    # Level annotation on lesson names (e.g. "Lesson 42 · A2") so the CEFR
+    # boundary is visible directly in the picker, not just in the recommendation
+    # banner above (CLAUDE.md item 3 follow-up, 2026-08-21).
+    try:
+        level_map = _recommender.lesson_levels(cfg["lang_suffix"])
+    except Exception:
+        level_map = None
     _render_flat_wave_nav(
         df=df, cfg=cfg, lang_pair=lang_pair,
         native=native, target=target, user_id=user_id,
         lessons=lessons, default_idx=default_idx,
         resume_step=resume_step, resume_msg=resume_msg,
         progress=progress, counts_by_lid=counts_by_lid,
-        topics_map=topics_map,
+        topics_map=topics_map, level_map=level_map,
     )
 
 
@@ -1350,6 +1467,7 @@ def render_setup():
 # ═══════════════════════════════════════════════════════════════════════════
 def step8(session: LessonSession, tts_lang, wh_lang):
     session.start_step(8)
+    native_lang = session.state.native_lang
 
     # Step 8 description depends on practice module
     module = _current_module()
@@ -1401,19 +1519,30 @@ def step8(session: LessonSession, tts_lang, wh_lang):
                 if not candidates:
                     st.warning(f"Could not detect phrases. Transcribed: `{raw}`")
                 else:
-                    with st.spinner("Checking grammar…"):
-                        results = [{"original": p, "corrected": gec_correct(p, gec_lang)}
-                                   for p in candidates]
-                    st.session_state["s8_results"] = results
-                    session.score(raw, raw, step=8, phrase_id=0)
+                    try:
+                        with st.spinner("Checking grammar…"):
+                            results = [{"original": p, "correction": _gemini.correct_grammar(
+                                           p, _gemini.lang_name(gec_lang), native_lang)}
+                                       for p in candidates]
+                        st.session_state["s8_results"] = results
+                        session.score(raw, raw, step=8, phrase_id=0)
+                    except _gemini.PaidFeatureRequired:
+                        _show_upsell("s8_voice")
 
     # ── Text input ────────────────────────────────────────────────────────
     else:
-        # Language-specific placeholder examples with typical errors
+        # Language-specific placeholder examples, just demonstrating the
+        # expected input shape (one phrase per line) -- CLAUDE.md 2026-08-23:
+        # these used to be deliberately WRONG example sentences (e.g. "Yo
+        # tiene un perro" instead of "tengo"), on the idea of showing what
+        # a typical mistake looks like. Наталья flagged the real risk: a
+        # placeholder sits in the box on every single Step 8 a student
+        # opens, so an incorrect example risks being absorbed as correct
+        # grammar through sheer repetition. Now grammatically correct.
         PLACEHOLDERS = {
-            "en": "It's a big room.\nShe have a red pen.\nThey was happy.",
-            "es": "Yo tiene un perro.\nElla son alta.\nNosotros vamos a la escuela.",
-            "ko": "나는 학교에 가요.\n그는 책을 읽어요.\n우리는 친구이에요.",
+            "en": "It's a big room.\nShe has a red pen.\nThey were happy.",
+            "es": "Yo tengo un perro.\nElla es alta.\nNosotros vamos a la escuela.",
+            "ko": "나는 학교에 가요.\n그는 책을 읽어요.\n우리는 친구예요.",
         }
         text_input = st.text_area(
             "Type your phrases (one per line):",
@@ -1427,54 +1556,68 @@ def step8(session: LessonSession, tts_lang, wh_lang):
             if not lines:
                 st.warning("Please enter at least one phrase.")
             else:
-                with st.spinner("Checking grammar…"):
-                    results = [{"original": p, "corrected": gec_correct(p, gec_lang)}
-                               for p in lines]
-                st.session_state["s8_results"] = results
-                session.score(text_input, text_input, step=8, phrase_id=0)
+                try:
+                    with st.spinner("Checking grammar…"):
+                        results = [{"original": p, "correction": _gemini.correct_grammar(
+                                           p, _gemini.lang_name(gec_lang), native_lang)}
+                                   for p in lines]
+                    st.session_state["s8_results"] = results
+                    session.score(text_input, text_input, step=8, phrase_id=0)
+                except _gemini.PaidFeatureRequired:
+                    _show_upsell("s8_text")
 
     # ── Results ───────────────────────────────────────────────────────────
+    # Shows EVERY error found (not just one), in strikethrough/correct format,
+    # and lets the student pick which ones to actually practice — reusing the
+    # same interactive retry flow (_collect_error/_phase_error_review) the
+    # other phases use, under the "step8" phase key (CLAUDE.md item 6, 2026-08-20).
     if results:
-        st.markdown("---")
-        st.markdown("### ✏️ Grammar Correction Results")
+        reviewing = bool(_get_errors("step8")) or st.session_state.get("errors_step8_review_done")
 
-        any_corrected = False
-        for item in results:
-            orig  = item["original"]
-            corr  = item["corrected"]
-            changed = orig.strip().lower() != corr.strip().lower()
-            if changed: any_corrected = True
+        if not reviewing:
+            st.markdown("---")
+            st.markdown(f"### {i18n.get(native_lang, 'step8_errors_title')}")
 
-            color  = "#c04060" if changed else "var(--mova-mint)"
-            icon   = "✗" if changed else "✓"
-            label  = "corrected" if changed else "correct"
+            any_errors = False
+            for i, item in enumerate(results):
+                orig   = item["original"]
+                errors = item["correction"].get("errors", [])
+                st.markdown(f"**You:** {orig}")
+                if not errors:
+                    st.success("✓")
+                else:
+                    any_errors = True
+                    for j, err in enumerate(errors):
+                        col_chk, col_txt = st.columns([0.4, 5])
+                        with col_chk:
+                            st.checkbox("", value=True, key=f"s8_sel_{i}_{j}",
+                                        label_visibility="collapsed")
+                        with col_txt:
+                            st.markdown(f"~~{err['original']}~~ → **{err['fixed']}**")
+                            if err.get("explanation"):
+                                st.caption(err["explanation"])
 
-            if changed:
-                corr_html = (
-                    "<div style='color:var(--mova-ink);font-size:1rem;margin-top:6px;'>"
-                    "<span style='color:var(--mova-mint);'>GEC: </span>"
-                    + corr + "</div>"
-                )
+            if not any_errors:
+                st.success(i18n.get(native_lang, "step8_no_errors"))
+                show_character("ai_bot", "on_lesson_complete")
             else:
-                corr_html = ""
-
-            html_block = (
-                "<div style='background:var(--mova-card);border:1px solid var(--mova-line);"
-                "border-radius:12px;padding:14px 20px;margin:8px 0;'>"
-                f"<div style='color:#808090;font-size:.75rem;margin-bottom:6px;'>{icon} {label}</div>"
-                f"<div style='color:var(--mova-ink);font-size:1rem;'>"
-                f"<span style='color:#8888b8;'>You: </span>{orig}</div>"
-                + corr_html + "</div>"
-            )
-            st.markdown(html_block, unsafe_allow_html=True)
-
-        if not any_corrected:
-            st.success("✓ All phrases are grammatically correct!")
-            show_character("ai_bot", "on_lesson_complete")
+                if st.button(i18n.get(native_lang, "practice_selected_btn"),
+                             type="primary", key="s8_practice_selected"):
+                    for i, item in enumerate(results):
+                        for j, err in enumerate(item["correction"].get("errors", [])):
+                            if st.session_state.get(f"s8_sel_{i}_{j}", False):
+                                _collect_error(
+                                    err["original"], err["fixed"],
+                                    err.get("explanation", ""), "step8",
+                                    native_prompt=err.get("native_prompt", ""),
+                                )
+                    st.rerun()
+                show_character("ai_bot", "feedback", score=70, corrections=sum(
+                    len(it["correction"].get("errors", [])) for it in results
+                ))
         else:
-            st.info("💡 Review the corrections above and practice the corrected versions.")
-            corrections_count = sum(1 for r in st.session_state.get("s8_results", []) if r.get("changed"))
-            show_character("ai_bot", "feedback", score=70, corrections=corrections_count)
+            st.markdown("---")
+            _phase_error_review("step8", wh_lang, _gemini.lang_name(gec_lang), native_lang)
 
     # ── Navigation ────────────────────────────────────────────────────────
     st.markdown("---")
@@ -1482,7 +1625,11 @@ def step8(session: LessonSession, tts_lang, wh_lang):
     c1, c2 = st.columns(2)
     with c1:
         if st.button("🔄 Try again", use_container_width=True, key="s8_retry"):
+            for k in list(st.session_state):
+                if k.startswith("s8_sel_"):
+                    del st.session_state[k]
             st.session_state.pop("s8_results", None)
+            _clear_phase_errors("step8")
             st.rerun()
     with c2:
         if st.button("Complete Lesson ✓", type="primary",
@@ -1521,18 +1668,31 @@ def _clear_all():
         st.query_params.clear()
 
 
+def _show_upsell(key: str) -> None:
+    """Rendered wherever a free-tier user hits a paid-only Gemini call
+    (engine.gemini.PaidFeatureRequired) — see engine/gemini.py's @_require_paid."""
+    st.warning("⭐ This is a Premium feature — live AI generation isn't included in the free plan.")
+    if st.button("⭐ Go to Upgrade", key=f"upsell_{key}"):
+        st.session_state["_show_launcher"] = True
+        st.rerun()
+
+
 def _save_step_progress(sess: LessonSession, step: int):
     """Persist (lesson_id, step) so the user can resume right here next time.
-    Saves at most once per (lesson_id, step) per session to avoid spamming the API."""
+    Saves at most once per (lesson_id, step) per session to avoid spamming the DB."""
+    if not sess.state.unit_id:
+        return
     key = (sess.state.lesson_id, step)
     if st.session_state.get("_last_saved_progress") == key:
         return
     try:
-        save_progress(
-            user_id               = sess.state.user_id,
-            language_pair         = sess.state.language_pair,
-            last_completed_lesson = sess.state.lesson_id,
-            last_step             = int(step),
+        module = sess.state.unit_id.split(":", 1)[0]
+        _recommender.save_pointer(
+            user_id     = sess.state.user_id,
+            target_lang = sess.state.target_lang,
+            module      = module,
+            unit_id     = sess.state.unit_id,
+            step        = int(step),
         )
         st.session_state["_last_saved_progress"] = key
     except Exception as e:
@@ -1675,6 +1835,86 @@ def _clear_phase_errors(phase_key: str) -> None:
         st.session_state.pop(f"errors_{phase_key}{suffix}", None)
 
 
+def _error_drill_step(
+    err: dict, idx: int, total: int, phase_key: str,
+    wh_lang: str, target_lang: str, native_lang: str,
+) -> bool:
+    """
+    Per-error practice step used by _phase_error_review for every phase
+    (warmup, practice, expression, step8): instead of asking the student to
+    reproduce the ONE corrected sentence verbatim, ask them to write/say
+    2-3 NEW phrases using the same word/phrase/structure that was wrong,
+    then grammar-check whatever they produced as a whole (reusing
+    engine.gemini.correct_grammar and the same strikethrough render Step 8
+    already uses, rather than the single-sentence check_practice_answer).
+    Returns True once the student has checked their phrases and clicked
+    "Next" for this error (advances the caller's review_key index).
+    """
+    st.markdown("---")
+    st.markdown(f"### {i18n.get(native_lang, 'error_drill_title')} — {idx + 1} / {total}")
+    st.info(
+        f"**{err['corrected']}**\n\n"
+        + (f"{err['explanation']}\n\n" if err.get("explanation") else "")
+        + i18n.get(native_lang, "error_drill_instruction")
+    )
+
+    _opt_text  = i18n.get(native_lang, "text_opt")
+    _opt_voice = i18n.get(native_lang, "voice_opt")
+    mode = st.radio(
+        i18n.get(native_lang, "answer_method"), [_opt_text, _opt_voice],
+        horizontal=True, key=f"errdrill_mode_{phase_key}_{idx}",
+    )
+
+    student_text: str | None = None
+    submitted = False
+
+    if mode == _opt_text:
+        student_text = st.text_area(
+            i18n.get(native_lang, "error_drill_input_label"),
+            key=f"errdrill_text_{phase_key}_{idx}", height=90,
+        )
+        submitted = st.button(
+            i18n.get(native_lang, "check_btn"), key=f"errdrill_submit_{phase_key}_{idx}"
+        )
+    else:
+        audio = audio_input(f"errdrill_{phase_key}_{idx}")
+        submitted = bool(audio) and st.button(
+            i18n.get(native_lang, "check_btn"), key=f"errdrill_submit_{phase_key}_{idx}"
+        )
+        if submitted and audio:
+            with st.spinner("Transcribing…"):
+                student_text = transcribe_bytes(audio, language=wh_lang)
+            st.markdown(f"**{student_text}**")
+
+    result_key = f"errdrill_result_{phase_key}_{idx}"
+
+    if submitted and student_text and student_text.strip():
+        try:
+            with st.spinner("…"):
+                st.session_state[result_key] = _gemini.correct_grammar(
+                    student_text, target_lang, native_lang
+                )
+        except _gemini.PaidFeatureRequired:
+            _show_upsell(f"errdrill_check_{phase_key}_{idx}")
+            return False
+
+    if result_key in st.session_state:
+        found = st.session_state[result_key].get("errors", [])
+        if not found:
+            st.success(i18n.get(native_lang, "step8_no_errors"))
+        else:
+            for e in found:
+                st.markdown(f"~~{e['original']}~~ → **{e['fixed']}**")
+                if e.get("explanation"):
+                    st.caption(e["explanation"])
+        if st.button(i18n.get(native_lang, "next_btn"), type="primary",
+                     key=f"errdrill_next_{phase_key}_{idx}"):
+            st.session_state.pop(result_key, None)
+            return True
+
+    return False
+
+
 def _phase_error_review(
     phase_key: str, wh_lang: str, target_lang: str, native_lang: str
 ) -> bool:
@@ -1682,7 +1922,9 @@ def _phase_error_review(
     Interactive correction round shown at the END of each phase.
 
     Step 1: Shows ALL errors with explanations (overview).
-    Step 2: Asks student to produce each corrected phrase (text or audio).
+    Step 2: Asks student to write/say 2-3 NEW phrases using the same
+            word/phrase/structure that was wrong (_error_drill_step),
+            grammar-checked as a whole rather than reproducing one sentence.
 
     Returns True when all errors have been worked through (or there are none).
     """
@@ -1723,80 +1965,70 @@ def _phase_error_review(
     err   = errors[idx]
     total = len(errors)
 
-    st.markdown("---")
-    st.markdown(f"### {i18n.get(native_lang, 'check_self')} — {idx + 1} / {total}")
-    st.info(
-        f"{i18n.get(native_lang, 'how_to_say')} **«{err['native_prompt']}»** "
-        f"{i18n.get(native_lang, 'in_target_lang')}\n\n"
-        f"{i18n.get(native_lang, 'write_or_record')}"
-    )
-
-    _rev_text_opt  = i18n.get(native_lang, "text_opt")
-    _rev_voice_opt = i18n.get(native_lang, "voice_opt")
-    mode = st.radio(
-        i18n.get(native_lang, "answer_method"), [_rev_text_opt, _rev_voice_opt],
-        horizontal=True, key=f"rev_mode_{phase_key}_{idx}",
-    )
-    student_retry: str | None = None
-    submitted = False
-
-    if mode == _rev_text_opt:
-        student_retry = st.text_input(
-            i18n.get(native_lang, "answer_label"), key=f"rev_text_{phase_key}_{idx}"
-        )
-        submitted = st.button(
-            i18n.get(native_lang, "check_btn"), key=f"rev_submit_{phase_key}_{idx}"
-        )
-    else:
-        audio = audio_input(f"rev_{phase_key}_{idx}")
-        submitted = bool(audio) and st.button(
-            i18n.get(native_lang, "check_btn"), key=f"rev_submit_{phase_key}_{idx}"
-        )
-        if submitted and audio:
-            with st.spinner("Transcribing…"):
-                student_retry = transcribe_bytes(audio, language=wh_lang)
-            st.markdown(f"**Ти сказав:** {student_retry}")
-
-    result_key = f"rev_result_{phase_key}_{idx}"
-
-    if submitted and student_retry:
-        res = _gemini.check_practice_answer(
-            err.get("native_prompt", ""),
-            student_retry,
-            err["corrected"],
-            target_lang, native_lang,
-        )
-        st.session_state[result_key] = res
-
-    if result_key in st.session_state:
-        res = st.session_state[result_key]
-        if res.get("correct"):
-            st.success(i18n.get(native_lang, "correct"))
-        else:
-            alts_key = f"rev_alts_{phase_key}_{idx}"
-            if alts_key not in st.session_state:
-                with st.spinner("…"):
-                    st.session_state[alts_key] = _gemini.suggest_alternatives(
-                        err.get("native_prompt", err["corrected"]),
-                        target_lang, native_lang,
-                    )
-            alts = st.session_state[alts_key]
-            st.error(i18n.get(native_lang, "try_again"))
-            for a in alts:
-                st.markdown(f"- **{a}**")
-            if err.get("explanation"):
-                st.caption(err["explanation"])
-
-        if st.button(i18n.get(native_lang, "next_btn"), key=f"rev_next_{phase_key}_{idx}"):
-            st.session_state.pop(result_key, None)
-            st.session_state[review_key] = idx + 1
-            st.rerun()
-
+    if _error_drill_step(err, idx, total, phase_key, wh_lang, target_lang, native_lang):
+        st.session_state[review_key] = idx + 1
+        st.rerun()
     return False
 
 
-# ── CEFR level from lesson_id ─────────────────────────────────────────────
-def _lesson_level(lesson_id: int) -> str:
+# ── CEFR level for the current lesson ─────────────────────────────────────
+def _lesson_level(session: LessonSession) -> str:
+    """
+    Grammar lessons carry a real `difficulty` column (imlls_database's
+    "phrases" sheet, 1-4) — mapped via engine.recommender.DIFFICULTY_TO_CEFR,
+    the same mapping scripts/seed_content_units.py uses to tag content_units,
+    so this now agrees with what the recommender already knows about a
+    lesson's level. Fixed 2026-08-21 — this used to be crude lesson_id
+    thresholds (<=30/<=70/else) capped at B1, which disagreed with it (e.g.
+    lesson 139 is really B2, this returned "B1" — one level too low).
+
+    Vocabulary/CEFR-J lessons (engine.cefr_j_vocab_loader) carry the real
+    CEFR level directly in `topic` ("A1".."C2" — that IS the lesson's
+    category there, see the loader's docstring) — checked before the
+    lesson_id fallback below. Fixed 2026-08-22: without this, every CEFR-J
+    lesson fell through to the old lesson_id heuristic, which was
+    calibrated for Word Bank's 1-806 gid range — CEFR-J's are offset by
+    +100000, so `lesson_id <= 70` is never true and EVERY CEFR-J lesson
+    silently came out "B1" regardless of its real level (found live —
+    an A1 lesson's bilingual-warmup checkbox wasn't checked by default).
+
+    Phrasebook / Word Bank Vocabulary lessons have no CEFR level baked into
+    the loaded phrases themselves (`topic` there is a real theme/sheet name,
+    e.g. "Greetings, Basics & Courtesy", never a CEFR code) — but
+    scripts/seed_content_units.py already tags each one from
+    data/vocab_tags_template.csv into content_units.level (same source the
+    lesson-picker's "· A1" annotation uses, engine.recommender.lesson_levels).
+    Fixed 2026-08-22: look that up by unit_id before falling back to the
+    lesson_id heuristic below, so Phrasebook lessons (previously always
+    capped at B1 regardless of real level — the crude fallback was
+    calibrated for the old Word Bank gid range, and Phrasebook never had
+    real level data of its own) get their real tagged level like every
+    other module. Untagged lessons (level IS NULL) and a missing/unavailable
+    DB still land on the lesson_id heuristic, same as before.
+    """
+    phrases = session.phrases()
+    if phrases and phrases[0].get("difficulty") is not None:
+        try:
+            return _recommender.DIFFICULTY_TO_CEFR.get(int(phrases[0]["difficulty"]), "A1")
+        except (TypeError, ValueError):
+            pass
+
+    if phrases and phrases[0].get("topic") in _recommender.CEFR_RANK:
+        return phrases[0]["topic"]
+
+    if session.state.unit_id:
+        try:
+            from engine import db
+            row = db.fetch_one(
+                "SELECT level FROM content_units WHERE unit_id = :uid AND level IS NOT NULL",
+                {"uid": session.state.unit_id},
+            )
+            if row:
+                return row["level"]
+        except Exception:
+            pass
+
+    lesson_id = session.state.lesson_id
     if lesson_id <= 30:
         return "A1"
     if lesson_id <= 70:
@@ -1817,7 +2049,7 @@ def phase1_warmup(session: LessonSession, tts_lang: str, wh_lang: str) -> bool:
     """
     native_lang = session.state.native_lang
     target_lang = session.state.target_lang
-    level       = _lesson_level(session.state.lesson_id)
+    level       = _lesson_level(session)
 
     _init_errors("warmup")
 
@@ -1831,33 +2063,41 @@ def phase1_warmup(session: LessonSession, tts_lang: str, wh_lang: str) -> bool:
             st.session_state.pop("warmup_done", None)
             return True
 
+    # Bilingual display defaults on for A1 (CLAUDE.md item 2, 2026-08-20) but
+    # stays a toggle, not hardcoded — regenerating the question if it changes.
+    if "warmup_bilingual" not in st.session_state:
+        st.session_state["warmup_bilingual"] = (level == "A1")
+    bilingual = st.checkbox(
+        i18n.get(native_lang, "warmup_bilingual_toggle"),
+        key="warmup_bilingual",
+        disabled="warmup_q" in st.session_state,
+    )
+
     # Generate question once per phase entry
     if "warmup_q" not in st.session_state:
-        with st.spinner("Generating warmup question…"):
-            st.session_state["warmup_q"] = _gemini.warmup_question(
-                level, target_lang, native_lang
-            )
-
-    st.markdown(f"### 💬 {st.session_state['warmup_q']}")
-
-    # ── Show corrections directly (no retry) ────────────────────────────
-    if st.session_state.get("warmup_done"):
-        errors = _get_errors("warmup")
-        if errors:
-            st.markdown(f"#### {i18n.get(native_lang, 'error_breakdown')}")
-            for err in errors:
-                st.error(
-                    f"❌ **{err['original']}** → ✅ **{err['corrected']}**"
+        try:
+            with st.spinner("Generating warmup question…"):
+                st.session_state["warmup_q"] = _gemini.warmup_question(
+                    level, target_lang, native_lang, bilingual=bilingual,
                 )
-                if err.get("explanation"):
-                    st.caption(err["explanation"])
-        else:
+        except _gemini.PaidFeatureRequired:
+            _show_upsell("warmup_q")
+            return False
+
+    _wq = st.session_state["warmup_q"]
+    st.markdown(f"### 💬 {_wq['target']}")
+    if _wq.get("native"):
+        st.caption(f"🌐 {_wq['native']}")
+
+    # ── Error review + drill (same flow as practice/expression/step8) ──────
+    if st.session_state.get("warmup_done"):
+        if not _get_errors("warmup"):
             st.success(i18n.get(native_lang, "no_errors"))
-        if st.button(i18n.get(native_lang, "next"), type="primary", key="warmup_next"):
-            st.session_state.pop("warmup_q", None)
-            st.session_state.pop("warmup_done", None)
-            _clear_phase_errors("warmup")
-            return True
+        if _phase_error_review("warmup", wh_lang, target_lang, native_lang):
+            if st.button(i18n.get(native_lang, "next"), type="primary", key="warmup_next"):
+                st.session_state.pop("warmup_q", None)
+                st.session_state.pop("warmup_done", None)
+                return True
         return False
 
     # ── Input ─────────────────────────────────────────────────────────────
@@ -1884,11 +2124,15 @@ def phase1_warmup(session: LessonSession, tts_lang: str, wh_lang: str) -> bool:
             answer = answer_text
 
     if answer:
-        with st.spinner("Evaluating…"):
-            result = _gemini.evaluate_warmup(
-                answer, st.session_state["warmup_q"],
-                target_lang, level, native_lang,
-            )
+        try:
+            with st.spinner("Evaluating…"):
+                result = _gemini.evaluate_warmup(
+                    answer, st.session_state["warmup_q"]["target"],
+                    target_lang, level, native_lang,
+                )
+        except _gemini.PaidFeatureRequired:
+            _show_upsell("warmup_eval")
+            return False
         if result.get("feedback"):
             st.info(result["feedback"])
         for err in result.get("errors", []):
@@ -1907,6 +2151,38 @@ def phase1_warmup(session: LessonSession, tts_lang: str, wh_lang: str) -> bool:
 # Phase 3 — Практика / Practice  (Gemini-generated tests)
 # ═══════════════════════════════════════════════════════════════════════════
 
+def _extra_practice_phrases(
+    session: LessonSession, module: str, target_lang: str, native_lang: str, n: int = 4,
+) -> list[dict]:
+    """
+    Pull a few phrases from the user's weakest / most-overdue topics (via
+    engine.recommender), beyond the current lesson — so practice tests aren't
+    limited to session.phrases() alone (CLAUDE.md item 5, 2026-08-20).
+    Best-effort: returns [] on any lookup failure rather than blocking the test.
+    """
+    if module not in ("grammar", "vocab"):
+        return []
+    try:
+        cfg = _module_config(module)
+        if cfg["load"] is None:
+            return []
+        candidates = _recommender.get_next(
+            session.state.user_id, target_lang, module=module, limit=6,
+        )
+        df_all = cfg["load"](str(cfg["db_path"]), native_lang, target_lang)
+        pool: list[dict] = []
+        for cand in candidates:
+            if cand["unit_id"] == session.state.unit_id:
+                continue
+            lesson_id  = _recommender.parse_unit_id(cand["unit_id"])["lesson_id"]
+            lesson_df  = cfg["get_lesson"](df_all, lesson_id)
+            pool.extend(lesson_df.to_dict("records"))
+        random.shuffle(pool)
+        return pool[:n]
+    except Exception:
+        return []
+
+
 def phase3_practice(session: LessonSession, tts_lang: str, wh_lang: str) -> bool:
     """
     Gemini generates a short test (fill-in-blank / multiple choice / translation).
@@ -1916,7 +2192,14 @@ def phase3_practice(session: LessonSession, tts_lang: str, wh_lang: str) -> bool
     native_lang = session.state.native_lang
     target_lang = session.state.target_lang
     topic       = getattr(session.state, "topic", "daily life") or "daily life"
-    level       = _lesson_level(session.state.lesson_id)
+    level       = _lesson_level(session)
+    module      = _current_module()
+    # construction_drill: Grammar-only (the construction/pattern concept is
+    # specific to Grammar lessons), but works for any target language now —
+    # English uses engine.cefr_wordlist's strict CEFR+POS word list, other
+    # languages fall back to a plain "use simple vocabulary" instruction
+    # (CLAUDE.md, 2026-08-22 — no open CEFR+POS list exists for uk/es/ko).
+    _drill_available = module == "grammar"
 
     _init_errors("practice")
 
@@ -1938,13 +2221,27 @@ def phase3_practice(session: LessonSession, tts_lang: str, wh_lang: str) -> bool
         return False
 
     # ── Test type picker ──────────────────────────────────────────────────
+    # Order (and therefore the selectbox's default): multiple choice first,
+    # then fill-in-the-blank, then translation (CLAUDE.md, 2026-08-23 —
+    # Наталья's requested order).
+    _test_types = ["multiple_choice", "fill_in_blank", "translation"]
+    # Grammar-book sentence transformation (active/passive, statement/
+    # question, reported speech...) only makes sense as a GRAMMAR drill —
+    # works in any target language, unlike construction_drill which needs
+    # cefr_wordlist's English-only pool (CLAUDE.md, 2026-08-22).
+    if module == "grammar":
+        _test_types.append("sentence_transformation")
+    if _drill_available:
+        _test_types.append("construction_drill")
     test_type = st.selectbox(
         i18n.get(native_lang, "test_type_label"),
-        ["fill_in_blank", "multiple_choice", "translation"],
+        _test_types,
         format_func={
-            "fill_in_blank":   i18n.get(native_lang, "fill_in_blank"),
-            "multiple_choice": i18n.get(native_lang, "multiple_choice"),
-            "translation":     i18n.get(native_lang, "translation_type"),
+            "fill_in_blank":           i18n.get(native_lang, "fill_in_blank"),
+            "multiple_choice":         i18n.get(native_lang, "multiple_choice"),
+            "translation":             i18n.get(native_lang, "translation_type"),
+            "sentence_transformation": i18n.get(native_lang, "sentence_transformation"),
+            "construction_drill":      i18n.get(native_lang, "construction_drill"),
         }.get,
         key="p3_type",
     )
@@ -1957,14 +2254,43 @@ def phase3_practice(session: LessonSession, tts_lang: str, wh_lang: str) -> bool
                                   disabled="p3_test" not in st.session_state)
 
     if generate_clicked or regen_clicked:
-        with st.spinner(i18n.get(native_lang, "generating_ex")):
-            st.session_state["p3_test"]    = _gemini.generate_practice_test(
-                level, topic, target_lang, native_lang, test_type,
-                phrases=session.phrases(),
-            )
-            st.session_state["p3_answers"] = {}
-            st.session_state["p3_checked"] = False
-            st.session_state.pop("p3_results", None)
+        try:
+            with st.spinner(i18n.get(native_lang, "generating_ex")):
+                if test_type == "construction_drill":
+                    # Fresh sentences built from the lesson's own construction +
+                    # level-appropriate vocabulary (engine.cefr_wordlist for
+                    # English, a plain instruction for other languages — CLAUDE.md
+                    # 2026-08-21/22), instead of imlls_database's fixed 7-8
+                    # phrases. Reshaped into the same {question, answer, options}
+                    # item shape generate_practice_test produces, as a translation
+                    # exercise (native shown, target expected) — so the existing
+                    # render/check loop below needs no changes for this mode.
+                    drill = _gemini.generate_lesson_construction_drill(
+                        session.state.lesson_id, topic,
+                        [p["target"] for p in session.phrases()],
+                        level, native_lang, target_lang,
+                    )
+                    st.session_state["p3_test"] = {
+                        "instructions": i18n.get(native_lang, "translation_type"),
+                        "items": [
+                            {"question": it["native"], "answer": it["target"], "options": []}
+                            for it in drill.get("items", [])
+                        ],
+                    }
+                else:
+                    combined_phrases = session.phrases() + _extra_practice_phrases(
+                        session, module, target_lang, native_lang,
+                    )
+                    st.session_state["p3_test"] = _gemini.generate_practice_test(
+                        level, topic, target_lang, native_lang, test_type,
+                        phrases=combined_phrases, module=module,
+                    )
+                st.session_state["p3_answers"] = {}
+                st.session_state["p3_checked"] = False
+                st.session_state.pop("p3_results", None)
+        except _gemini.PaidFeatureRequired:
+            _show_upsell("p3_gen")
+            return False
 
     if "p3_test" not in st.session_state:
         return False
@@ -1989,19 +2315,31 @@ def phase3_practice(session: LessonSession, tts_lang: str, wh_lang: str) -> bool
     # ── Check button ──────────────────────────────────────────────────────
     if st.button(i18n.get(native_lang, "check_btn"), type="primary", key="p3_check"):
         results = []
-        for i, item in enumerate(test.get("items", [])):
-            student_ans = st.session_state["p3_answers"].get(i, "")
-            res = _gemini.check_practice_answer(
-                item["question"], student_ans, item["answer"],
-                target_lang, native_lang,
-            )
-            results.append(res)
-            if not res["correct"]:
-                _collect_error(
-                    student_ans, item["answer"],
-                    res.get("feedback", ""), "practice",
-                    native_prompt=item["question"],
-                )
+        try:
+            for i, item in enumerate(test.get("items", [])):
+                student_ans = st.session_state["p3_answers"].get(i, "")
+                if test_type == "multiple_choice":
+                    passed = evaluate(student_ans, item["answer"])["passed"]
+                    res = {
+                        "correct": passed,
+                        "feedback": i18n.get(native_lang, "correct") if passed
+                                    else f"{i18n.get(native_lang, 'try_again')} {item['answer']}",
+                    }
+                else:
+                    res = _gemini.check_practice_answer(
+                        item["question"], student_ans, item["answer"],
+                        target_lang, native_lang,
+                    )
+                results.append(res)
+                if not res["correct"]:
+                    _collect_error(
+                        student_ans, item["answer"],
+                        res.get("feedback", ""), "practice",
+                        native_prompt=item["question"],
+                    )
+        except _gemini.PaidFeatureRequired:
+            _show_upsell("p3_check")
+            return False
         st.session_state["p3_results"] = results
         st.session_state["p3_checked"] = True
         st.rerun()
@@ -2016,36 +2354,45 @@ def phase4_expression(session: LessonSession, tts_lang: str, wh_lang: str) -> bo
     native_lang = session.state.native_lang
     target_lang = session.state.target_lang
     topic       = getattr(session.state, "topic", "daily life") or "daily life"
-    level       = _lesson_level(session.state.lesson_id)
+    level       = _lesson_level(session)
 
     _init_errors("expression")
 
     st.markdown(f"## {i18n.get(native_lang, 'speaking_title')}")
     st.info(i18n.get(native_lang, "speaking_strategy"))
 
-    def _gen_p4_task():
+    # Bilingual display defaults on for A1, same convention as warmup
+    # (CLAUDE.md item 2, 2026-08-20) — stays a toggle, not hardcoded.
+    if "p4_bilingual" not in st.session_state:
+        st.session_state["p4_bilingual"] = (level == "A1")
+    st.checkbox(
+        i18n.get(native_lang, "warmup_bilingual_toggle"),
+        key="p4_bilingual",
+        disabled="p4_task" in st.session_state,
+    )
+
+    def _gen_p4_task() -> bool:
+        seed = [p["target"] for p in session.phrases()]
+        random.shuffle(seed)
         try:
-            import yaml, random as _rnd, os as _os
-            _pool_path = _os.path.join(_os.path.dirname(__file__), "data", "speaking_topics.yaml")
-            with open(_pool_path, encoding="utf-8") as _f:
-                _pool = yaml.safe_load(_f)
-            _topics = _pool.get(level) or _pool.get("A2") or []
-            p4_topic = _rnd.choice(_topics) if _topics else (topic or "daily life")
-        except Exception:
-            p4_topic = topic or "daily life"
-        with st.spinner("Generating speaking task..."):
-            st.session_state["p4_task"]         = _gemini.generate_speaking_task(
-                level, p4_topic, target_lang, native_lang
-            )
-            st.session_state["p4_chat_history"] = []
-            st.session_state["p4_submitted"]    = False
+            with st.spinner("Generating speaking task..."):
+                st.session_state["p4_task"] = _gemini.generate_open_question(
+                    topic, seed, level, target_lang, native_lang,
+                    bilingual=st.session_state.get("p4_bilingual", False),
+                )
+                st.session_state["p4_chat_history"] = []
+                st.session_state["p4_submitted"]    = False
+            return True
+        except _gemini.PaidFeatureRequired:
+            _show_upsell("p4_gen")
+            return False
 
     if "p4_task" not in st.session_state:
         col_p4a, col_p4b = st.columns([3, 1])
         with col_p4a:
             if st.button(i18n.get(native_lang, "generate_task"), type="primary", key="p4_gen"):
-                _gen_p4_task()
-                st.rerun()
+                if _gen_p4_task():
+                    st.rerun()
         return False
 
     col_p4task, col_p4rnw = st.columns([5, 1])
@@ -2054,9 +2401,12 @@ def phase4_expression(session: LessonSession, tts_lang: str, wh_lang: str) -> bo
             if st.button(i18n.get(native_lang, "new_btn"), key="p4_regen"):
                 for _k in ("p4_task","p4_chat_history","p4_submitted","p4_answer"):
                     st.session_state.pop(_k, None)
-                _gen_p4_task()
-                st.rerun()
-    st.markdown(st.session_state["p4_task"])
+                if _gen_p4_task():
+                    st.rerun()
+    _p4q = st.session_state["p4_task"]
+    st.markdown(f"### 💭 {_p4q['target']}")
+    if _p4q.get("native"):
+        st.caption(f"🌐 {_p4q['native']}")
     st.markdown("---")
 
     # ── SOS & HELP — always visible ──────────────────────────────────────
@@ -2074,9 +2424,12 @@ def phase4_expression(session: LessonSession, tts_lang: str, wh_lang: str) -> bo
                 placeholder=i18n.get(native_lang, "enter_phrase_hint"),
             )
             if st.button(i18n.get(native_lang, "translate_btn"), key="p4_help_submit") and help_query:
-                with st.spinner("..."):
-                    hint = _gemini.translate_phrase(help_query, native_lang, target_lang)
-                st.session_state["p4_help_reply"] = hint
+                try:
+                    with st.spinner("..."):
+                        hint = _gemini.translate_phrase(help_query, native_lang, target_lang)
+                    st.session_state["p4_help_reply"] = hint
+                except _gemini.PaidFeatureRequired:
+                    _show_upsell("p4_help_text")
         else:
             audio_h = audio_input("p4_help")
             if audio_h:
@@ -2090,16 +2443,20 @@ def phase4_expression(session: LessonSession, tts_lang: str, wh_lang: str) -> bo
                         "spanish": "es", "korean": "ko", "french": "fr",
                         "japanese": "ja", "chinese": "zh", "portuguese": "pt",
                         "italian": "it", "polish": "pl", "russian": "ru",
+                        "catalan": "ca", "dutch": "nl",
                     }
                     _native_stt = _LANG_NAME_TO_CODE.get(native_lang.lower(), "uk")
                     with st.spinner("..."):
                         help_query = transcribe_bytes(saved, language=_native_stt)
                     if help_query:
                         st.caption(f"{i18n.get(native_lang, 'you_asked')} {help_query}")
-                        with st.spinner("..."):
-                            hint = _gemini.translate_phrase(help_query, native_lang, target_lang)
-                        st.session_state["p4_help_reply"] = hint
-                        st.session_state.pop("p4_help_audio", None)
+                        try:
+                            with st.spinner("..."):
+                                hint = _gemini.translate_phrase(help_query, native_lang, target_lang)
+                            st.session_state["p4_help_reply"] = hint
+                            st.session_state.pop("p4_help_audio", None)
+                        except _gemini.PaidFeatureRequired:
+                            _show_upsell("p4_help_voice")
                 else:
                     st.warning(i18n.get(native_lang, "no_audio_warning"))
         if "p4_help_reply" in st.session_state:
@@ -2126,10 +2483,14 @@ def phase4_expression(session: LessonSession, tts_lang: str, wh_lang: str) -> bo
                 st.session_state["p4_answer"] = transcribed
 
         if "p4_answer" in st.session_state and not st.session_state.get("p4_submitted"):
-            with st.spinner("Checking grammar..."):
-                correction = _gemini.correct_grammar(
-                    st.session_state["p4_answer"], target_lang, native_lang
-                )
+            try:
+                with st.spinner("Checking grammar..."):
+                    correction = _gemini.correct_grammar(
+                        st.session_state["p4_answer"], target_lang, native_lang
+                    )
+            except _gemini.PaidFeatureRequired:
+                _show_upsell("p4_correct")
+                return False
             for err in correction.get("errors", []):
                 _collect_error(
                     err["original"], err["fixed"],
@@ -2152,20 +2513,23 @@ def phase4_expression(session: LessonSession, tts_lang: str, wh_lang: str) -> bo
             (m["parts"][0] for m in reversed(
                 st.session_state.get("p4_chat_history", [])
             ) if m["role"] == "model"),
-            st.session_state.get("p4_task", ""),
+            st.session_state.get("p4_task", {}).get("target", ""),
         )
         user_input = st.chat_input("Your message...", key="p4_chat")
         if user_input:
-            with st.spinner("Tutor is typing..."):
-                reply = _gemini.chat_with_tutor(
-                    st.session_state["p4_chat_history"],
-                    user_input, target_lang, level, native_lang,
-                )
-            st.session_state["p4_chat_history"] += [
-                {"role": "user",  "parts": [user_input]},
-                {"role": "model", "parts": [reply]},
-            ]
-            st.rerun()
+            try:
+                with st.spinner("Tutor is typing..."):
+                    reply = _gemini.chat_with_tutor(
+                        st.session_state["p4_chat_history"],
+                        user_input, target_lang, level, native_lang,
+                    )
+                st.session_state["p4_chat_history"] += [
+                    {"role": "user",  "parts": [user_input]},
+                    {"role": "model", "parts": [reply]},
+                ]
+                st.rerun()
+            except _gemini.PaidFeatureRequired:
+                _show_upsell("p4_chat")
 
         st.markdown("---")
         if _phase_error_review("expression", wh_lang, target_lang, native_lang):
@@ -2183,122 +2547,47 @@ def phase4_expression(session: LessonSession, tts_lang: str, wh_lang: str) -> bo
 
 def phase5_video(session: LessonSession) -> bool:
     """
-    Phase 5: YouTube videos matched to the lesson topic and CEFR level.
-    Uses YouTube Data API v3 (requires YOUTUBE_API_KEY in secrets.toml).
-    Returns True when the user clicks "До головного меню →".
+    Phase 5: curated YouTube channels for the student's target language and
+    CEFR level. Reads data/youtube_channels.csv — no live API calls.
+
+    CLAUDE.md 2026-08-23: previously showed 1-3 specific curated videos
+    (data/youtube_links.csv, still intact and still readable via
+    youtube_links.get_videos() -- just not called here anymore) matched to
+    exactly this lesson's level. Наталья live-tested it and the same one
+    video kept reappearing across every lesson at that level, which read as
+    stale -- a channel LIST lets the student actually explore instead of
+    hitting the same single clip every time. Returns True when the user
+    clicks "До головного меню →".
     """
     state       = session.state
-    level       = _lesson_level(state.lesson_id)
-    phrases     = session.phrases()
+    level       = _lesson_level(session)
     target_lang = state.target_lang or st.session_state.get("launcher_target", "English")
     native_lang = st.session_state.get("launcher_native", "Ukrainian")
-
-    # Use topic_en from DB (free, instant) — falls back to Gemini only if missing
-    topic_key      = "p5_topic"
-    topic_disp_key = "p5_topic_display"
-    if topic_key not in st.session_state:
-        _NATIVE_TOPIC_COL = {
-            "English": "topic_en", "Ukrainian": "topic_uk",
-            "Spanish": "topic_es", "Korean":   "topic_ko",
-        }
-        p0 = phrases[0] if phrases else {}
-        # Search always uses English topic for best YouTube results
-        topic_en   = p0.get("topic_en", "") or ""
-        # Display uses native language topic
-        native_col = _NATIVE_TOPIC_COL.get(native_lang, "topic_en")
-        topic_disp = p0.get(native_col, "") or topic_en
-        if topic_en:
-            st.session_state[topic_key]      = topic_en
-            st.session_state[topic_disp_key] = topic_disp
-        else:
-            with st.spinner("Визначаю тему уроку…"):
-                generated = _gemini.get_lesson_topic(phrases, target_lang, level)
-            st.session_state[topic_key]      = generated
-            st.session_state[topic_disp_key] = generated
-
-    topic      = st.session_state[topic_key]        # English — for YouTube search
-    topic_disp = st.session_state[topic_disp_key]   # native lang — for display
 
     st.markdown(f"## {i18n.get(native_lang, 'video_title')}")
     st.caption(
         f"{i18n.get(native_lang, 'level_label')}: **{level}** · "
-        f"{i18n.get(native_lang, 'lang_label')}: **{target_lang}** · "
-        f"{i18n.get(native_lang, 'topic_label')}: {topic_disp}"
+        f"{i18n.get(native_lang, 'lang_label')}: **{target_lang}**"
     )
 
-    videos_key = "p5_videos"
+    # B2+ (CLAUDE.md 2026-08-22, Наталья's call): curated channel
+    # recommendations only make sense up through B1 -- past that, real
+    # native-speaker content (a show/movie/video the student actually wants
+    # to watch) is the better practice than anything we could curate.
+    beyond_curated = _recommender.CEFR_RANK.get(level, 0) >= _recommender.CEFR_RANK["B2"]
+    channels = [] if beyond_curated else youtube_links.get_channels(target_lang)
 
-    # ── Search button ────────────────────────────────────────────────────────
-    if videos_key not in st.session_state:
-        # Default query: topic_en + "learn {lang} lesson" — no Gemini needed
-        default_query = f"{topic} learn {target_lang} lesson"
-
-        col_q, col_btn = st.columns([3, 1])
-        with col_q:
-            search_topic = st.text_input(
-                i18n.get(native_lang, "video_search_label"),
-                value=default_query,
-                key="p5_topic_input",
-                placeholder="past tense learn English lesson",
-            )
-        with col_btn:
-            st.markdown("<br>", unsafe_allow_html=True)
-            search_clicked = st.button(i18n.get(native_lang, "video_search_btn"), key="p5_search", type="primary")
-
-        if search_clicked:
-            with st.spinner("Шукаю на YouTube…"):
-                try:
-                    results = _gemini.find_youtube_videos(
-                        topic=search_topic,
-                        level=level,
-                        lang=target_lang,
-                        limit=3,
-                        sample_phrases=[search_topic],
-                    )
-                    st.session_state[videos_key] = results
-                except RuntimeError as e:
-                    if "YOUTUBE_API_KEY" in str(e):
-                        st.error(
-                            "🔑 **YOUTUBE_API_KEY не налаштований.**\n\n"
-                            "Додай у `.streamlit/secrets.toml`:\n```\nYOUTUBE_API_KEY = \"AIzaSy...\"\n```"
-                        )
-                    else:
-                        st.error(f"Помилка: {e}")
-                except Exception as e:
-                    import traceback
-                    st.error(f"Помилка YouTube API: {e}")
-                    st.code(traceback.format_exc(), language="text")
-            st.rerun()
-
-    # ── Results ──────────────────────────────────────────────────────────────
-    if videos_key in st.session_state:
-        videos = st.session_state[videos_key]
-        if not videos:
-            st.warning(i18n.get(native_lang, "video_not_found"))
-        else:
-            for v in videos:
-                col_thumb, col_info = st.columns([1, 3])
-                with col_thumb:
-                    thumb = v.get("thumbnail", "")
-                    if not thumb and "v=" in v["url"]:
-                        vid_id = v["url"].split("v=")[-1].split("&")[0]
-                        thumb = f"https://img.youtube.com/vi/{vid_id}/mqdefault.jpg"
-                    if thumb:
-                        st.image(thumb, use_container_width=True)
-                with col_info:
-                    st.markdown(f"**[{v['title']}]({v['url']})**")
-                    st.markdown(f"[{i18n.get(native_lang, 'video_open')}]({v['url']})")
-                st.markdown("---")
-
-        if st.button(i18n.get(native_lang, "video_new_search"), key="p5_refresh"):
-            st.session_state.pop(videos_key, None)
-            st.rerun()
+    if beyond_curated:
+        st.info(i18n.get(native_lang, "video_beyond_curated"))
+    elif not channels:
+        st.warning(i18n.get(native_lang, "video_not_found"))
+    else:
+        st.markdown(i18n.get(native_lang, "video_channels_intro"))
+        for c in channels:
+            st.markdown(f"- [{c['name']}]({c['url']})")
 
     st.markdown("---")
     if st.button(i18n.get(native_lang, "to_main_menu"), type="primary", key="p5_done"):
-        st.session_state.pop(videos_key, None)
-        st.session_state.pop("p5_topic", None)
-        st.session_state.pop("p5_topic_display", None)
         return True
     return False
 
@@ -2344,59 +2633,22 @@ REQUIRED_STEPS = {1, 3, 6, 7}
 # Adaptive session initialiser
 # =============================================================================
 def _init_adaptive_session(sess) -> None:
+    """
+    Initialise the step sequence for this lesson. Always the full 8-step
+    sequence — the old per-session RandomForest step-skipping (engine/adaptive.py)
+    was retired: it only kicked in after 25 interactions within a single
+    lesson's local log (rarely reached in practice) and wasn't part of what
+    Phase C's recommender was asked to solve (topic/level selection, not
+    within-lesson step count). See CLAUDE.md decision #4.
+    """
     if (st.session_state.get("_adaptive_lesson_id") == sess.state.lesson_id
             and "_adaptive_steps" in st.session_state):
         return
 
-    if not _ADAPTIVE_AVAILABLE:
-        st.session_state.update({
-            "_adaptive_steps":     _FULL_SEQ.copy(),
-            "_adaptive_idx":       0,
-            "_adaptive_mode":      "cold_start",
-            "_adaptive_lesson_id": sess.state.lesson_id,
-        })
-        return
-
-    engine = _AdaptiveEngine()
-
-    try:
-        log_rows = sess.logger.read_all()
-    except Exception:
-        log_rows = []
-
-    engine.maybe_train(log_rows)
-
-    phrase_features: dict = {}
-    if log_rows and engine.mode == "adaptive":
-        try:
-            phrases = sess.phrases()
-            pid_set = {int(p.get("phrase_id", i)) for i, p in enumerate(phrases)}
-            subset  = [r for r in log_rows
-                       if int(r.get("phrase_id", -1)) in pid_set]
-            if subset:
-                sims  = [float(r["similarity"])       for r in subset]
-                times = [float(r["response_time_ms"]) for r in subset]
-                phrase_features = {
-                    "avg_similarity":    sum(sims)  / len(sims),
-                    "avg_response_time": sum(times) / len(times),
-                    "total_attempts":    len(subset),
-                }
-        except Exception:
-            pass
-
-    steps = engine.get_steps(phrase_features)
-
-    current_step = st.session_state.get("lesson_step", 1)
-    try:
-        init_idx = steps.index(current_step)
-    except ValueError:
-        prior = [i for i, s in enumerate(steps) if s <= current_step]
-        init_idx = prior[-1] if prior else 0
-
     st.session_state.update({
-        "_adaptive_steps":     steps,
-        "_adaptive_idx":       init_idx,
-        "_adaptive_mode":      engine.mode,
+        "_adaptive_steps":     _FULL_SEQ.copy(),
+        "_adaptive_idx":       0,
+        "_adaptive_mode":      "cold_start",
         "_adaptive_lesson_id": sess.state.lesson_id,
     })
 def main(module: str = "grammar"):
@@ -2415,10 +2667,11 @@ def main(module: str = "grammar"):
 
         # ── Module navigator ─────────────────────────────────────────────────
         _SIDEBAR_MODULES = [
-            ("grammar", "🗣️", "Grammar"),
-            ("vocab",   "📖", "Vocabulary"),
-            ("reading", "🔤", "Reading"),
-            ("custom",  "📝", "My Phrases"),
+            ("grammar",    "🗣️", "Grammar"),
+            ("vocab",      "📖", "Vocabulary"),
+            ("phrasebook", "💬", "Phrasebook"),
+            ("reading",    "🔤", "Reading"),
+            ("custom",     "📝", "My Phrases"),
         ]
         st.markdown(
             '<div style="font-size:.7rem;color:var(--mova-ink-3);'
@@ -2622,11 +2875,17 @@ def main(module: str = "grammar"):
                             st.session_state.pop("_progress_saved", None)
                             # Clear adaptive so it reinitialises for the new lesson
                             st.session_state.pop("_adaptive_lesson_id", None)
+                            from engine.recommender import unit_id_for, vocab_topic_for_lesson
+                            _jump_topic = None
+                            if cfg.get("lang_suffix") in ("vocab", "phrasebook"):
+                                _jump_topic = vocab_topic_for_lesson(
+                                    _jump_lid, state.target_lang, cfg["db_path"])
                             st.session_state.update({
                                 "session": LessonSession(
                                     state.user_id, _ldf, _jump_lid,
                                     state.native_lang, state.target_lang,
                                     language_pair=_lp,
+                                    unit_id=unit_id_for(cfg.get("lang_suffix"), _jump_lid, _jump_topic),
                                 ),
                                 "lesson_step": 1,
                                 "tts_lang":    TTS_LANG.get(state.target_lang, "en"),
@@ -2749,12 +3008,43 @@ def main(module: str = "grammar"):
     # ── Phase 5: YouTube Video ────────────────────────────────────────────────
     if _phase == 5:
         if phase5_video(sess):
-            st.session_state.pop("lesson_phase", None)
-            st.session_state.pop("p5_topic", None)
+            # Whole-lesson gamification (bonus XP, streak, lessons_completed,
+            # badges) — CLAUDE.md 2026-08-23: on_lesson_complete() existed
+            # and worked (engine/gamification.py, same call reading_app.py
+            # already makes live) but nothing in this Phase 1-5 flow ever
+            # called it -- its only callers here were render_complete() and
+            # phase5_summary(), both orphaned, unreachable from this
+            # dispatch. Per-step XP (on_step_complete, Phase 2 above) still
+            # fired fine; only the once-per-lesson bonus/streak/badge check
+            # was silently dead -- almost certainly why the sidebar streak
+            # always read "0 days" regardless of actual usage.
+            _ltoasts: list[str] = []
+            try:
+                _llang = {
+                    "English": "en", "Ukrainian": "uk", "Spanish": "es", "Korean": "ko",
+                }.get(st.session_state.get("launcher_native", "English"), "en")
+                _lres = on_lesson_complete(sess.state.user_id, _llang)
+                _ltoasts.append(f"🎉 Lesson complete! +{_lres['xp_earned']} XP bonus")
+                if _lres.get("leveled_up"):
+                    _ltoasts.append(f"⭐ New level {_lres['level_num']}: {_lres['level_name']}!")
+                for _bid, _bem, _bname, _bdesc in _lres.get("new_badges", []):
+                    _ltoasts.append(f"{_bem} Badge «{_bname}»: {_bdesc}!")
+                streak = _lres.get("streak_current", 0)
+                if streak > 1:
+                    _ltoasts.append(f"🔥 Streak {streak} days!")
+            except Exception as e:
+                print(f"[app] on_lesson_complete error: {e}")
+
             st.session_state.pop("lesson_phase", None)
             st.session_state.pop("p5_topic", None)
             st.session_state.pop("p5_topic_display", None)
             _clear_all()
+            # _clear_all() wipes session_state -- queue toasts AFTER it so
+            # they survive to be shown next time Phase 2's step loop runs
+            # (same "shown on next lesson start" pattern reading_app.py
+            # already uses for its own _pending_r_toasts).
+            if _ltoasts:
+                st.session_state["_pending_toasts"] = _ltoasts
             st.rerun()
         return
 

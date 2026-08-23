@@ -9,6 +9,7 @@ Run via app.py launcher; direct entry: ``custom_app.main()``.
 """
 from __future__ import annotations
 
+import html
 import sys
 from pathlib import Path
 
@@ -193,7 +194,11 @@ def render_setup():
             _qp_lid    = int(_qp["vnav_lesson"])
             _qp_native = _uq(_qp.get("vnav_native", "Ukrainian"))
             _qp_target = _uq(_qp.get("vnav_target", "English"))
-            _qp_user   = _uq(_qp.get("vnav_user",   "student1"))
+            # Identity must come from the authenticated session, never from
+            # the URL — vnav_user is only echoed there for the JS wave-nav
+            # widget to round-trip navigation; trusting it directly would let
+            # anyone edit the address bar to read/write another user's data.
+            _qp_user   = st.session_state.get("launcher_user", "student1")
             if _qp_native not in LANGUAGES:
                 _qp_native = "Ukrainian"
             if _qp_target not in LANGUAGES or _qp_target == _qp_native:
@@ -218,13 +223,11 @@ def render_setup():
             st.image(str(_my_phrases_banner), use_container_width=True)
 
     # ── Identity + language pair ──────────────────────────────────────────
-    default_user   = st.session_state.get("launcher_user",   "student1")
+    user_id        = st.session_state.get("launcher_user",   "student1")
     default_native = st.session_state.get("launcher_native", "Ukrainian")
     default_target = st.session_state.get("launcher_target", "English")
 
-    cA, cB, cC = st.columns([2, 1.3, 1.3])
-    with cA:
-        user_id = st.text_input(_t("your_name"), value=default_user, key="cu_user")
+    cB, cC = st.columns([1.3, 1.3])
     with cB:
         if default_native not in LANGUAGES:
             default_native = "Ukrainian"
@@ -310,9 +313,9 @@ def render_setup():
                     c1, c2, c3 = st.columns([5, 1.5, 1.5])
                     with c1:
                         st.markdown(
-                            f"**{row['lesson_name']}** "
+                            f"**{html.escape(str(row['lesson_name']))}** "
                             f"<span style='color:var(--mova-ink-3);font-size:.8rem'>"
-                            f"{_t('phrases_count', n=row['phrases'])}</span>",
+                            f"{html.escape(_t('phrases_count', n=row['phrases']))}</span>",
                             unsafe_allow_html=True,
                         )
                     with c2:
@@ -439,7 +442,8 @@ def _start_lesson(user_id: str, lesson_id: int,
         "practice_module": "custom",
         "session":         LessonSession(user_id, lesson_df, lesson_id,
                                           native, target,
-                                          language_pair=lang_pair),
+                                          language_pair=lang_pair,
+                                          unit_id=f"custom:{lesson_id}"),
         "lesson_step":     1,
         "tts_lang":        TTS_LANG.get(target, "en"),
         "wh_lang":         WHISPER_LANG.get(target, "en"),
