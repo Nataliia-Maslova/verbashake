@@ -2,6 +2,8 @@
 TTS module — Google TTS with local file caching.
 Audio files are cached to avoid re-generating the same phrases.
 """
+from __future__ import annotations
+
 import hashlib
 import os
 from pathlib import Path
