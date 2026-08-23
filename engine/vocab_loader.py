@@ -23,6 +23,8 @@ Lazy loading strategy
   only the requested sheet is loaded (fast). When None, all sheets are
   loaded via the per-sheet cache (backward-compatible).
 """
+from __future__ import annotations
+
 import pandas as pd
 import streamlit as st
 
@@ -40,6 +42,8 @@ LANG_COLUMNS = {
     "Italian":    "it",
     "Polish":     "pl",
     "Russian":    "ru",
+    "Catalan":    "ca",
+    "Dutch":      "nl",
 }
 
 
@@ -170,14 +174,27 @@ def _process_sheet(sheet_name, df, native_col, target_col, meta_to_gid):
 
 # --- Public API ------------------------------------------------------------
 
+# "Word Bank" sheets -- alphabetically-bucketed single-word lessons (data
+# quality issues found 2026-08-21: alphabetical, not level/frequency-based;
+# meaningless auto-generated lesson_name; duplicate words; were mistagged
+# C2 in vocab_tags_template.csv before that same audit). Being replaced by
+# the CEFR-J-based Vocabulary module -- excluded from the Phrasebook module
+# (load_vocab's `exclude_sheets`), which keeps everything else: thematic
+# collocations + example sentences, not raw word lists.
+WORD_BANK_SHEETS = frozenset({"Basic", "Verbs", "Food", "City"})
+
+
 @st.cache_data(show_spinner=False)
-def load_vocab(db_path, native_lang, target_lang, topic=None):
+def load_vocab(db_path, native_lang, target_lang, topic=None,
+                exclude_sheets=None, include_sheets=None):
     """
     Load vocabulary and return a DataFrame with columns:
       lesson_id, phrase_id, topic, local_lesson, native, target
 
-    `lesson_id` is the global lesson number (unique across the whole workbook).
-    `local_lesson` is the lesson number inside the topic (1, 2, 3, ...).
+    `lesson_id` is the global lesson number (unique across the whole workbook)
+    -- built the same way (whole-workbook _build_global_index) regardless of
+    `exclude_sheets`/`include_sheets`, so gids/unit_ids for the sheets that
+    stay in are never renumbered by which subset a caller asks for.
 
     Parameters
     ----------
@@ -185,9 +202,22 @@ def load_vocab(db_path, native_lang, target_lang, topic=None):
         When given, only the phrases for that sheet/topic are loaded --
         much faster than loading the whole workbook. Pass None (default)
         to load all topics (backward-compatible).
+    exclude_sheets : frozenset[str] | None
+        Sheet names to skip entirely (e.g. WORD_BANK_SHEETS, for the
+        Phrasebook module, CLAUDE.md 2026-08-21).
+    include_sheets : frozenset[str] | None
+        Inverse of exclude_sheets -- when given, ONLY these sheets are
+        loaded (e.g. WORD_BANK_SHEETS itself, for the Vocabulary module --
+        the two modules must partition the workbook the same way
+        scripts/seed_content_units.py does, or the app and content_units
+        disagree about which sheet belongs to which module). Only one of
+        exclude_sheets/include_sheets makes sense at a time.
+        Both are ignored when `topic` is given. Must be hashable (frozenset,
+        not set) -- this function is st.cache_data-cached on its arguments.
 
     Rows where either native or target column is empty are dropped.
-    Results are cached per (db_path, native_lang, target_lang, topic).
+    Results are cached per (db_path, native_lang, target_lang, topic,
+    exclude_sheets, include_sheets).
     """
     if native_lang not in LANG_COLUMNS or target_lang not in LANG_COLUMNS:
         raise ValueError(
@@ -215,6 +245,10 @@ def load_vocab(db_path, native_lang, target_lang, topic=None):
     index = _read_sheet_index(db_path)
     chunks = []
     for sheet_name in index:
+        if exclude_sheets and sheet_name in exclude_sheets:
+            continue
+        if include_sheets is not None and sheet_name not in include_sheets:
+            continue
         df = _read_single_sheet(db_path, sheet_name)
         chunk = _process_sheet(sheet_name, df, native_col, target_col, meta_to_gid)
         if chunk is not None:

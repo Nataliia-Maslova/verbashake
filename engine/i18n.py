@@ -6,16 +6,42 @@ are short emoji formulas ("🎧 → ⏸ → 🎤") so they read fast at A1-B1 le
 Each step has one icon and an activity-type tag that drives the colour of
 its left border in the UI.
 
-Strings are organised by language code (en/uk/es/ko). ``get(lang, key, step)``
-falls back to English when a translation is missing.
+Strings are organised by language code. English and Ukrainian are fully
+hand-written below; Spanish/Korean are hand-written for their most-visible
+~13 keys only. CLAUDE.md 2026-08-22: every other key/language (including
+the 10 languages with no hand-written bucket at all -- French, German,
+Japanese, Chinese, Portuguese, Italian, Polish, Russian, Catalan, Dutch)
+used to silently fall back to English with no indication anything was
+missing (_code() had no LANG_TO_CODE entry for them). Now
+data/i18n_generated.json (scripts/generate_i18n_strings.py's one-time batch
+translation output) is merged in at import time to fill exactly the gaps,
+never overwriting a hand-written entry -- see _load_generated() below.
+
+``get(lang, key, step)`` still falls back to English for any key genuinely
+missing from both (e.g. data/i18n_generated.json hasn't been generated/run
+yet, or a brand-new key was added to "en" but not translated).
 """
 from __future__ import annotations
 
+import json
+from pathlib import Path
+
+# Same 14-language name->code mapping as engine/loader.py / engine/vocab_loader.py.
 LANG_TO_CODE = {
-    "English":   "en",
-    "Ukrainian": "uk",
-    "Spanish":   "es",
-    "Korean":    "ko",
+    "English":    "en",
+    "Ukrainian":  "uk",
+    "Spanish":    "es",
+    "Korean":     "ko",
+    "French":     "fr",
+    "German":     "de",
+    "Japanese":   "ja",
+    "Chinese":    "zh",
+    "Portuguese": "pt",
+    "Italian":    "it",
+    "Polish":     "pl",
+    "Russian":    "ru",
+    "Catalan":    "ca",
+    "Dutch":      "nl",
 }
 
 # Big icon shown next to the step title. Universal across languages.
@@ -86,6 +112,8 @@ STRINGS = {
         "video_search_btn":   "🔍 Find videos",
         "video_new_search":   "🔄 New search",
         "video_not_found":    "No videos found. Try changing the topic.",
+        "video_beyond_curated": "🎬 At this level, the best practice is real content made for native speakers — watch a show, movie, or video you'd genuinely enjoy.",
+        "video_channels_intro": "Explore these channels for more practice at your level:",
         "video_open":         "🔗 Open on YouTube",
         "to_main_menu":       "Back to main menu →",
         "sos_label":          "🆘 SOS & HELP — translation",
@@ -100,12 +128,22 @@ STRINGS = {
         "answer_method":     "Answer method",
         "voice_opt":         "🎙️ Voice",
         "text_opt":          "⌨️ Text",
+        "warmup_bilingual_toggle": "🌐 Show the question in my language too",
+        "step8_errors_title":  "✏️ Corrections found — pick what to practice",
+        "step8_no_errors":     "✓ All phrases are grammatically correct!",
+        "practice_selected_btn": "Practice selected →",
+        "select_all":           "Select all",
+        "error_drill_title":       "✍️ Practice it",
+        "error_drill_instruction": "Write or say 2-3 new phrases using the same word, phrase, or structure.",
+        "error_drill_input_label": "Your phrases (one per line):",
         # Phase 3 — Practice
         "practice_title":    "📝 Practice",
         "test_type_label":   "Test type",
         "fill_in_blank":     "Fill in the blank",
         "multiple_choice":   "Multiple choice",
         "translation_type":  "Translation",
+        "sentence_transformation": "Sentence transformation (grammar-only)",
+        "construction_drill": "Construction drill (fresh, grammar-only)",
         "generating_ex":     "Generating exercise…",
         # Phase 4 — Speaking
         "speaking_title":    "Speaking",
@@ -174,6 +212,8 @@ STRINGS = {
         "video_search_btn":   "🔍 Знайти відео",
         "video_new_search":   "🔄 Новий пошук",
         "video_not_found":    "Відео не знайдено. Спробуй змінити тему.",
+        "video_beyond_curated": "🎬 На цьому рівні найкраща практика — реальний контент для носіїв мови: подивись серіал, фільм чи відео, яке тобі й так цікаво.",
+        "video_channels_intro": "Досліджуй ці канали для практики на своєму рівні:",
         "video_open":         "🔗 Відкрити на YouTube",
         "to_main_menu":       "До головного меню →",
         "sos_label":          "🆘 SOS & HELP — переклад",
@@ -188,12 +228,22 @@ STRINGS = {
         "answer_method":     "Спосіб відповіді",
         "voice_opt":         "🎙️ Голос",
         "text_opt":          "⌨️ Текст",
+        "warmup_bilingual_toggle": "🌐 Показати запитання й моєю мовою",
+        "step8_errors_title":  "✏️ Знайдено виправлення — обери, що відпрацювати",
+        "step8_no_errors":     "✓ Усі фрази граматично правильні!",
+        "practice_selected_btn": "Відпрацювати вибране →",
+        "select_all":           "Обрати всі",
+        "error_drill_title":       "✍️ Відпрацюй це",
+        "error_drill_instruction": "Напиши або скажи 2-3 нові фрази з тим самим словом, словосполученням чи структурою.",
+        "error_drill_input_label": "Твої фрази (одна на рядок):",
         # Phase 3 — Practice
         "practice_title":    "📝 Практика",
         "test_type_label":   "Тип тесту",
         "fill_in_blank":     "Заповни пропуск",
         "multiple_choice":   "Вибір відповіді",
         "translation_type":  "Переклад",
+        "sentence_transformation": "Трансформація речення (лише граматика)",
+        "construction_drill": "Тренування конструкції (нове, лише граматика)",
         "generating_ex":     "Генерую вправу…",
         # Phase 4 — Speaking
         "speaking_title":    "Висловлювання",
@@ -282,6 +332,35 @@ STRINGS = {
         },
     },
 }
+
+
+def _load_generated() -> None:
+    """
+    Merge data/i18n_generated.json (scripts/generate_i18n_strings.py's
+    one-time batch-translation output) into STRINGS: fills in a language's
+    bucket (creating it if the language has no hand-written entry at all)
+    or an individual missing key within an existing bucket (es/ko), without
+    ever overwriting a hand-written value. A missing/malformed file just
+    leaves STRINGS as the hand-written en/uk/es/ko above -- same
+    English-fallback degradation get() already had, not a hard dependency.
+    """
+    path = Path(__file__).parent.parent / "data" / "i18n_generated.json"
+    try:
+        generated = json.loads(path.read_text(encoding="utf-8"))
+    except (FileNotFoundError, json.JSONDecodeError):
+        return
+    for code, gen_bucket in generated.items():
+        bucket = STRINGS.setdefault(code, {})
+        for key, value in gen_bucket.items():
+            if key in ("titles", "hints"):
+                sub = bucket.setdefault(key, {})
+                for step_str, text in value.items():
+                    sub.setdefault(int(step_str), text)
+            else:
+                bucket.setdefault(key, value)
+
+
+_load_generated()
 
 
 def _code(lang: str | None) -> str:

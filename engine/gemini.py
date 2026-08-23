@@ -5,37 +5,133 @@ Covers:
   - Phase 1 Розминка:    warmup_question, evaluate_warmup
   - Phase 2 GEC:         correct_grammar  (replaces T5 models)
   - Phase 3 Практика:    generate_practice_test, check_practice_answer
-  - Phase 4 Висловлювання: generate_speaking_task, chat_with_tutor, get_hint
+  - Phase 4 Висловлювання: generate_open_question, chat_with_tutor
 
-Requires: pip install google-generativeai>=0.8.0
+Requires: pip install google-genai>=1.0.0
 Env var:  GEMINI_API_KEY
+
+Phase D: every public function here is @_require_paid — free accounts get
+zero live Gemini calls (CLAUDE.md decisions #1-#2). See engine/billing.py.
 """
 from __future__ import annotations
 
+import functools
 import json
 import os
 import random
 
-import google.generativeai as genai
+import diskcache
+from google import genai
+from google.genai import types
+
+_cache = diskcache.Cache(
+    os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), ".cache", "gemini")
+)
+
+
+class PaidFeatureRequired(Exception):
+    """Raised when a free-tier user calls a paid-only (live Gemini) feature."""
+
+
+def _require_paid(fn):
+    """
+    Phase D: every live Gemini call is paid-only ("free = zero live AI",
+    CLAUDE.md decisions #1-#2). Must be the OUTERMOST decorator — i.e. written
+    above @_cache.memoize() — so the paid check runs before any cache lookup.
+    Otherwise a free user could get a cache hit from a paid user's earlier
+    identical call and slip past the gate entirely.
+    """
+    @functools.wraps(fn)
+    def wrapper(*args, **kwargs):
+        from engine import auth_gate, billing
+        if not billing.is_paid(auth_gate.current_user_id()):
+            raise PaidFeatureRequired(
+                "This feature needs Premium — live AI generation isn't included in the free plan."
+            )
+        return fn(*args, **kwargs)
+    return wrapper
+
+_LANG_NAMES: dict[str, str] = {
+    "en": "English", "uk": "Ukrainian", "de": "German", "es": "Spanish",
+    "ko": "Korean", "fr": "French", "ja": "Japanese", "zh": "Chinese",
+    "pt": "Portuguese", "it": "Italian", "pl": "Polish", "ru": "Russian",
+    "ca": "Catalan", "nl": "Dutch",
+}
+
+
+def lang_name(code: str) -> str:
+    """Full language name for a 2-letter code, e.g. 'en' -> 'English'."""
+    return _LANG_NAMES.get(code, code)
+
+
+_client: genai.Client | None = None
 
 
 def _configure():
-    """Lazy Gemini config — reads from st.secrets or env at call time."""
+    """
+    Lazy Gemini client init — reads from st.secrets or env at call time,
+    cached as a module-level singleton (genai.Client is meant to be reused,
+    unlike the old SDK's fire-and-forget genai.configure()). Safe to call
+    repeatedly — every _model() call already does, plus a few functions call
+    it directly beforehand too; a second call just returns immediately.
+    """
+    global _client
+    if _client is not None:
+        return
     import streamlit as st
+    try:
+        secret_key = st.secrets.get("GEMINI_API_KEY") or st.secrets.get("GOOGLE_API_KEY")
+    except Exception:
+        secret_key = None
     key = (
-        st.secrets.get("GEMINI_API_KEY")
-        or st.secrets.get("GOOGLE_API_KEY")
+        secret_key
         or os.environ.get("GEMINI_API_KEY")
         or os.environ.get("GOOGLE_API_KEY", "")
     )
     if not key:
         raise RuntimeError("GEMINI_API_KEY not found in secrets.toml or environment")
-    genai.configure(api_key=key)
+    _client = genai.Client(api_key=key)
+
+
+class _ModelHandle:
+    """
+    Thin shim over google-genai's Client matching the old
+    google-generativeai GenerativeModel interface this file's ~15 call
+    sites already use -- .generate_content(prompt).text and
+    .start_chat(history=[...]).send_message(text).text (chat_with_tutor's
+    history format: [{"role": "user"/"model", "parts": ["text"]}]).
+    Migrated 2026-08-22 (google-generativeai is deprecated -- CLAUDE.md
+    tech debt) by wrapping the new client instead of touching every call
+    site, since they're all already funneled through _model().
+    """
+
+    def __init__(self, client: genai.Client, name: str, system_instruction: str | None = None):
+        self._client = client
+        self._name = name
+        self._config = (
+            types.GenerateContentConfig(system_instruction=system_instruction)
+            if system_instruction else None
+        )
+
+    def generate_content(self, prompt: str):
+        return self._client.models.generate_content(
+            model=self._name, contents=prompt, config=self._config,
+        )
+
+    def start_chat(self, history: list[dict] | None = None):
+        genai_history = [
+            types.Content(role=h["role"], parts=[types.Part(text=p) for p in h["parts"]])
+            for h in (history or [])
+        ]
+        return self._client.chats.create(
+            model=self._name, config=self._config, history=genai_history,
+        )
+
 
 def _model(name: str, **kwargs):
-    """Configure Gemini lazily and return a GenerativeModel."""
+    """Configure Gemini lazily and return a model handle."""
     _configure()
-    return genai.GenerativeModel(name, **kwargs)
+    return _ModelHandle(_client, name, system_instruction=kwargs.get("system_instruction"))
 
 
 _FLASH = "gemini-2.5-flash"
@@ -46,25 +142,81 @@ _LITE  = "gemini-2.5-flash-lite"
 # PHASE 1: Розминка
 # ─────────────────────────────────────────────────────────────────────────────
 
-def warmup_question(level: str, target_lang: str, native_lang: str) -> str:
-    """Generate ONE proactive warmup question in the target language."""
-    topics = [
-        "how are you today",
-        "what is the weather like",
-        "what did you do yesterday",
-        "what are your plans for today",
-        "describe something you can see around you",
-    ]
-    topic = random.choice(topics)
+_WARMUP_TOPICS = [
+    "how are you today",
+    "what is the weather like",
+    "what did you do yesterday",
+    "what are your plans for today",
+    "describe something you can see around you",
+    "your hobbies",
+    "your family",
+    "your favorite food",
+    "a recent trip or a place you'd like to visit",
+    "your daily routine",
+    "your job or studies",
+    "your favorite season and why",
+    "a movie or show you watched recently",
+    "your favorite music",
+    "how you get around your city",
+    "your plans for the weekend",
+    "something that made you happy recently",
+    "your favorite way to relax",
+    "a skill you'd like to learn",
+    "your neighborhood",
+]
+
+
+@_require_paid
+def warmup_question(
+    level: str, target_lang: str, native_lang: str, bilingual: bool = False,
+) -> dict:
+    """
+    Generate ONE proactive warmup question in the target language.
+
+    bilingual=True also returns the question in native_lang, so a beginner
+    can read both at once (CLAUDE.md item 2, 2026-08-20: on A1 the question
+    itself is shown in both languages; the student still answers in
+    target_lang). Toggleable per call, not hardcoded to a level, so the UI
+    can decide when to turn it on.
+
+    Returns: {"target": str, "native": str | None}
+    """
+    topic = random.choice(_WARMUP_TOPICS)
+    return _warmup_question_cached(topic, level, target_lang, native_lang, bilingual)
+
+
+@_cache.memoize()
+def _warmup_question_cached(
+    topic: str, level: str, target_lang: str, native_lang: str, bilingual: bool,
+) -> dict:
     _configure()
-    result = _model(_LITE).generate_content(
+    if not bilingual:
+        result = _model(_LITE).generate_content(
+            f"You are a {target_lang} language teacher. "
+            f"Ask ONE simple {level} CEFR level question in {target_lang} about: {topic}. "
+            f"One sentence only. No explanation, no translation."
+        )
+        return {"target": result.text.strip(), "native": None}
+
+    prompt = (
         f"You are a {target_lang} language teacher. "
         f"Ask ONE simple {level} CEFR level question in {target_lang} about: {topic}. "
-        f"One sentence only. No explanation, no translation."
+        f"One sentence only.\n\n"
+        f"Return JSON only — no markdown fences:\n"
+        "{\n"
+        f'  "target": "the question in {target_lang}",\n'
+        f'  "native": "the same question translated into {native_lang}"\n'
+        "}"
     )
-    return result.text.strip()
+    result = _model(_LITE).generate_content(prompt)
+    parsed = _parse_json(result.text, fallback=None)
+    if not parsed or not parsed.get("target"):
+        # Fall back to a target-only question rather than surfacing a parse error.
+        return {"target": result.text.strip(), "native": None}
+    return parsed
 
 
+@_require_paid
 def evaluate_warmup(
     answer: str,
     question: str,
@@ -112,6 +264,8 @@ def evaluate_warmup(
 # PHASE 2: Grammar correction  (replaces T5 GEC models)
 # ─────────────────────────────────────────────────────────────────────────────
 
+@_require_paid
+@_cache.memoize()
 def correct_grammar(text: str, target_lang: str, native_lang: str) -> dict:
     """
     Correct grammar errors in *text* (written in target_lang).
@@ -156,6 +310,48 @@ def correct_grammar(text: str, target_lang: str, native_lang: str) -> dict:
 # PHASE 3: Практика — generated tests
 # ─────────────────────────────────────────────────────────────────────────────
 
+_MODULE_FOCUS = {
+    "grammar": (
+        "Focus on GRAMMAR: correct verb forms/tense, endings, word order, "
+        "articles, prepositions. Test whether the student can build the "
+        "sentence correctly, not just whether they know the words."
+    ),
+    "vocab": (
+        "Focus on VOCABULARY: correct word choice and natural word usage in "
+        "context. Test whether the student picks/uses the right word, not "
+        "grammar structure — keep sentence structure simple."
+    ),
+    "phrasebook": (
+        "Focus on PHRASES AND COLLOCATIONS: correct, natural set expressions "
+        "and word combinations used in real situations (greetings, requests, "
+        "small talk). Test whether the student recognizes/produces the right "
+        "phrase for the context, not an isolated grammar rule — keep sentence "
+        "structure simple, the same way vocab tests do."
+    ),
+}
+
+# Extra guidance for test_types that need more than the generic "create a
+# {type} test" framing to come out right (CLAUDE.md, 2026-08-22 — the
+# classic ESL-workbook exercise formats found in Golitsynskyi/Murphy/
+# Cambridge: transform a sentence into a different grammatical form, not
+# just fill a gap or pick an option).
+_TEST_TYPE_GUIDANCE = {
+    "sentence_transformation": (
+        "This is a SENTENCE TRANSFORMATION drill (the classic grammar-book "
+        "exercise — active <-> passive, statement -> question, "
+        "positive <-> negative, direct -> reported speech, present -> past, "
+        "or a similar rewrite — pick whichever transformation actually fits "
+        "the grammar being practiced, and vary it across items rather than "
+        "repeating the same one four times). Each item's \"question\" is "
+        "the ORIGINAL sentence plus a short instruction of which "
+        "transformation to apply (e.g. \"Rewrite in the passive: The chef "
+        "cooked the meal.\"); \"answer\" is the correctly transformed "
+        "sentence."
+    ),
+}
+
+
+@_require_paid
 def generate_practice_test(
     level: str,
     topic: str,
@@ -163,13 +359,21 @@ def generate_practice_test(
     native_lang: str,
     test_type: str = "fill_in_blank",
     phrases: list[dict] | None = None,
+    module: str = "grammar",
 ) -> dict:
     """
     Generate a short practice test.
 
     test_type: "fill_in_blank" | "multiple_choice" | "translation"
-    phrases: list of {"target": str, "native": str} from the lesson — if provided,
-             questions will be based on these phrases rather than a generic topic.
+    phrases: list of {"target": str, "native": str} — questions are based on
+             these rather than a generic topic. Callers may mix in phrases
+             from other lessons (e.g. weak-mastery/overdue-SRS topics via
+             engine.recommender) alongside the current lesson's own phrases —
+             this function doesn't care which lesson each one came from.
+    module: "grammar" | "vocab" | "phrasebook" — picks which dimension the
+            test emphasizes, since a single generic prompt can't test all
+            of them well at once (CLAUDE.md item 5, 2026-08-20; phrasebook
+            added 2026-08-22).
 
     Returns:
         {
@@ -187,15 +391,29 @@ def generate_practice_test(
         phrase_block = "\n".join(
             f"  - {p['target']} = {p['native']}" for p in phrases
         )
+        # "For reference only, write NEW sentences" (not "base ONLY on these
+        # phrases") — the old wording pinned the model to literally
+        # rephrasing the same ~7-8 lesson sentences, so switching test_type
+        # (or clicking "New exercise") just reformatted identical content
+        # instead of producing genuinely different practice (CLAUDE.md,
+        # 2026-08-22 — same fix already applied in
+        # generate_lesson_construction_drill's prompt).
         material_ctx = (
-            f"Base the questions ONLY on these phrases from the lesson:\n{phrase_block}\n\n"
+            f"These phrases show the grammar pattern and vocabulary level to "
+            f"practice (for reference only — do not reuse them verbatim, "
+            f"write NEW original sentences in the same style):\n{phrase_block}\n\n"
         )
     else:
         material_ctx = f"Topic: {topic}.\n\n"
 
+    focus    = _MODULE_FOCUS.get(module, "")
+    guidance = _TEST_TYPE_GUIDANCE.get(test_type, "")
+
     prompt = (
         f"Create a {level} CEFR {test_type.replace('_', ' ')} test in {target_lang}. "
-        f"3–4 items. Write the instructions in {native_lang}.\n\n"
+        f"3–4 items. Write the instructions in {native_lang}.\n"
+        f"{focus}\n"
+        f"{guidance}\n\n"
         + material_ctx +
         "Return JSON only — no markdown fences:\n"
         "{\n"
@@ -208,7 +426,8 @@ def generate_practice_test(
         "    }\n"
         "  ]\n"
         "}\n\n"
-        "For fill_in_blank and translation, options should be an empty list []."
+        "For fill_in_blank, translation, and sentence_transformation, "
+        "options should be an empty list []."
     )
     return _parse_json(
         _model(_FLASH).generate_content(prompt).text,
@@ -216,6 +435,102 @@ def generate_practice_test(
     )
 
 
+@_require_paid
+def generate_lesson_construction_drill(
+    lesson_id: int,
+    topic: str,
+    seed_phrases: list[str],
+    user_level: str,
+    native_lang: str,
+    target_lang: str = "English",
+    n: int = 5,
+) -> dict:
+    """
+    Drill a Grammar lesson's construction using fresh, level-appropriate
+    vocabulary instead of imlls_database's fixed 7-8 example phrases — the
+    "construction + level-appropriate vocabulary" idea from CLAUDE.md
+    (2026-08-21). Works for any of the 182 Grammar lessons: the pattern is
+    normally inferred from the lesson's own topic + a few of its own example
+    sentences (seed_phrases) — no per-lesson authoring needed.
+
+    target_lang=="English" uses engine.cefr_wordlist's real CEFR+POS word
+    list — the strict, most accurate path, hard-constraining which nouns/
+    verbs/adjectives Gemini may use. Any other target_lang (CLAUDE.md,
+    2026-08-22: no equivalent open CEFR+POS list exists for uk/es/ko, and
+    realistically may never for some of them) falls back to a plain
+    instruction to use simple, common target_lang vocabulary for the level
+    -- looser (Gemini judges "simple" itself, not a hard list) but works for
+    every language today instead of staying an English-only pilot.
+
+    topic / seed_phrases: caller supplies these (e.g. from
+    engine.loader.get_lesson_topics / engine.loader.get_lesson, already in
+    target_lang) — same pattern as generate_practice_test's `phrases`
+    param; this function doesn't touch the database directly.
+
+    A lesson_id registered in engine.constructions (a known defect in that
+    lesson's own phrases, e.g. 139's "however, ..." padding) uses its manual
+    override description INSTEAD of seed_phrases, so the defect isn't
+    replicated into every generated drill.
+
+    Returns: {"items": [{"target": str, "native": str}, ...]}
+    """
+    from engine import constructions
+
+    override = constructions.override_for_lesson(lesson_id)
+    if override:
+        pattern_block = f"{override['name']} — {override['description']}\n{override['constraints']}"
+        pos_slots = override["pos_slots"]
+    else:
+        example_block = "\n".join(f"  - {s}" for s in seed_phrases[:4])
+        pattern_block = (
+            f"Grammar topic: {topic}\n"
+            f"Example sentences illustrating the pattern (for reference only — "
+            f"do not reuse these exact sentences or their vocabulary):\n{example_block}"
+        )
+        pos_slots = ["noun", "verb", "adjective"]
+
+    if target_lang == "English":
+        from engine import cefr_wordlist
+        word_pool = {
+            pos: cefr_wordlist.words_for_level(user_level, pos=pos, limit=25)
+            for pos in pos_slots
+        }
+        pool_block = "\n".join(
+            f"  - {pos}: {', '.join(words)}" for pos, words in word_pool.items() if words
+        )
+        vocab_instruction = (
+            f"Use ONLY the following words as content vocabulary (nouns/verbs/"
+            f"adjectives) — you may freely use basic function words (pronouns, "
+            f"articles, prepositions, auxiliaries) not listed here:\n{pool_block}"
+        )
+    else:
+        vocab_instruction = (
+            f"Use simple, common {target_lang} vocabulary that a {user_level} "
+            f"CEFR-level student would already know — everyday words, no "
+            f"advanced or specialized terms."
+        )
+
+    prompt = (
+        f"Generate {n} example sentences in {target_lang} that practice this "
+        f"grammar pattern:\n{pattern_block}\n\n"
+        f"The student's level is {user_level}. {vocab_instruction}\n\n"
+        "Return JSON only — no markdown fences:\n"
+        "{\n"
+        '  "items": [\n'
+        "    {\n"
+        f'      "target": "sentence in {target_lang}",\n'
+        f'      "native": "translation in {native_lang}"\n'
+        "    }\n"
+        "  ]\n"
+        "}"
+    )
+    return _parse_json(
+        _model(_FLASH).generate_content(prompt).text,
+        fallback={"items": []},
+    )
+
+
+@_require_paid
 def check_practice_answer(
     question: str,
     student_answer: str,
@@ -251,34 +566,75 @@ def check_practice_answer(
 # PHASE 4: Висловлювання — speaking task + tutor chat
 # ─────────────────────────────────────────────────────────────────────────────
 
-def generate_speaking_task(
-    level: str,
+@_require_paid
+def generate_open_question(
     topic: str,
+    seed_phrases: list[str],
+    level: str,
     target_lang: str,
     native_lang: str,
-) -> str:
+    bilingual: bool = False,
+) -> dict:
     """
-    Generate a speaking / writing task with a planning scaffold.
+    Cambridge Vocabulary in Use "Over to you" style: ONE open, personal
+    question in target_lang tied to the lesson the student just did, not a
+    random topic from a fixed pool (CLAUDE.md, 2026-08-22 — the previous
+    generate_speaking_task picked from data/speaking_topics.yaml, unrelated
+    to the lesson). No planning scaffold or vocabulary list — the student
+    answers freely, in their own words; SOS-help and chat-with-tutor already
+    cover support.
 
-    Returns plain text:
-      - Task instruction (in native_lang)
-      - 3 planning bullet points (in native_lang) to organize thoughts
-      - Example vocabulary / sentence starters (in target_lang)
+    topic / seed_phrases: caller supplies these (same pattern as
+    generate_practice_test's `phrases` param) — this function doesn't touch
+    the database directly.
+
+    Not cached (like generate_practice_test / generate_lesson_construction_drill):
+    caching by (topic, seed_phrases, ...) would make the "New task" button
+    return the identical question every time for the same lesson.
+
+    bilingual=True also returns the question in native_lang from the same
+    call (mirrors warmup_question's bilingual pattern) so an A1 student can
+    read both; the student still answers in target_lang.
+
+    Returns: {"target": str, "native": str | None}
     """
     _configure()
-    result = _model(_FLASH).generate_content(
-        f"Create a {level} CEFR speaking or writing task in {target_lang} "
-        f"about the topic '{topic}'.\n\n"
-        f"Format (plain text only, no JSON):\n"
-        f"1. Task instruction in {native_lang} (1–2 sentences).\n"
-        f"2. Planning scaffold in {native_lang}: 3 short bullet points to help "
-        f"the student organize their thoughts BEFORE speaking.\n"
-        f"3. Helpful vocabulary / sentence starters in {target_lang} (3–5 items).\n\n"
-        "Keep the whole response under 150 words."
+    example_block = "\n".join(f"  - {s}" for s in seed_phrases[:4])
+    examples_note = (
+        f"\nExample sentences from this lesson (for context only — do not "
+        f"reuse them verbatim):\n{example_block}\n"
+        if example_block else ""
     )
-    return result.text.strip()
+    task = (
+        f"You are a {target_lang} language teacher. The student just studied "
+        f"the topic '{topic}' at {level} CEFR level.{examples_note}\n"
+        f"Ask ONE open, personal question in {target_lang} that invites the "
+        f"student to talk about their own life using this topic — like the "
+        f"'Over to you' questions in Cambridge Vocabulary in Use. "
+        f"One sentence only."
+    )
+    if not bilingual:
+        result = _model(_FLASH).generate_content(
+            f"{task} No explanation, no scaffold, no vocabulary list."
+        )
+        return {"target": result.text.strip(), "native": None}
+
+    prompt = (
+        f"{task}\n\n"
+        f"Return JSON only — no markdown fences:\n"
+        "{\n"
+        f'  "target": "the question in {target_lang}",\n'
+        f'  "native": "the same question translated into {native_lang}"\n'
+        "}"
+    )
+    result = _model(_FLASH).generate_content(prompt)
+    parsed = _parse_json(result.text, fallback=None)
+    if not parsed or not parsed.get("target"):
+        return {"target": result.text.strip(), "native": None}
+    return parsed
 
 
+@_require_paid
 def chat_with_tutor(
     history: list[dict],
     user_msg: str,
@@ -314,24 +670,12 @@ def chat_with_tutor(
     return chat.send_message(user_msg).text.strip()
 
 
-def get_hint(target_phrase: str, target_lang: str, native_lang: str) -> str:
-    """
-    Return a one-line hint in native_lang for a student who is stuck.
-    Gives a key word or grammar tip — NOT a full translation.
-    """
-    _configure()
-    result = _model(_LITE).generate_content(
-        f"The student is trying to express this idea in {target_lang}: «{target_phrase}». "
-        f"Give ONE short hint in {native_lang}: a key vocabulary word or a grammar tip. "
-        f"Do NOT give the full translation or the full sentence. One sentence only."
-    )
-    return result.text.strip()
-
-
 # ─────────────────────────────────────────────────────────────────────────────
-# YouTube search
+# Misc helpers
 # ─────────────────────────────────────────────────────────────────────────────
 
+@_require_paid
+@_cache.memoize()
 def suggest_alternatives(
     native_prompt: str, target_lang: str, native_lang: str
 ) -> list[str]:
@@ -348,135 +692,63 @@ def suggest_alternatives(
     return [re.sub(r"^\d+\.\s*", "", l) for l in lines if l]
 
 
+@_require_paid
+@_cache.memoize()
 def translate_phrase(phrase: str, from_lang: str, to_lang: str) -> str:
-    """Exact translation of a phrase from from_lang into to_lang."""
+    """
+    Exact translation of a phrase from from_lang into to_lang.
+
+    Two cache layers (CLAUDE.md, 2026-08-22): @_cache.memoize() (local disk,
+    .cache/gemini/) is fast for repeat calls within the same running
+    process, but Streamlit Cloud's disk is ephemeral -- wiped on every
+    redeploy, same exposure mastery/SRS/gamification had before moving to
+    Supabase. phrase_translations (schema.sql) is the persistent layer that
+    actually survives a redeploy, so re-opening a CEFR-J Vocabulary lesson
+    (engine.cefr_j_vocab_loader — the main caller now) after a deploy
+    doesn't re-pay Gemini for every word all over again.
+    """
+    cached = _translation_from_db(phrase, from_lang, to_lang)
+    if cached is not None:
+        return cached
     _configure()
     result = _model(_LITE).generate_content(
         f"Translate this phrase from {from_lang} to {to_lang}. "
         f"Return ONLY the translation, nothing else.\n\n"
         f"Phrase: {phrase}"
-    )
-    return result.text.strip()
+    ).text.strip()
+    _save_translation_to_db(phrase, from_lang, to_lang, result)
+    return result
 
 
-def get_lesson_topic(phrases: list[dict], target_lang: str, level: str) -> str:
-    """
-    Given lesson phrases, return a short English grammatical/thematic topic
-    suitable as a YouTube search term (e.g. 'irregular past tense verbs', 'food vocabulary').
-    Always returns in English regardless of target_lang.
-    """
-    if not phrases:
-        return f"{target_lang} lesson"
-    sample = "\n".join(
-        f"- {p.get('target', p.get('native', ''))}" for p in phrases[:8]
-    )
-    result = _model(_LITE).generate_content(
-        f"Look at these {target_lang} lesson phrases ({level} CEFR level):\n{sample}\n\n"
-        f"What is the main grammar or vocabulary topic of this lesson?\n"
-        f"Reply with 2-5 words in ENGLISH only, suitable as a YouTube search query.\n"
-        f"Examples: 'irregular past tense verbs', 'present continuous tense', "
-        f"'food and drinks vocabulary', 'modal verbs must should'.\n"
-        f"Reply with the topic only, no punctuation."
-    )
-    return result.text.strip()
+def _translation_hash(phrase: str, from_lang: str, to_lang: str) -> str:
+    import hashlib
+    return hashlib.sha256(f"{from_lang}|{to_lang}|{phrase}".encode("utf-8")).hexdigest()
 
 
-def generate_youtube_query(
-    topic_en: str, phrases: list[dict], target_lang: str, level: str
-) -> str:
-    """
-    Generate a short (3-6 word) YouTube search query optimised for language learning videos.
-    Combines the key target-language word/phrase with English context.
-    Example output: 'poder no puedo Spanish lesson' or 'Spanish past tense irregular verbs'
-    """
-    if not phrases:
-        return f"{target_lang} {topic_en} lesson"
-    targets = [p.get("target", "") for p in phrases[:6] if p.get("target")]
-    sample = ", ".join(targets)
-    result = _model(_LITE).generate_content(
-        f"I need a YouTube search query to find a language learning video.\n"
-        f"Language being learned: {target_lang} ({level} CEFR)\n"
-        f"Lesson topic: {topic_en}\n"
-        f"Key phrases from the lesson: {sample}\n\n"
-        f"Write ONE short YouTube search query (3-6 words max).\n"
-        f"Rules:\n"
-        f"- Include 1-2 key words FROM the lesson phrases (in {target_lang})\n"
-        f"- Format: <key phrase> learn {target_lang} lesson\n"
-        f"- NO extra words, NO punctuation\n"
-        f"Examples: 'no puedo learn Spanish lesson', 'большая собака learn Russian lesson', "
-        f"'sein haben learn German lesson'\n"
-        f"Reply with the query only."
-    )
-    return result.text.strip()
-
-
-def find_youtube_videos(
-    topic: str, level: str, lang: str, limit: int = 3,
-    sample_phrases: list[str] | None = None,
-) -> list[dict]:
-    """
-    Search YouTube via YouTube Data API v3.
-    Requires YOUTUBE_API_KEY in st.secrets or env.
-    Returns list of {"title": str, "url": str, "thumbnail": str}.
-    """
-    import streamlit as st
-    import urllib.request, urllib.parse
-
-    api_key = (
-        st.secrets.get("YOUTUBE_API_KEY")
-        or os.environ.get("YOUTUBE_API_KEY", "")
-    )
-    if not api_key:
-        raise RuntimeError("YOUTUBE_API_KEY not set")
-
-    _LANG_TO_CODE = {
-        "english": "en", "spanish": "es", "german": "de", "french": "fr",
-        "italian": "it", "portuguese": "pt", "ukrainian": "uk", "korean": "ko",
-        "japanese": "ja", "chinese": "zh", "polish": "pl", "russian": "ru",
-    }
-    lang_code = _LANG_TO_CODE.get(lang.lower(), "en")
-
-    level_keywords = {
-        "A1": "beginner simple slow",
-        "A2": "beginner elementary",
-        "B1": "intermediate",
-        "B2": "upper intermediate",
-        "C1": "advanced",
-        "C2": "native fluent",
-    }
-    kw = level_keywords.get(level, "")
-    if sample_phrases:
-        # sample_phrases already contains a pre-built optimised query string
-        query = sample_phrases[0] if len(sample_phrases) == 1 else " ".join(sample_phrases[:4])
-    else:
-        query = f"{lang} {topic} {kw} lesson".strip()
-
-    params = urllib.parse.urlencode({
-        "part":              "snippet",
-        "q":                 query,
-        "type":              "video",
-        "maxResults":        limit,
-        "relevanceLanguage": lang_code,
-        "key":               api_key,
-    })
-    url = f"https://www.googleapis.com/youtube/v3/search?{params}"
+def _translation_from_db(phrase: str, from_lang: str, to_lang: str) -> str | None:
     try:
-        with urllib.request.urlopen(url, timeout=10) as resp:
-            data = json.loads(resp.read())
-    except urllib.error.HTTPError as e:
-        body = e.read().decode("utf-8", errors="replace")
-        raise RuntimeError(f"YouTube API {e.code}: {body}") from e
+        from engine import db
+        row = db.fetch_one(
+            "SELECT translation FROM phrase_translations WHERE phrase_hash = :h",
+            {"h": _translation_hash(phrase, from_lang, to_lang)},
+        )
+        return row["translation"] if row else None
+    except Exception:
+        return None  # DATABASE_URL not configured, or DB unreachable -- fall through to a live call
 
-    results = []
-    for item in data.get("items", []):
-        vid_id = item["id"].get("videoId", "")
-        snippet = item.get("snippet", {})
-        results.append({
-            "title":     snippet.get("title", ""),
-            "url":       f"https://www.youtube.com/watch?v={vid_id}",
-            "thumbnail": snippet.get("thumbnails", {}).get("medium", {}).get("url", ""),
-        })
-    return results
+
+def _save_translation_to_db(phrase: str, from_lang: str, to_lang: str, translation: str) -> None:
+    try:
+        from engine import db
+        db.upsert(
+            "phrase_translations",
+            keys={"phrase_hash": _translation_hash(phrase, from_lang, to_lang)},
+            values={"from_lang": from_lang, "to_lang": to_lang,
+                    "phrase": phrase, "translation": translation},
+            touch_updated_at=False,
+        )
+    except Exception:
+        pass  # best-effort -- a translation that isn't persisted just gets redone later
 
 
 # ─────────────────────────────────────────────────────────────────────────────
