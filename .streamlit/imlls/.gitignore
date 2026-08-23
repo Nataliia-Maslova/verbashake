@@ -1,8 +1,0 @@
-.streamlit/secrets.toml
-logs/
-audio_cache/
-__pycache__/
-*.pyc
-*.pyo
-.env
-.vscode/

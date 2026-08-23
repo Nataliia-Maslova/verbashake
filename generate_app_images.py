@@ -21,6 +21,7 @@ Integration helpers (add to your Streamlit app):
 
     # slugs match VOCAB_SLUGS dict below
 """
+from __future__ import annotations
 
 import argparse
 import base64
