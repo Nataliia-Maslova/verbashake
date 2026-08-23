@@ -2170,6 +2170,40 @@ def _lesson_level(session: LessonSession) -> str:
     return "B1"
 
 
+def _current_topic(session: LessonSession, native_lang: str) -> str:
+    """
+    Real per-lesson topic/theme, used as context for Gemini prompts (Phase 3
+    practice's no-seed-phrases fallback, Phase 4 speaking task).
+
+    Previously both call sites read `getattr(session.state, "topic", "daily
+    life")` -- SessionState (engine/session.py) never actually has a `topic`
+    field, so this ALWAYS returned "daily life", for every lesson, every
+    module (CLAUDE.md, 2026-08-23). Worst for Phase 4: generate_open_question
+    puts topic straight into the Gemini prompt ("the student just studied the
+    topic '{topic}'"), so the speaking question was disconnected from the
+    lesson the student actually just did.
+
+    Where the real topic lives differs by module:
+    - Grammar: topic_{lang_code} columns on session.df, not on session.state
+      or any phrase dict -- same lookup _render_rule_explanation() (Step 1)
+      already uses, via the picker's own get_grammar_topics().
+    - Vocab/Phrasebook: a plain "topic" key directly on each phrase dict
+      (engine.vocab_loader/cefr_j_vocab_loader) -- EXCEPT CEFR-J Vocabulary,
+      where that same "topic" key holds a CEFR level code (A1..C2), not a
+      real theme (same distinction _lesson_level() above already makes) --
+      unusable as a speaking subject, so falls through to the default too.
+    """
+    if _current_module() == "grammar":
+        topic = get_grammar_topics(session.df, native_lang=native_lang).get(session.state.lesson_id)
+        return topic or "daily life"
+    phrases = session.phrases()
+    if phrases:
+        topic = phrases[0].get("topic")
+        if topic and topic not in _recommender.CEFR_RANK:
+            return topic
+    return "daily life"
+
+
 # ═══════════════════════════════════════════════════════════════════════════
 # Phase 1 — Розминка / Warmup
 # ═══════════════════════════════════════════════════════════════════════════
@@ -2330,7 +2364,7 @@ def phase3_practice(session: LessonSession, tts_lang: str, wh_lang: str) -> bool
     """
     native_lang = session.state.native_lang
     target_lang = session.state.target_lang
-    topic       = getattr(session.state, "topic", "daily life") or "daily life"
+    topic       = _current_topic(session, native_lang)
     level       = _lesson_level(session)
     module      = _current_module()
     # construction_drill: Grammar-only (the construction/pattern concept is
@@ -2594,7 +2628,7 @@ def phase3_practice(session: LessonSession, tts_lang: str, wh_lang: str) -> bool
 def phase4_expression(session: LessonSession, tts_lang: str, wh_lang: str) -> bool:
     native_lang = session.state.native_lang
     target_lang = session.state.target_lang
-    topic       = getattr(session.state, "topic", "daily life") or "daily life"
+    topic       = _current_topic(session, native_lang)
     level       = _lesson_level(session)
 
     _init_errors("expression")
