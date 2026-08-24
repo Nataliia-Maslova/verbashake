@@ -787,13 +787,8 @@ def _render_rule_explanation(session: LessonSession, phrases: list[dict]) -> Non
     target_lang = state.target_lang
     native_lang = state.native_lang
     level       = _lesson_level(session)
-    # session.state has no real `topic` field (unlike the Phase 3/4 "daily
-    # life" fallback elsewhere in this file, which reads a getattr that's
-    # never actually set) -- the real per-lesson topic name lives in the
-    # topic_{lang_code} columns already loaded onto session.df, read via the
-    # same get_grammar_topics() the lesson picker itself uses.
-    topic = get_grammar_topics(session.df, native_lang=native_lang).get(state.lesson_id, "") or "grammar"
-    state_key = f"s1_explanation_{state.lesson_id}"
+    topic       = _current_topic(session, native_lang)
+    state_key   = f"s1_explanation_{state.lesson_id}"
 
     with st.expander(i18n.get(native_lang, "rule_explanation_title"), expanded=False):
         if state_key not in st.session_state:
@@ -818,6 +813,55 @@ def _render_rule_explanation(session: LessonSession, phrases: list[dict]) -> Non
                     st.markdown(f"- {exc}")
 
 
+def _render_vocab_wordlist(session: LessonSession, phrases: list[dict]) -> None:
+    """
+    Vocabulary's version of _render_rule_explanation() above (Наталія's
+    request, 2026-08-24): a compact headword -> translation list of the
+    words this lesson actually drills. Vocabulary lessons don't have a
+    grammar "rule" the way Grammar does, so a word list is the equivalent
+    "what am I about to practice" preview.
+
+    CEFR-J Vocabulary only (engine.cefr_j_vocab_loader) -- that's the only
+    loader that carries a per-row "headword" (the base English word each
+    lesson's sentences are built around); Phrasebook/Word Bank phrases
+    don't have one and are skipped (guarded by the `if phrases and
+    phrases[0].get("headword")` check at the call site).
+
+    Reuses translate_phrase() (already cached in Postgres, already
+    paid-gated) per DISTINCT headword instead of a bespoke Gemini call --
+    headwords are always English (CEFR-J's source list), so translating
+    a headword is exactly the single-phrase-translation shape
+    translate_phrase already handles; a new bespoke function would just
+    duplicate it.
+    """
+    state       = session.state
+    target_lang = state.target_lang
+    native_lang = state.native_lang
+    state_key   = f"s1_wordlist_{state.lesson_id}"
+
+    with st.expander(i18n.get(native_lang, "vocab_wordlist_title"), expanded=False):
+        if state_key not in st.session_state:
+            if st.button(i18n.get(native_lang, "vocab_wordlist_btn"), key="s1_wordlist_btn"):
+                headwords = list(dict.fromkeys(
+                    p["headword"] for p in phrases if p.get("headword")
+                ))
+                try:
+                    with st.spinner("..."):
+                        rows = []
+                        for hw in headwords:
+                            tgt = hw if target_lang == "English" else _gemini.translate_phrase(hw, "English", target_lang)
+                            nat = hw if native_lang == "English" else _gemini.translate_phrase(hw, "English", native_lang)
+                            rows.append({"target": tgt, "native": nat})
+                        st.session_state[state_key] = rows
+                except _gemini.PaidFeatureRequired:
+                    _show_upsell("s1_wordlist")
+
+        rows = st.session_state.get(state_key)
+        if rows:
+            for r in rows:
+                st.markdown(f"**{r['target']}** — {r['native']}")
+
+
 def step1(session: LessonSession, tts_lang, wh_lang):
     session.start_step(1)
     step_hdr(1, show_image=True)
@@ -826,6 +870,8 @@ def step1(session: LessonSession, tts_lang, wh_lang):
 
     if _current_module() == "grammar":
         _render_rule_explanation(session, phrases)
+    elif _current_module() == "vocab" and phrases and phrases[0].get("headword"):
+        _render_vocab_wordlist(session, phrases)
 
     # Mic at the top so mobile users don't need to scroll past the phrase list
     audio = audio_input("s1")

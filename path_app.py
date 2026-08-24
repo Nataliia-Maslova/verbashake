@@ -25,6 +25,8 @@ from urllib.parse import quote as _quote
 import streamlit as st
 
 from engine import recommender as _recommender
+from engine import gemini as _gemini
+from engine import i18n
 
 # ── Level metadata (CEFR label -> icon/name/description) ───────────────────
 
@@ -101,6 +103,54 @@ def _launch_unit(unit: dict, user: str, native: str, target: str) -> None:
         })
 
     st.rerun()
+
+
+def _render_topic_explanation(unit: dict, native_lang: str, target_lang: str) -> None:
+    """
+    "Explain this topic" for the recommended Grammar unit, right on the My
+    Path card -- Наталія's request, 2026-08-24: previewing the rule before
+    committing to "Start" (grammar.py's Step 1 already has this same panel
+    once the lesson is actually opened; this lets a student decide FROM
+    My Path whether to start it at all).
+
+    Grammar only, same as Step 1's panel -- Vocab/Phrasebook don't have a
+    "rule" the same way. Reuses explain_lesson_rule() with an empty
+    seed_phrases list: My Path doesn't load the lesson's own dataframe (it
+    only has the content_units summary row), and the function already
+    handles no-seed-phrases gracefully (it just leans on the topic name
+    alone) -- the cache key is (topic, level, target_lang, native_lang)
+    only, seed_phrases never part of it, so this shares the exact same
+    cached row Step 1 would produce for the same lesson.
+    """
+    level = unit.get("level") or "A1"
+    topic = unit.get("topic") or "General"
+    # Keyed by unit_id (not a flat key) so a stale explanation from a
+    # previously-recommended unit can never show under a new one once the
+    # recommender reorders (same reasoning as grammar.py's
+    # s1_explanation_{lesson_id}).
+    state_key = f"path_explanation_{unit['unit_id']}"
+    with st.expander(i18n.get(native_lang, "rule_explanation_title"), expanded=False):
+        if st.button(i18n.get(native_lang, "rule_explanation_btn"), key="path_explain_btn"):
+            try:
+                with st.spinner("..."):
+                    st.session_state[state_key] = _gemini.explain_lesson_rule(
+                        topic, level, target_lang, native_lang, [],
+                    )
+            except _gemini.PaidFeatureRequired:
+                st.warning("⭐ This is a Premium feature — live AI generation isn't included in the free plan.")
+                if st.button("⭐ Go to Upgrade", key="path_explain_upsell"):
+                    st.session_state["_show_launcher"] = True
+                    st.rerun()
+
+        explanation = st.session_state.get(state_key)
+        if explanation:
+            st.markdown(explanation.get("rule", ""))
+            for ex in explanation.get("examples", []):
+                st.markdown(f"- **{ex.get('target', '')}** — {ex.get('native', '')}")
+            if explanation.get("exceptions"):
+                st.markdown(f"**{i18n.get(native_lang, 'rule_exceptions_label')}**")
+                for exc in explanation["exceptions"]:
+                    st.markdown(f"- {exc}")
 
 
 def _pct_bar(pct: float, color: str = "var(--mova-indigo)") -> str:
@@ -258,6 +308,9 @@ def main() -> None:
         st.markdown("<div style='height:24px'></div>", unsafe_allow_html=True)
         if st.button("▶ Start", type="primary", use_container_width=True, key="path_start"):
             _launch_unit(unit, user, native, target)
+
+    if utype == "grammar":
+        _render_topic_explanation(unit, native, target)
 
     # ── Upcoming lessons ─────────────────────────────────────────────────────
     upcoming = stats.get("upcoming", [])[1:]  # skip current (already shown above)

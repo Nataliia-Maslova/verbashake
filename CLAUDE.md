@@ -2479,3 +2479,57 @@ conventions).
 
 Повний список — `ReportFindings` виклик цієї сесії. `py_compile` проходить
 на обох фіксах.
+
+## 2 нові фічі: "Explain this topic" у My Path + список слів у Vocabulary (2026-08-24)
+
+Наталія: "в my path нет Обьясни єту тему для нового материала. добавь. в
+vocabulary можна давать что-то типа Обьясни тему - со списком слов с
+переводом которіе будут отрабатіваться - headwords зліва target language -
+справа родной."
+
+**1. My Path → "Explain this topic" на картці рекомендованого Grammar-уроку**
+([path_app.py::_render_topic_explanation()](path_app.py)) — та сама
+`explain_lesson_rule()` з Step 1, викликана з `seed_phrases=[]` (My Path не
+завантажує df уроку, тільки summary-рядок з `content_units`; функція вже
+коректно обходиться без seed_phrases — той самий кеш-ключ
+`(topic, level, target_lang, native_lang)`, тож ділить кеш зі Step 1).
+Grammar-only, той самий гейт, що й Step 1. Ключ session_state —
+`path_explanation_{unit_id}`, щоб стара відповідь не лишалась при зміні
+рекомендації.
+
+**2. Vocabulary → "📚 Word list for this lesson" у Step 1**
+([grammar.py::_render_vocab_wordlist()](grammar.py)) — CEFR-J Vocabulary
+тільки (єдиний loader з полем `headword`). Перекладає кожен унікальний
+headword окремо через уже наявний `translate_phrase()` (не нову функцію) —
+headword завжди англійською (CEFR-J джерело), тому це рівно та сама форма
+"перекласти одне слово", яку `translate_phrase` вже вміє й кешує в Postgres.
+
+**Попутний дрібний фікс** — `_render_rule_explanation()` (Step 1, Grammar)
+дублювала лукап теми замість виклику `_current_topic()` (Finding #6 з
+рев'ю вище) — прибрала дублювання, раз вже редагувала цей код.
+
+**Знайдено й виправлено дорогою: сервер на порту 8501 був застряглий зі
+старим кодом у пам'яті.** Жива перевірка "My Path" одразу після фіксу
+target_grammar-краху (розділ вище) впала З ТОЮ Ж ПОМИЛКОЮ (`KeyError:
+'lesson_id'`) навіть після повного `navigate` (не просто `st.rerun()`).
+Пряме відтворення тим самим кодом у Python-скрипті показало 0 помилок —
+логіка фільтра коректна. `ps aux` показав: процес на 8501 (`venv`, Python
+3.11) стартував о 18:03, задовго до всіх сьогоднішніх правок — `runOnSave`
+чомусь не підхопив зміни в `path_app.py` (можливо специфіка вкладеного
+імпорту через `app.py`, не досліджувала глибше). **Перезапустила сервер**
+(`kill` старого PID + новий `streamlit run app.py --server.port 8501` на
+тому ж `venv`) — після цього обидва краш-фікси і обидві нові фічі
+підтверджено вживу без жодної помилки. **Урок для наступної сесії**: якщо
+жива перевірка показує баг, який щойно мала бути виправлена — спершу
+перевірити вік процесу (`ps aux | grep streamlit`), не одразу вважати фікс
+невдалим.
+
+**Перевірено вживу через Claude in Chrome** (реальний акаунт, English→Ukrainian):
+- My Path: рекомендація "Not having — he/she" (Grammar, Lesson 15) →
+  "Explain this topic" → коректне пояснення конструкції "у + Genitive +
+  немає" (заперечення присвійності в українській), англійською, з
+  прикладами — прямо з картки, без входу в урок.
+- Vocabulary: Unit "twenty, glasses, six" (A1) → "Show word list" →
+  коректний список: twenty→двадцять, glasses→окуляри, six→шість,
+  many→багато, listen→слухати, Mr./Mr→Пан/Пан, city→місто, build→будувати
+  — саме окремі слова, не речення.
