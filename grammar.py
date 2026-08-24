@@ -94,6 +94,7 @@ from engine.gamification import on_step_complete, on_lesson_complete, sidebar_wi
 from engine import gemini as _gemini
 from engine import youtube_links
 from engine import recommender as _recommender
+from engine import rate_limit as _rate_limit
 from engine.picker import _render_flat_wave_nav
 from engine import i18n
 from engine import target_grammar_paths as _target_grammar_paths
@@ -862,6 +863,102 @@ def _render_vocab_wordlist(session: LessonSession, phrases: list[dict]) -> None:
                 st.markdown(f"**{r['target']}** — {r['native']}")
 
 
+# Generous enough that a real student going through several lessons a day
+# never notices it, low enough to blunt a scripted account -- see
+# _render_confusing_part_helper's docstring for why this feature specifically
+# needs a limit that the rest of the app's Gemini calls don't.
+_CONFUSING_PART_DAILY_LIMIT = 10
+
+
+def _render_confusing_part_helper(session: LessonSession, phrases: list[dict]) -> None:
+    """
+    "❓ Чому так побудовано?" — Step 1's phrase list shows translated
+    sentences with no explanation of why any one part of them is built the
+    way it is (Наталія's request, 2026-08-24: "не розумію, поясни чому
+    так"). Module-agnostic (unlike _render_rule_explanation, which is
+    Grammar-only) -- Vocabulary/Phrasebook/Custom sentences have the same
+    "why this word/word order" question as Grammar ones, just no lesson-
+    wide "rule" to explain instead.
+
+    True free-text highlighting (selecting a substring on screen) would
+    need a custom bidirectional JS component -- phrase_table() renders the
+    whole list as one HTML blob (st.markdown, unsafe_allow_html=True), not
+    individual Streamlit widgets per row, so there's no per-row click
+    target either. Instead: pick the sentence from a selectbox, paste/type
+    the confusing fragment into a text_input -- same net effect, zero new
+    frontend machinery, same pattern as every other Gemini-backed widget in
+    this file.
+
+    Rate-limited (engine.rate_limit, 2026-08-24) on top of the usual
+    @_require_paid gate: every other Gemini call here is keyed by fixed
+    lesson content, so its Postgres cache naturally bounds cost -- this one
+    takes an arbitrary confusing_part typed by the student, so a scripted
+    Premium account could otherwise burn real API cost with distinct cache
+    misses indefinitely. A per-day cap on this ONE feature, not a general
+    quota -- the rest of the app's Gemini surface doesn't share this
+    free-text-input abuse shape.
+    """
+    state       = session.state
+    target_lang = state.target_lang
+    native_lang = state.native_lang
+    if not phrases:
+        return
+
+    with st.expander(i18n.get(native_lang, "confusing_part_title"), expanded=False):
+        options = list(range(len(phrases)))
+        idx = st.selectbox(
+            i18n.get(native_lang, "confusing_part_select"),
+            options,
+            format_func=lambda i: f"{i+1:02d}. {phrases[i]['target']}",
+            key=f"s1_cp_select_{state.lesson_id}",
+        )
+        fragment = st.text_input(
+            i18n.get(native_lang, "confusing_part_input"),
+            placeholder=i18n.get(native_lang, "confusing_part_placeholder"),
+            key=f"s1_cp_input_{state.lesson_id}",
+        )
+        state_key = f"s1_cp_result_{state.lesson_id}"
+        if st.button(i18n.get(native_lang, "confusing_part_btn"), key="s1_cp_btn"):
+            if not fragment.strip():
+                st.warning(i18n.get(native_lang, "confusing_part_empty"))
+            else:
+                target_phrase = phrases[idx]["target"]
+                native_phrase = phrases[idx]["native"]
+                confusing_part = fragment.strip()
+                # Only spend a daily attempt on an actual live Gemini call --
+                # a fragment another student already asked about (or this
+                # student re-clicking) is a free Postgres cache hit inside
+                # explain_phrase_part() itself, and charging quota for it
+                # would contradict this feature's whole reason for existing
+                # (review finding, 2026-08-24: a student could exhaust their
+                # 10/day purely on cached, zero-cost lookups).
+                already_cached = _gemini.phrase_explanation_is_cached(
+                    target_phrase, confusing_part, target_lang, native_lang,
+                )
+                rate_limit_ok = True
+                if not already_cached:
+                    try:
+                        _rate_limit.check_and_increment(
+                            state.user_id, "explain_phrase_part",
+                            limit=_CONFUSING_PART_DAILY_LIMIT,
+                        )
+                    except _rate_limit.DailyLimitExceeded:
+                        st.warning(i18n.get(native_lang, "confusing_part_limit"))
+                        rate_limit_ok = False
+                if rate_limit_ok:
+                    try:
+                        with st.spinner("..."):
+                            st.session_state[state_key] = _gemini.explain_phrase_part(
+                                target_phrase, native_phrase, confusing_part,
+                                target_lang, native_lang,
+                            )
+                    except _gemini.PaidFeatureRequired:
+                        _show_upsell("s1_confusing_part")
+
+        if st.session_state.get(state_key):
+            st.markdown(st.session_state[state_key])
+
+
 def step1(session: LessonSession, tts_lang, wh_lang):
     session.start_step(1)
     step_hdr(1, show_image=True)
@@ -872,6 +969,8 @@ def step1(session: LessonSession, tts_lang, wh_lang):
         _render_rule_explanation(session, phrases)
     elif _current_module() == "vocab" and phrases and phrases[0].get("headword"):
         _render_vocab_wordlist(session, phrases)
+
+    _render_confusing_part_helper(session, phrases)
 
     # Mic at the top so mobile users don't need to scroll past the phrase list
     audio = audio_input("s1")
@@ -2250,6 +2349,40 @@ def _current_topic(session: LessonSession, native_lang: str) -> str:
     return "daily life"
 
 
+def _sidebar_lesson_name(session: LessonSession) -> str | None:
+    """
+    Human-readable name for the currently open lesson, for the sidebar's
+    "Your path" widget -- which used to show the raw lesson_id there
+    (Наталія's request, 2026-08-24: "імя топіків 100005 - треба змінити").
+    That id is a stable internal key, not something a student should read:
+    for CEFR-J Vocabulary it's a synthetic 100000+ global index, for the
+    engine.target_grammar_paths lessons it's 1000+ -- neither means
+    anything to a learner.
+
+    Mirrors the exact naming the lesson picker already shows elsewhere on
+    the same screen, so the two agree: Grammar uses the workbook's
+    topic_{lang} columns (get_grammar_topics, same as _current_topic());
+    CEFR-J Vocabulary previews its first few headwords, same as the
+    picker's "Unit N: word, word, word" / "Select Topic" labels
+    (render_setup(), ~line 1668); Phrasebook/Word Bank use their own real
+    theme name straight off each phrase. Returns None (falls back to the
+    raw lesson_id at the call site) only when nothing better is available.
+    """
+    lesson_id = session.state.lesson_id
+    if _current_module() == "grammar":
+        return get_grammar_topics(session.df, native_lang=session.state.native_lang).get(lesson_id)
+    phrases = session.phrases()
+    if not phrases:
+        return None
+    if phrases[0].get("headword"):
+        words = [p["headword"] for p in phrases[:3] if p.get("headword")]
+        return ", ".join(words) if words else None
+    topic = phrases[0].get("topic")
+    if topic and topic not in _recommender.CEFR_RANK:
+        return topic
+    return None
+
+
 # ═══════════════════════════════════════════════════════════════════════════
 # Phase 1 — Розминка / Warmup
 # ═══════════════════════════════════════════════════════════════════════════
@@ -3093,14 +3226,22 @@ def main(module: str = "grammar"):
             # (2026-08-23): a lesson_id of 1000 read as "999 lessons done"
             # even on someone's very first lesson, and 1000/189 as a
             # percentage is obvious nonsense (>100%, confirmed live).
-            # We still show "lesson N / M" so the user knows which one is
-            # open -- N is the raw lesson_id (a stable identifier, not a
-            # position), same as before.
+            # We show "lesson N / M" using N = POSITION in the sorted lesson
+            # list (1-based), not the raw lesson_id -- that id is a stable
+            # internal key, but for CEFR-J Vocabulary (100000+) and
+            # target_grammar lessons (1000+) it reads as meaningless noise
+            # to a student ("Topic 100006"). completed_lessons below is
+            # already this same index, computed once and reused for both.
             if _lesson_ids_for_total and state.lesson_id in _lesson_ids_for_total:
                 completed_lessons = _lesson_ids_for_total.index(state.lesson_id)
             else:
                 completed_lessons = max(state.lesson_id - 1, 0)
             lesson_pct = round(completed_lessons / total_lessons * 100, 1)
+            _sb_name = _sidebar_lesson_name(sess)
+            _sb_name_html = (
+                f'<div style="color:var(--mova-ink-2);font-size:.82rem;margin-top:2px">{_sb_name}</div>'
+                if _sb_name else ''
+            )
             st.markdown(
                 f'<div style="background:var(--mova-card);border:1px solid var(--mova-line);'
                 f'border-radius:10px;padding:10px 12px;margin:4px 0 10px">'
@@ -3109,8 +3250,9 @@ def main(module: str = "grammar"):
                 f'text-transform:uppercase;letter-spacing:.05em;margin-bottom:4px">'
                 f'Your path · {cfg["label"]}</div>'
                 f'<div style="color:var(--mova-ink);font-size:1.05rem;font-weight:600">'
-                f'{cfg["lesson_word"]} {state.lesson_id} / {total_lessons}'
+                f'{cfg["lesson_word"]} {completed_lessons + 1} / {total_lessons}'
                 f'</div>'
+                f'{_sb_name_html}'
                 f'<div class="progress-info" style="margin-top:6px">'
                 f'<span>{completed_lessons} done · {total_lessons - completed_lessons} to go</span>'
                 f'<span>{lesson_pct}%</span></div>'

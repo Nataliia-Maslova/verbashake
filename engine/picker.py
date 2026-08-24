@@ -545,7 +545,17 @@ def _render_lesson_dropdown_fallback(
     # this module) -- optional param so the one dead-code caller
     # (_render_vocab_nav, unused since the Category→Topic nav was replaced
     # by this flat picker, CLAUDE.md 2026-08-22) doesn't need updating too.
-    if df is not None and cfg.get("get_lesson"):
+    #
+    # Skipped for Vocabulary (CEFR-J, engine.cefr_j_vocab_loader): unlike
+    # Grammar/Phrasebook, its `native` column is only filled eagerly when
+    # native_lang=="English" -- for every other native_lang it's an empty
+    # placeholder, lazily translated only once the lesson is actually
+    # opened (engine.session._fill_missing_translations). Showing this
+    # preview here rendered a table with a real target column and a blank
+    # native column (confirmed live, 2026-08-24) -- worse than no preview,
+    # so Vocabulary just doesn't get one; Grammar/Phrasebook/target_grammar
+    # rows already carry real (or lazily-resolved-right-here) translations.
+    if df is not None and cfg.get("get_lesson") and cfg.get("lang_suffix") != "vocab":
         try:
             preview_df = cfg["get_lesson"](df, sel_lid)
         except Exception:

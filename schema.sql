@@ -164,6 +164,42 @@ CREATE TABLE IF NOT EXISTS lesson_explanations (
     created_at   TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 
+-- ── phrase_explanations ─────────────────────────────────────────────────────
+-- "❓ Чому так?" button next to Step 1's phrase list (any module — Grammar/
+-- Vocabulary/Phrasebook/Custom all share step1(); engine/gemini.py::
+-- explain_phrase_part, 2026-08-24). Phrase-level, not lesson-level like
+-- lesson_explanations above: the student points at one confusing fragment
+-- inside one specific sentence and gets an explanation of just that part.
+-- Same "pay once for the whole project" reasoning as phrase_translations --
+-- plain TEXT explanation (not JSONB) since the answer is free-form prose,
+-- not structured fields.
+CREATE TABLE IF NOT EXISTS phrase_explanations (
+    explanation_hash TEXT PRIMARY KEY,  -- sha256(target_lang|native_lang|target_phrase|confusing_part)
+    target_phrase   TEXT NOT NULL,
+    confusing_part  TEXT NOT NULL,
+    target_lang     TEXT NOT NULL,
+    native_lang     TEXT NOT NULL,
+    explanation     TEXT NOT NULL,
+    created_at      TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
+-- ── daily_feature_usage ─────────────────────────────────────────────────────
+-- Per-user daily quota for Gemini-backed features that accept free-form
+-- text input (engine/rate_limit.py, 2026-08-24) -- unlike a lesson's fixed
+-- phrase list, "❓ Чому так?" (explain_phrase_part) lets a student type
+-- ANY confusing_part, so phrase_explanations' cache-by-content can't bound
+-- cost the way it does for lesson_explanations/phrase_translations (every
+-- distinct string is a cache miss = a real Gemini call). One row per
+-- (user, feature, day); `count` increments atomically on every attempt,
+-- checked against a per-feature limit before the live call is made.
+CREATE TABLE IF NOT EXISTS daily_feature_usage (
+    user_id     TEXT NOT NULL,
+    feature     TEXT NOT NULL,
+    usage_date  DATE NOT NULL,
+    count       INTEGER NOT NULL DEFAULT 0,
+    PRIMARY KEY (user_id, feature, usage_date)
+);
+
 -- ── user_prefs ───────────────────────────────────────────────────────────────
 -- Native/target language choice per user (2026-08-22). Previously the
 -- launcher's language selectors only lived in st.session_state, which resets

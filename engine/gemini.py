@@ -427,6 +427,109 @@ def _save_lesson_explanation_to_db(
 
 
 # ─────────────────────────────────────────────────────────────────────────────
+# STEP 1 (New Material): phrase-fragment explanation — "❓ Чому так?" button
+# (CLAUDE.md, 2026-08-24)
+# ─────────────────────────────────────────────────────────────────────────────
+
+@_require_paid
+@_cache.memoize()
+def explain_phrase_part(
+    target_phrase: str, native_phrase: str, confusing_part: str,
+    target_lang: str, native_lang: str,
+) -> str:
+    """
+    Explain why one specific fragment of a phrase is built the way it is.
+
+    Phrase-level, not lesson-level like explain_lesson_rule(): the student
+    points at one confusing bit inside one specific sentence (e.g. "Чи
+    любить" in "Чи любить твоя дружина каву?") and gets a short native_lang
+    explanation of just that construction, in the context of the full
+    sentence — not a whole lesson's worth of grammar.
+
+    Persistently cached in Postgres (phrase_explanations, schema.sql), same
+    "pay once for the whole project" pattern as translate_phrase /
+    explain_lesson_rule: the phrase list is identical for every student who
+    opens this lesson, so the same fragment tends to get asked about by
+    more than one student.
+
+    Returns a short explanation string in native_lang.
+    """
+    cached = _phrase_explanation_from_db(target_phrase, confusing_part, target_lang, native_lang)
+    if cached is not None:
+        return cached
+
+    prompt = (
+        f"THE LANGUAGE BEING LEARNED is {target_lang}. THE STUDENT'S NATIVE "
+        f"LANGUAGE, to answer in, is {native_lang}. Do not swap these.\n\n"
+        f"Full sentence in {target_lang}: «{target_phrase}»\n"
+        f"Its translation in {native_lang}: «{native_phrase}»\n\n"
+        f"The student doesn't understand this specific part of the "
+        f"sentence: «{confusing_part}»\n\n"
+        f"Explain, in {native_lang} only, why exactly this part is built "
+        f"the way it is (word order, grammatical form/case/tense, why this "
+        f"particular word is used here) — focus ONLY on that fragment, "
+        f"don't re-explain the whole sentence or repeat the translation. "
+        f"2-5 short sentences, simple enough for a language learner. Plain "
+        f"text, no markdown headers."
+    )
+    result = _model(_LITE).generate_content(prompt).text.strip()
+    _save_phrase_explanation_to_db(target_phrase, confusing_part, target_lang, native_lang, result)
+    return result
+
+
+def phrase_explanation_is_cached(target_phrase: str, confusing_part: str, target_lang: str, native_lang: str) -> bool:
+    """
+    Peek the Postgres cache for explain_phrase_part() without calling it --
+    lets a caller (grammar.py's rate-limit gate, 2026-08-24 review finding)
+    check "would this be a live Gemini call?" BEFORE spending one of the
+    student's limited daily attempts on what would actually be a free,
+    already-answered lookup. Not paid-gated (@_require_paid) on purpose:
+    checking whether something is cached has no API cost either way, so it
+    would be wrong to make a free-plan user's rate-limit check itself throw
+    PaidFeatureRequired before they even find out the answer is free.
+    """
+    return _phrase_explanation_from_db(target_phrase, confusing_part, target_lang, native_lang) is not None
+
+
+def _phrase_explanation_hash(target_phrase: str, confusing_part: str, target_lang: str, native_lang: str) -> str:
+    import hashlib
+    return hashlib.sha256(
+        f"{target_lang}|{native_lang}|{target_phrase}|{confusing_part}".encode("utf-8")
+    ).hexdigest()
+
+
+def _phrase_explanation_from_db(target_phrase: str, confusing_part: str, target_lang: str, native_lang: str) -> str | None:
+    try:
+        from engine import db
+        row = db.fetch_one(
+            "SELECT explanation FROM phrase_explanations WHERE explanation_hash = :h",
+            {"h": _phrase_explanation_hash(target_phrase, confusing_part, target_lang, native_lang)},
+        )
+        return row["explanation"] if row else None
+    except Exception:
+        return None  # DATABASE_URL not configured, or DB unreachable -- fall through to a live call
+
+
+def _save_phrase_explanation_to_db(
+    target_phrase: str, confusing_part: str, target_lang: str, native_lang: str, explanation: str,
+) -> None:
+    try:
+        from engine import db
+        db.upsert(
+            "phrase_explanations",
+            keys={"explanation_hash": _phrase_explanation_hash(target_phrase, confusing_part, target_lang, native_lang)},
+            values={
+                "target_phrase": target_phrase, "confusing_part": confusing_part,
+                "target_lang": target_lang, "native_lang": native_lang,
+                "explanation": explanation,
+            },
+            touch_updated_at=False,
+        )
+    except Exception:
+        pass  # best-effort -- an explanation that isn't persisted just gets redone later
+
+
+# ─────────────────────────────────────────────────────────────────────────────
 # PHASE 3: Практика — generated tests
 # ─────────────────────────────────────────────────────────────────────────────
 

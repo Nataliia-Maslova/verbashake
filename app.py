@@ -16,6 +16,8 @@ The main menu also shows a per-module progress bar (% of all exercises
 completed and "exercise N of M"), so the user always knows where they are
 on their learning path.
 """
+from __future__ import annotations
+
 import sys
 from pathlib import Path
 
@@ -207,36 +209,57 @@ MODULES = {
 # Progress helpers — used to show "Lesson N / M · X%" on every module card
 # ═══════════════════════════════════════════════════════════════════════════
 @st.cache_data(show_spinner=False)
-def _count_grammar_lessons(native: str, target: str) -> int:
-    """Total grammar lessons available for the chosen language pair."""
+def _grammar_lesson_ids(native: str, target: str) -> list[int]:
+    """
+    Sorted lesson_ids available for the chosen language pair.
+
+    Must go through grammar.py::_load_grammar (not a bare load_phrases()
+    call) so this list includes the engine.target_grammar_paths synthetic
+    lessons (lesson_id 1000+, spliced on per target_lang since 2026-08-23) --
+    a user whose lesson_pointer references one of those (real, e.g. the
+    recommender routed them into a target-language grammar topic) would
+    otherwise have `saved_lesson not in lesson_ids` here, and
+    _module_progress falls back to its old raw-id arithmetic -- exactly the
+    ">100%" bug this position-based rewrite exists to fix, just for a
+    different id range than the one it was first found on (found in review,
+    2026-08-24, before this ever shipped to a real user).
+    """
     try:
-        df = load_phrases(str(DB_GRAMMAR), native, target)
-        return len(get_available_lessons(df))
+        from grammar import _load_grammar
+        df = _load_grammar(DB_GRAMMAR, native, target)
+        return get_available_lessons(df)
     except Exception:
-        return 0
+        return []
 
 
 @st.cache_data(show_spinner=False)
-def _count_vocab_lessons(native: str, target: str) -> int:
-    """CEFR-J lesson count -- same list for every target now (CLAUDE.md
+def _vocab_lesson_ids(native: str, target: str) -> list[int]:
+    """CEFR-J lesson_ids -- same list for every target now (CLAUDE.md
     2026-08-22: see grammar.py::_load_vocabulary). "Phrasebook"
-    (_count_phrasebook_lessons) still covers the old Word Bank workbook."""
+    (_phrasebook_lesson_ids) still covers the old Word Bank workbook.
+
+    Sorted, not just unique() -- _module_progress() below needs a real
+    position (.index()) for a saved lesson_id, not just a count.
+    """
     try:
         from engine.cefr_j_vocab_loader import _build_index, CSV_PATH
-        return int(_build_index(str(CSV_PATH))["lesson_id"].nunique())
+        return sorted(int(x) for x in _build_index(str(CSV_PATH))["lesson_id"].unique())
     except Exception:
-        return 0
+        return []
 
 
 @st.cache_data(show_spinner=False)
-def _count_phrasebook_lessons(native: str, target: str) -> int:
+def _phrasebook_lesson_ids(native: str, target: str) -> list[int]:
     """Vocabulary sheets minus the Word Bank ones -- see grammar.py::_load_phrasebook."""
     try:
         from engine.vocab_loader import get_vocab_nav_data, WORD_BANK_SHEETS
         nav_data = get_vocab_nav_data(str(DB_VOCAB))
-        return sum(len(ls) for sheet, ls in nav_data.items() if sheet not in WORD_BANK_SHEETS)
+        return sorted(
+            row["gid"] for sheet, rows in nav_data.items()
+            if sheet not in WORD_BANK_SHEETS for row in rows
+        )
     except Exception:
-        return 0
+        return []
 
 
 @st.cache_data(show_spinner=False)
@@ -250,10 +273,29 @@ def _count_reading_lessons(lang: str = "en") -> int:
         return 0
 
 
-def _module_progress(user_id: str, target: str, module: str, total: int) -> dict:
+def _module_progress(user_id: str, target: str, module: str, total: int,
+                      lesson_ids: list[int] | None = None) -> dict:
     """
     Look up the saved resume pointer for (user, target, module) and convert it
     into: {"current": N, "total": M, "pct": float, "done": bool}
+
+    lesson_ids: the real sorted list of lesson_ids for this module/language
+    pair, when the caller has one (Grammar/Vocabulary/Phrasebook — see
+    _grammar_lesson_ids / _vocab_lesson_ids / _phrasebook_lesson_ids).
+    Position = lesson_ids.index(saved_lesson), the SAME "index in the
+    sorted list, not the raw id" fix already applied to the in-lesson
+    sidebar (grammar.py, 2026-08-23/24) -- without it this function did
+    `min(saved_lesson, total)`, silently treating the raw lesson_id itself
+    as if it were a position. That's wrong for any lesson_id that isn't a
+    contiguous 1..N sequence: CEFR-J Vocabulary's global index starts at
+    100000+, and Grammar's engine.target_grammar_paths lessons start at
+    1000+ -- both instantly clamp to `total`, producing a false "100%,
+    N/N" on the launcher card the moment such a lesson is opened (found
+    live, 2026-08-24: Vocabulary showed "Тема 981 / 981 · 100%" for a
+    student five lessons in). Reading/Custom keep the old raw-id fallback
+    below (lesson_ids=None) -- their ids are already a contiguous
+    per-language/per-user 1..N sequence, so the old arithmetic is correct
+    for them.
     """
     info = {"current": 1, "total": max(total, 0), "pct": 0.0, "done": False}
     if not user_id or total <= 0:
@@ -272,17 +314,28 @@ def _module_progress(user_id: str, target: str, module: str, total: int) -> dict
     except Exception:
         saved_lesson = 0
 
+    # 1-based position of the saved lesson among all of this module's
+    # lessons. With a real lesson_ids list, that's index+1 (0-based index
+    # -> 1-based count). Without one (reading/custom), fall back to using
+    # saved_lesson itself, exactly as before this function took lesson_ids
+    # -- correct there because those two modules' ids already ARE a
+    # contiguous 1..N sequence, so no behavior change for them.
+    if lesson_ids and saved_lesson in lesson_ids:
+        position = lesson_ids.index(saved_lesson) + 1
+    else:
+        position = saved_lesson
+
     if saved_step >= 99:
-        completed = min(saved_lesson, total)
+        completed = min(position, total)
         info.update({
             "current": min(completed + 1, total),
             "pct":     round(completed / total * 100, 1),
             "done":    completed >= total,
         })
     else:
-        completed = min(max(saved_lesson - 1, 0), total)
+        completed = min(max(position - 1, 0), total)
         info.update({
-            "current": min(saved_lesson, total),
+            "current": min(position, total),
             "pct":     round(completed / total * 100, 1),
         })
     return info
@@ -291,6 +344,7 @@ def _module_progress(user_id: str, target: str, module: str, total: int) -> dict
 def _module_progress_card(module_key: str, native: str, target: str,
                           user_id: str) -> dict:
     """Returns the progress info to render on a module card."""
+    lesson_ids = None
     if module_key == "reading":
         import streamlit as _st
         r_lang = _st.session_state.get("r_lang", "en")
@@ -298,15 +352,18 @@ def _module_progress_card(module_key: str, native: str, target: str,
         module = "reading"
         word   = i18n.get(native, "word_lesson")
     elif module_key == "grammar":
-        total  = _count_grammar_lessons(native, target)
+        lesson_ids = _grammar_lesson_ids(native, target)
+        total  = len(lesson_ids)
         module = "grammar"
         word   = i18n.get(native, "word_lesson")
     elif module_key == "vocab":
-        total  = _count_vocab_lessons(native, target)
+        lesson_ids = _vocab_lesson_ids(native, target)
+        total  = len(lesson_ids)
         module = "vocab"
         word   = i18n.get(native, "topic_label")
     elif module_key == "phrasebook":
-        total  = _count_phrasebook_lessons(native, target)
+        lesson_ids = _phrasebook_lesson_ids(native, target)
+        total  = len(lesson_ids)
         module = "phrasebook"
         word   = i18n.get(native, "word_phrase")
     elif module_key == "path":
@@ -329,7 +386,7 @@ def _module_progress_card(module_key: str, native: str, target: str,
             total = 0
         module = "custom"
         word   = i18n.get(native, "word_lesson")
-    pr = _module_progress(user_id, target, module, total)
+    pr = _module_progress(user_id, target, module, total, lesson_ids=lesson_ids)
     pr["lesson_word"] = word
     pr["module_key"]  = module_key
     return pr
@@ -605,12 +662,12 @@ def _render_placement_quiz(native: str, target: str, user_id: str) -> None:
     mastery via engine.recommender.seed_mastery_from_level() so a learner who
     already knows some material isn't started from 0.0 on every topic.
     """
-    with st.expander("📊 Not starting from zero? Take a quick placement quiz"):
+    with st.expander(i18n.get(native, "pq_expander_title")):
         quiz_module = st.selectbox(
-            "Module", ["grammar", "vocab"],
+            i18n.get(native, "pq_module_label"), ["grammar", "vocab"],
             format_func=lambda m: MODULES[m]["label"], key="pq_module",
         )
-        if st.button("Generate quiz", key="pq_generate"):
+        if st.button(i18n.get(native, "pq_generate_btn"), key="pq_generate"):
             cfg = grammar_app._module_config(quiz_module)
             df_all = cfg["load"](str(cfg["db_path"]), native, target)
             st.session_state["pq_items"] = placement_quiz.build_quiz(
@@ -621,24 +678,15 @@ def _render_placement_quiz(native: str, target: str, user_id: str) -> None:
 
         items = st.session_state.get("pq_items")
         if items == [] and st.session_state.get("pq_module_used") == "vocab":
-            st.caption(
-                "Vocabulary quiz isn't available yet — the CEFR-J word list "
-                "(now used for every language, CLAUDE.md 2026-08-22) has no "
-                "pre-translated phrases to quiz with offline; translation "
-                "only happens once a lesson is actually opened. Try the "
-                "Grammar quiz instead."
-            )
+            st.caption(i18n.get(native, "pq_vocab_unavailable"))
         if items:
-            st.caption(
-                "Translate each phrase into your target language. "
-                "Leave it blank if you don't know it."
-            )
+            st.caption(i18n.get(native, "pq_instructions"))
             answers = {}
             for i, item in enumerate(items):
                 answers[i] = st.text_input(
                     f"{item['level']}  ·  {item['native']}", key=f"pq_ans_{i}"
                 )
-            if st.button("Submit quiz", type="primary", key="pq_submit"):
+            if st.button(i18n.get(native, "pq_submit_btn"), type="primary", key="pq_submit"):
                 st.session_state["pq_result"] = placement_quiz.score_quiz(
                     user_id, target, st.session_state["pq_module_used"], items, answers,
                 )
@@ -647,14 +695,14 @@ def _render_placement_quiz(native: str, target: str, user_id: str) -> None:
         if result:
             if result["estimated_level"]:
                 st.success(
-                    f"Estimated level: **{result['estimated_level']}**. "
-                    f"We'll deprioritize material you already know."
+                    i18n.get(native, "pq_result_estimated").format(level=result["estimated_level"])
                 )
             else:
-                st.info("Looks like a great place to start from the beginning!")
+                st.info(i18n.get(native, "pq_result_beginner"))
             for r in result["results"]:
                 icon = "✅" if r["passed"] else "❌"
-                said = f" — you wrote: *{r['user_answer']}*" if r["user_answer"] else ""
+                said = (i18n.get(native, "pq_you_wrote").format(answer=r["user_answer"])
+                        if r["user_answer"] else "")
                 st.caption(f"{icon} {r['level']}: {r['native']} → {r['target']}{said}")
 
 
@@ -679,10 +727,70 @@ def _switch_to(module_key: str):
 # ═══════════════════════════════════════════════════════════════════════════
 # Main router
 # ═══════════════════════════════════════════════════════════════════════════
+def _inject_pwa_head() -> None:
+    """
+    Phase E (PWA packaging, 2026-08-24): link the manifest + register the
+    service worker so the browser offers "Install app" / "Add to Home
+    Screen". Same reach-into-the-real-page trick as the dark-mode toggle
+    below (st.markdown can't inject a <script>, browsers don't execute
+    script tags from innerHTML) -- components.html's iframe gives us
+    window.parent, the actual top-level document/navigator.
+
+    Idempotent AND once-per-session: the <head> tags/SW registration only
+    need to happen once for the whole browser tab, not on every rerun --
+    main() calls this on every single Streamlit interaction (every button
+    click), and each call spins up a real (if invisible) iframe, so without
+    a session_state guard this would inject-and-tear-down that iframe and
+    re-run the script on every click across the entire app forever. The
+    data-attribute marker on <head> alone (checked inside the script) would
+    still make each individual injection a no-op, but wouldn't stop the
+    components.html iframe itself from being recreated every rerun -- the
+    session_state check below skips calling components.html at all once
+    this tab has already done it.
+
+    Static files (static/pwa/manifest.json, sw.js, icons) are served at
+    app/static/pwa/... only because .streamlit/config.toml now sets
+    server.enableStaticServing=true (this is the first feature in the repo
+    that needs the browser to fetch a file from ./static/ directly, rather
+    than server-side via st.image/CSS-file-read).
+    """
+    if st.session_state.get("_pwa_head_injected"):
+        return
+    st.session_state["_pwa_head_injected"] = True
+    import streamlit.components.v1 as _components
+    _components.html(
+        "<script>"
+        "const d = window.parent.document;"
+        "if (!d.head.querySelector('[data-verbashake-pwa]')) {"
+        "  const manifest = d.createElement('link');"
+        "  manifest.rel = 'manifest';"
+        "  manifest.href = 'app/static/pwa/manifest.json';"
+        "  manifest.setAttribute('data-verbashake-pwa', '1');"
+        "  d.head.appendChild(manifest);"
+        "  const theme = d.createElement('meta');"
+        "  theme.name = 'theme-color';"
+        "  theme.content = '#FF7B6B';"
+        "  d.head.appendChild(theme);"
+        "  const touchIcon = d.createElement('link');"
+        "  touchIcon.rel = 'apple-touch-icon';"
+        "  touchIcon.href = 'app/static/pwa/apple-touch-icon.png';"
+        "  d.head.appendChild(touchIcon);"
+        "  if ('serviceWorker' in window.parent.navigator) {"
+        "    window.parent.navigator.serviceWorker"
+        "      .register('app/static/pwa/sw.js', {scope: 'app/static/pwa/'})"
+        "      .catch(() => {});"  # best-effort -- installability is a nice-to-have, never block the app
+        "  }"
+        "}"
+        "</script>",
+        height=0,
+    )
+
+
 def main():
     # Mova design system — Phase 1. Loaded on every rerun so it overrides
     # the sub-apps' legacy CSS via cascade.
     _inject_mova_css()
+    _inject_pwa_head()
 
     # 🌙 Dark mode — tokens.css already ships a full [data-theme="dark"]
     # palette (design review, 2026-08-23: it just had nothing that ever set

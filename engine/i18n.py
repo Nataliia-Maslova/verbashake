@@ -99,6 +99,22 @@ STRINGS = {
         "rec_reason_skip_ahead": "skip ahead to {word} {lid} — you're tracking ahead of it already",
         "rec_banner_main":       "💡 Your placement quiz / recent activity suggests you {reason} ({level}). Your saved place at {word} {cur_lid} is untouched — this is just a suggestion.",
         "rec_jump_button":       "Jump to {lid} →",
+        # Placement quiz UI (app.py::_render_placement_quiz) -- was hardcoded
+        # English regardless of native_lang (Наталія, 2026-08-24).
+        "pq_expander_title":  "📊 Not starting from zero? Take a quick placement quiz",
+        "pq_module_label":    "Module",
+        "pq_generate_btn":    "Generate quiz",
+        "pq_vocab_unavailable": (
+            "Vocabulary quiz isn't available yet — the CEFR-J word list "
+            "(now used for every language) has no pre-translated phrases to "
+            "quiz with offline; translation only happens once a lesson is "
+            "actually opened. Try the Grammar quiz instead."
+        ),
+        "pq_instructions":    "Translate each phrase into your target language. Leave it blank if you don't know it.",
+        "pq_submit_btn":      "Submit quiz",
+        "pq_result_estimated": "Estimated level: **{level}**. We'll deprioritize material you already know.",
+        "pq_result_beginner":  "Looks like a great place to start from the beginning!",
+        "pq_you_wrote":        " — you wrote: *{answer}*",
         # Phase labels
         "phase_warmup":    "Warmup",
         "phase_material":  "New Material",
@@ -115,6 +131,13 @@ STRINGS = {
         "rule_exceptions_label":  "Watch out for:",
         "vocab_wordlist_title":   "📚 Word list for this lesson",
         "vocab_wordlist_btn":     "▶ Show word list",
+        "confusing_part_title":   "❓ Why is it built this way?",
+        "confusing_part_select":  "Which sentence?",
+        "confusing_part_input":   "Paste or type the confusing part:",
+        "confusing_part_placeholder": "e.g. a word or a few words from the sentence above",
+        "confusing_part_btn":     "▶ Explain",
+        "confusing_part_empty":   "Type or paste the part you don't understand first.",
+        "confusing_part_limit":   "You've reached today's limit for this feature. Try again tomorrow.",
         "new_exercise":    "🔄 New",
         "error_review_title": "🔍 Error review",
         "error_review_start": "Start correction →",
@@ -223,6 +246,21 @@ STRINGS = {
         "rec_reason_skip_ahead": "перейти одразу до {word} {lid} — ти вже випереджаєш цей рівень",
         "rec_banner_main":       "💡 Твій вступний тест / нещодавня активність підказує {reason} ({level}). Збережене місце на {word} {cur_lid} лишається недоторканим — це просто підказка.",
         "rec_jump_button":       "Перейти до {lid} →",
+        # Плейсмент-тест на лаунчері (app.py::_render_placement_quiz)
+        "pq_expander_title":  "📊 Не з нуля? Пройди короткий вступний тест",
+        "pq_module_label":    "Модуль",
+        "pq_generate_btn":    "Згенерувати тест",
+        "pq_vocab_unavailable": (
+            "Тест на лексику поки що недоступний — список CEFR-J (тепер "
+            "використовується для всіх мов) не має заздалегідь перекладених "
+            "фраз для офлайн-тесту; переклад відбувається лише коли урок "
+            "реально відкривається. Спробуй тест на граматику."
+        ),
+        "pq_instructions":    "Переклади кожну фразу мовою, яку вивчаєш. Залиш порожнім, якщо не знаєш.",
+        "pq_submit_btn":      "Надіслати тест",
+        "pq_result_estimated": "Орієнтовний рівень: **{level}**. Ми знизимо пріоритет матеріалу, який ти вже знаєш.",
+        "pq_result_beginner":  "Схоже, це чудове місце, щоб почати з самого початку!",
+        "pq_you_wrote":        " — ти написав(-ла): *{answer}*",
         # Phase labels
         "phase_warmup":    "Розминка",
         "phase_material":  "Новий матеріал",
@@ -239,6 +277,13 @@ STRINGS = {
         "rule_exceptions_label":  "Зверни увагу на:",
         "vocab_wordlist_title":   "📚 Список слів цього уроку",
         "vocab_wordlist_btn":     "▶ Показати список слів",
+        "confusing_part_title":   "❓ Чому так побудовано?",
+        "confusing_part_select":  "Яке речення?",
+        "confusing_part_input":   "Встав або введи незрозумілу частину:",
+        "confusing_part_placeholder": "наприклад, слово чи кілька слів з речення вище",
+        "confusing_part_btn":     "▶ Пояснити",
+        "confusing_part_empty":   "Спершу введи чи встав частину, яку не розумієш.",
+        "confusing_part_limit":   "Ти вичерпав(-ла) сьогоднішній ліміт для цієї функції. Спробуй завтра.",
         "new_exercise":    "🔄 Нова вправа",
         "error_review_title": "🔍 Розбір помилок",
         "error_review_start": "Почати виправлення →",

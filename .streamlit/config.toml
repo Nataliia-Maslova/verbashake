@@ -16,3 +16,10 @@ headless = true
 # code edits show up on a plain page reload instead of needing a manual
 # process restart each time (watchdog installed 2026-08-23 for this).
 runOnSave = true
+# Phase E (PWA packaging, 2026-08-24): serves ./static/* at /app/static/* --
+# required so the browser can actually fetch manifest.json/sw.js/icons that
+# app.py links from <head>. Files under ./static were already used for CSS
+# (static/mova/) and lesson images loaded server-side via st.image, neither
+# of which needed this flag; the PWA files are the first thing this app
+# serves directly to the browser as raw static HTTP responses.
+enableStaticServing = true
