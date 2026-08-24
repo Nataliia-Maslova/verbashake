@@ -403,7 +403,7 @@ def _lesson_explanation_from_db(topic: str, level: str, target_lang: str, native
             "SELECT explanation FROM lesson_explanations WHERE explanation_hash = :h",
             {"h": _explanation_hash(topic, level, target_lang, native_lang)},
         )
-        return json.loads(row["explanation"]) if row else None
+        return row["explanation"] if row else None
     except Exception:
         return None  # DATABASE_URL not configured, or DB unreachable -- fall through to a live call
 

@@ -123,6 +123,23 @@ def main() -> None:
 
     stats = _recommender.get_stats(user, target)
 
+    # My Path renders each unit as a launchable lesson with a numeric
+    # lesson_id (_launch_unit / the "Next lesson" card below) -- "target_grammar"
+    # content_units rows (engine/recommender.py's older ephemeral
+    # Phase-3-practice representation, still in ALL_MODULES) have no
+    # lesson_id at all (parse_unit_id returns lang_code/topic_key instead),
+    # so if the recommender ever ranks one top -- it already has, for a
+    # real user, per CLAUDE.md's uk->es example -- this whole page crashed
+    # with a KeyError before any click happened. The same topic is always
+    # ALSO seeded as a real grammar:1000+ lesson (engine/target_grammar_loader.py),
+    # so filtering target_grammar out here just prefers that launchable
+    # form instead of silently dropping the recommendation.
+    stats["upcoming"] = [
+        u for u in stats["upcoming"]
+        if _recommender.parse_unit_id(u["unit_id"])["module"] != "target_grammar"
+    ]
+    stats["current_unit"] = stats["upcoming"][0] if stats["upcoming"] else None
+
     # ── Sidebar ──────────────────────────────────────────────────────────────
     with st.sidebar:
         if st.button("🏠 Main menu", use_container_width=True, key="path_home"):
