@@ -307,6 +307,14 @@ def main() -> None:
     # ── Page header ──────────────────────────────────────────────────────────
     st.markdown("## 🗺️ My Learning Path")
 
+    # ── Single-module shortcuts ─────────────────────────────────────────────
+    # Moved back up here (2026-08-27, Natalia) -- her first request was "add
+    # them after My Path", read at the time as after all of My Path's OWN
+    # content; turned out she meant right at the top, under the header,
+    # where the swipe strip used to live before it got replaced with these
+    # plain buttons.
+    _render_module_shortcuts(user, native, target)
+
     # ── Overall progress bar ─────────────────────────────────────────────────
     col1, col2, col3 = st.columns(3)
     with col1:
@@ -426,7 +434,3 @@ def main() -> None:
         # forward so a different lesson surfaces next time.
         _recommender.record_result(user, target, unit["unit_id"], correct=True)
         st.rerun()
-
-    # ── Single-module shortcuts ─────────────────────────────────────────────
-    st.markdown("<div style='margin:24px 0 0'></div>", unsafe_allow_html=True)
-    _render_module_shortcuts(user, native, target)
