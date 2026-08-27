@@ -2349,40 +2349,6 @@ def _current_topic(session: LessonSession, native_lang: str) -> str:
     return "daily life"
 
 
-def _sidebar_lesson_name(session: LessonSession) -> str | None:
-    """
-    Human-readable name for the currently open lesson, for the sidebar's
-    "Your path" widget -- which used to show the raw lesson_id there
-    (Наталія's request, 2026-08-24: "імя топіків 100005 - треба змінити").
-    That id is a stable internal key, not something a student should read:
-    for CEFR-J Vocabulary it's a synthetic 100000+ global index, for the
-    engine.target_grammar_paths lessons it's 1000+ -- neither means
-    anything to a learner.
-
-    Mirrors the exact naming the lesson picker already shows elsewhere on
-    the same screen, so the two agree: Grammar uses the workbook's
-    topic_{lang} columns (get_grammar_topics, same as _current_topic());
-    CEFR-J Vocabulary previews its first few headwords, same as the
-    picker's "Unit N: word, word, word" / "Select Topic" labels
-    (render_setup(), ~line 1668); Phrasebook/Word Bank use their own real
-    theme name straight off each phrase. Returns None (falls back to the
-    raw lesson_id at the call site) only when nothing better is available.
-    """
-    lesson_id = session.state.lesson_id
-    if _current_module() == "grammar":
-        return get_grammar_topics(session.df, native_lang=session.state.native_lang).get(lesson_id)
-    phrases = session.phrases()
-    if not phrases:
-        return None
-    if phrases[0].get("headword"):
-        words = [p["headword"] for p in phrases[:3] if p.get("headword")]
-        return ", ".join(words) if words else None
-    topic = phrases[0].get("topic")
-    if topic and topic not in _recommender.CEFR_RANK:
-        return topic
-    return None
-
-
 # ═══════════════════════════════════════════════════════════════════════════
 # Phase 1 — Розминка / Warmup
 # ═══════════════════════════════════════════════════════════════════════════
@@ -3115,8 +3081,6 @@ def phase5_summary(session: LessonSession) -> bool:
 
 # =============================================================================
 
-TOTAL_LESSONS = 173
-
 STEPS = {1: step1, 2: step2, 3: step3, 4: step4, 5: step5, 6: step6, 7: step7, 8: step8}
 # Steps that cannot be skipped
 REQUIRED_STEPS = {1, 3, 6, 7}
@@ -3320,77 +3284,15 @@ def main(module: str = "grammar"):
         if "lesson_step" in st.session_state and "session" in st.session_state:
             sess  = st.session_state["session"]
             state = sess.state
-            cur_step = st.session_state['lesson_step']
-            try:
-                if module == "custom":
-                    # Custom: count this user's saved lessons for the pair
-                    from engine.custom_store import list_user_lessons
-                    cu_df = list_user_lessons(state.user_id,
-                                              native_lang=state.native_lang,
-                                              target_lang=state.target_lang)
-                    total_lessons = max(len(cu_df), 1)
-                    _lesson_ids_for_total = None
-                else:
-                    df_all_for_total = cfg["load"](str(cfg["db_path"]),
-                                                   state.native_lang, state.target_lang)
-                    _lesson_ids_for_total = cfg["get_lessons"](df_all_for_total)
-                    total_lessons = max(len(_lesson_ids_for_total), 1)
-            except Exception:
-                total_lessons = TOTAL_LESSONS
-                _lesson_ids_for_total = None
-
-            # ── User path: which exercise out of all, % to finish ──
-            # "Completed" = how many lessons come before this one in the
-            # sorted lesson list. Position-in-list, NOT "lesson_id - 1" --
-            # that arithmetic silently assumed lesson_id is a contiguous
-            # 1..N sequence, which broke the moment
-            # engine.target_grammar_paths introduced lesson_id >= 1000
-            # (2026-08-23): a lesson_id of 1000 read as "999 lessons done"
-            # even on someone's very first lesson, and 1000/189 as a
-            # percentage is obvious nonsense (>100%, confirmed live).
-            # We show "lesson N / M" using N = POSITION in the sorted lesson
-            # list (1-based), not the raw lesson_id -- that id is a stable
-            # internal key, but for CEFR-J Vocabulary (100000+) and
-            # target_grammar lessons (1000+) it reads as meaningless noise
-            # to a student ("Topic 100006"). completed_lessons below is
-            # already this same index, computed once and reused for both.
-            if _lesson_ids_for_total and state.lesson_id in _lesson_ids_for_total:
-                completed_lessons = _lesson_ids_for_total.index(state.lesson_id)
-            else:
-                completed_lessons = max(state.lesson_id - 1, 0)
-            lesson_pct = round(completed_lessons / total_lessons * 100, 1)
-            _sb_name = _sidebar_lesson_name(sess)
-            _sb_name_html = (
-                f'<div style="color:var(--mova-ink-2);font-size:.82rem;margin-top:2px">{_sb_name}</div>'
-                if _sb_name else ''
-            )
-            st.markdown(
-                f'<div style="background:var(--mova-card);border:1px solid var(--mova-line);'
-                f'border-radius:10px;padding:10px 12px;margin:4px 0 10px">'
-                f'<div style="color:var(--mova-ink-2);font-size:.7rem;'
-                f'font-family:\'JetBrains Mono\',monospace;'
-                f'text-transform:uppercase;letter-spacing:.05em;margin-bottom:4px">'
-                f'Your path · {cfg["label"]}</div>'
-                f'<div style="color:var(--mova-ink);font-size:1.05rem;font-weight:600">'
-                f'{cfg["lesson_word"]} {completed_lessons + 1} / {total_lessons}'
-                f'</div>'
-                f'{_sb_name_html}'
-                f'<div class="progress-info" style="margin-top:6px">'
-                f'<span>{completed_lessons} done · {total_lessons - completed_lessons} to go</span>'
-                f'<span>{lesson_pct}%</span></div>'
-                f'<div class="progress-bar-wrap">'
-                f'<div class="progress-bar-fill" style="width:{lesson_pct}%"></div></div>'
-                f'</div>',
-                unsafe_allow_html=True
-            )
-            # Step progress + Previous/Repeat/Jump-to-step now render inline in
-            # the lesson content itself (_render_step_nav_inline, called from
-            # main()'s Phase 2 dispatch) -- design review, 2026-08-27: the
-            # sidebar had grown to path progress + step progress + a raw debug
-            # caption (`{state.language_pair}`, an internal cache key, never
-            # meant to be user-facing -- dropped outright, not moved) + step
-            # nav + jump-to-lesson, all stacked before the student ever saw
-            # the lesson itself on a narrow phone.
+            # "Your path" progress card + step progress + Previous/Repeat/
+            # Jump-to-step used to render here -- removed from the sidebar
+            # entirely (2026-08-27, Natalia: "убрать" on the path card
+            # specifically), not just relocated like step nav was in the
+            # same design pass. Step nav now lives inline in the lesson
+            # content itself (_render_step_nav_inline, called from main()'s
+            # Phase 2 dispatch). Also dropped along the way: a raw debug
+            # caption (`{state.language_pair}`, an internal cache key) that
+            # used to render right here, never meant to be user-facing.
 
             # -- Jump to lesson ----------------------------------------------------
             if module != "custom":

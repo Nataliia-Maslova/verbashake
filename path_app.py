@@ -45,17 +45,6 @@ def _img_b64(path) -> str:
         return ""
     return "data:image/png;base64," + base64.b64encode(p.read_bytes()).decode()
 
-# ── Level metadata (CEFR label -> icon/name/description) ───────────────────
-
-_LEVEL_META = {
-    "A1": ("🌱", "Beginner",           "First words, greetings, basic sentences"),
-    "A2": ("📗", "Elementary",         "Daily life, food, transport & routines"),
-    "B1": ("📘", "Intermediate",       "Travel, emotions, shopping & more"),
-    "B2": ("📙", "Upper-Intermediate", "Work, school, family & city life"),
-    "C1": ("📕", "Advanced",           "Technology, health, culture & sports"),
-    "C2": ("🏆", "Mastery",            "Deep vocabulary, complex grammar"),
-}
-
 _TYPE_ICON  = {"reading": "🔤", "grammar": "🗣️", "vocab": "📖", "phrasebook": "💬"}
 _TYPE_LABEL = {"reading": "Reading",    "grammar": "Grammar",    "vocab": "Vocabulary",
                "phrasebook": "Phrasebook"}
@@ -343,22 +332,7 @@ def main() -> None:
         )
         return
 
-    # ── Current level card ───────────────────────────────────────────────────
-    unit  = stats.get("current_unit")
-    level = (unit or {}).get("level") or "A1"
-    s_icon, s_name, s_desc = _LEVEL_META.get(level, ("📚", level, ""))
-    st.markdown(
-        f'<div style="background:var(--mova-card);border:1px solid var(--mova-line);'
-        f'border-left:4px solid var(--mova-indigo);border-radius:10px;'
-        f'padding:14px 20px;margin:14px 0 8px">'
-        f'<div style="font-size:.7rem;color:#aaa;text-transform:uppercase;'
-        f'letter-spacing:.06em">Level {level}</div>'
-        f'<div style="font-size:1.25rem;font-weight:700;margin:3px 0">'
-        f'{s_icon} {s_name}</div>'
-        f'<div style="color:var(--mova-ink-2);font-size:.9rem">{s_desc}</div>'
-        f'</div>',
-        unsafe_allow_html=True,
-    )
+    unit = stats.get("current_unit")
 
     if unit is None:
         st.success("🎉 **You're all caught up!** No lessons are due for review right now.")
