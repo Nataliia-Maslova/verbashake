@@ -20,6 +20,8 @@ Flow:
 """
 from __future__ import annotations
 
+import base64
+from pathlib import Path
 from urllib.parse import quote as _quote
 
 import streamlit as st
@@ -27,6 +29,21 @@ import streamlit as st
 from engine import recommender as _recommender
 from engine import gemini as _gemini
 from engine import i18n
+
+ROOT        = Path(__file__).parent
+APP_IMG_DIR = ROOT / "static" / "app_images"
+
+
+def _img_b64(path) -> str:
+    """Return base64 data-URL for an image, or empty string if missing.
+    Duplicated from app.py::_img_b64 (not imported) for the same reason
+    _switch_module() below duplicates _switch_to() -- app.py already
+    imports path_app for its router, so the reverse import would be
+    circular."""
+    p = Path(path)
+    if not p.exists():
+        return ""
+    return "data:image/png;base64," + base64.b64encode(p.read_bytes()).decode()
 
 # ── Level metadata (CEFR label -> icon/name/description) ───────────────────
 
@@ -58,12 +75,15 @@ _TYPE_COLOR = {
 # swipe for her. Real st.button widgets have none of that fragility --
 # guaranteed to work everywhere Streamlit itself works, at the cost of a
 # tap instead of a swipe.
+# Images match app.py::MODULES' "img" entries -- same artwork the launcher
+# grid used to show, reused here instead of the plain emoji (design review,
+# 2026-08-27, Natalia).
 _SHORTCUT_MODULES = [
-    ("grammar",    "🗣️", "Grammar"),
-    ("vocab",      "📖", "Vocabulary"),
-    ("phrasebook", "💬", "Phrasebook"),
-    ("reading",    "🔤", "Reading"),
-    ("custom",     "📝", "My Phrases"),
+    ("grammar",    "🗣️", "Grammar",     APP_IMG_DIR / "vocab_school.jpg"),
+    ("vocab",      "📖", "Vocabulary",  APP_IMG_DIR / "vocab_basic.jpg"),
+    ("phrasebook", "💬", "Phrasebook",  APP_IMG_DIR / "vocab_greetings.jpg"),
+    ("reading",    "🔤", "Reading",     APP_IMG_DIR / "reading_banner.jpg"),
+    ("custom",     "📝", "My Phrases",  APP_IMG_DIR / "my_phrases_banner.jpg"),
 ]
 
 
@@ -84,9 +104,21 @@ def _switch_module(module_key: str, user: str, native: str, target: str) -> None
 def _render_module_shortcuts(user: str, native: str, target: str) -> None:
     st.markdown("### Or open a module directly")
     cols = st.columns(len(_SHORTCUT_MODULES))
-    for col, (key, icon, label) in zip(cols, _SHORTCUT_MODULES):
+    for col, (key, icon, label, img_path) in zip(cols, _SHORTCUT_MODULES):
         with col:
-            if st.button(f"{icon}\n\n{label}", key=f"path_shortcut_{key}",
+            b64 = _img_b64(img_path)
+            if b64:
+                st.markdown(
+                    f'<img src="{b64}" style="width:100%;height:72px;'
+                    f'object-fit:cover;border-radius:10px;margin-bottom:6px"/>',
+                    unsafe_allow_html=True,
+                )
+                btn_label = label
+            else:
+                # Missing file (shouldn't happen -- these ship with the repo)
+                # falls back to the emoji instead of a broken/blank image.
+                btn_label = f"{icon}\n\n{label}"
+            if st.button(btn_label, key=f"path_shortcut_{key}",
                          use_container_width=True):
                 _switch_module(key, user, native, target)
 
