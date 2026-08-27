@@ -387,29 +387,6 @@ def main() -> None:
                 _launch_unit(harder, user, native, target)
         _render_topic_explanation(unit, native, target)
 
-    # ── Upcoming lessons ─────────────────────────────────────────────────────
-    upcoming = stats.get("upcoming", [])[1:]  # skip current (already shown above)
-    if upcoming:
-        st.markdown("### Coming up")
-        st.caption("A live snapshot — finishing the lesson above can reorder this list.")
-        for u in upcoming:
-            _u_icon  = _TYPE_ICON.get(u["module"], "📚")
-            _u_label = _TYPE_LABEL.get(u["module"], u["module"].title())
-            _u_color = _TYPE_COLOR.get(u["module"], "var(--mova-indigo)")
-            _u_lid   = _recommender.parse_unit_id(u["unit_id"])["lesson_id"]
-            st.markdown(
-                f'<div style="background:var(--mova-card);border:1px solid var(--mova-line);'
-                f'border-radius:8px;padding:10px 16px;margin:4px 0;'
-                f'display:flex;align-items:center;gap:12px">'
-                f'<span style="font-size:1.2rem">{_u_icon}</span>'
-                f'<div>'
-                f'<div style="font-weight:600;font-size:.9rem">{u.get("topic") or "General"}</div>'
-                f'<div style="font-size:.75rem;color:#aaa">'
-                f'{_u_label} · Lesson {_u_lid}</div>'
-                f'</div></div>',
-                unsafe_allow_html=True,
-            )
-
     # ── Skip button ──────────────────────────────────────────────────────────
     st.markdown("")
     if st.button("⏭ Skip this lesson", type="secondary", key="path_skip"):
