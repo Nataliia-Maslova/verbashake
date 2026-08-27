@@ -21,8 +21,11 @@ Usage:
     Requires DATABASE_URL in .streamlit/secrets.toml or env (see engine/db.py)
     and schema.sql already applied to the database.
 
-Reading is scoped to the 4 languages the app actively supports (English,
-Ukrainian, Spanish, Korean) — extend READING_LANGS below if more are needed.
+Reading covers every language with real content in reading_lessons.xlsx
+(2026-08-27 -- was hardcoded to en/uk/es/ko only, even though fr/de/pt/it/
+pl/ru/ja/zh already had real lesson data sitting unused; see
+scripts/tag_reading_new_langs.py for how those 8 got tagged). Catalan/Dutch
+still have no reading sheet at all -- extend READING_LANGS once one exists.
 """
 from __future__ import annotations
 
@@ -39,7 +42,7 @@ from engine.recommender import DIFFICULTY_TO_CEFR, LANG_TO_CODE
 
 DATA_DIR = Path(__file__).parent.parent / "data"
 
-READING_LANGS = ["en", "uk", "es", "ko"]
+READING_LANGS = ["en", "uk", "es", "ko", "fr", "de", "pt", "it", "pl", "ru", "ja", "zh"]
 
 
 def _load_tags_template(path: Path, key_cols: list[str]) -> dict[tuple, dict]:

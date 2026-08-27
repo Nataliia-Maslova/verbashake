@@ -833,6 +833,10 @@ READING_UI = {
         "resume_step": '⏯ Повернешся до уроку {saved_lesson} на крок {resume_step}',
         "try_first":       "Спочатку виконай завдання",
         "main_menu":       "🏠 Головне меню",
+        "ai_reading_title":       "AI-текст для читання",
+        "ai_reading_intro":       "Читання за цим уроком закінчилось — генеруй нові тексти під свій рівень.",
+        "ai_reading_level_label": "Рівень",
+        "ai_reading_generate":    "Згенерувати новий текст",
     },
     "English": {
         "setup_title": "Reading Practice",
@@ -890,6 +894,10 @@ READING_UI = {
         "resume_step": '⏯ Resume Lesson {saved_lesson} at Step {resume_step}',
         "try_first":       "Complete the exercise first",
         "main_menu":       "🏠 Main menu",
+        "ai_reading_title":       "AI reading practice",
+        "ai_reading_intro":       "You've finished this language's reading track — generate new passages at your level.",
+        "ai_reading_level_label": "Level",
+        "ai_reading_generate":    "Generate a new passage",
     },
     "Spanish": {
         "setup_title": "Práctica de lectura",
@@ -947,6 +955,10 @@ READING_UI = {
         "resume_step": '⏯ Retomar Lección {saved_lesson} en el Paso {resume_step}',
         "try_first":       "Primero completa el ejercicio",
         "main_menu":       "🏠 Menú principal",
+        "ai_reading_title":       "Lectura con IA",
+        "ai_reading_intro":       "Has terminado la pista de lectura de este idioma — genera nuevos textos a tu nivel.",
+        "ai_reading_level_label": "Nivel",
+        "ai_reading_generate":    "Generar un nuevo texto",
     },
     "Korean": {
         "setup_title": "읽기 연습",
@@ -1004,6 +1016,10 @@ READING_UI = {
         "resume_step": '⏯ 수업 {saved_lesson} 단계 {resume_step}에서 재개',
         "try_first":       "먼저 연습을 완료하세요",
         "main_menu":       "🏠 메인 메뉴",
+        "ai_reading_title":       "AI 읽기 연습",
+        "ai_reading_intro":       "이 언어의 읽기 과정을 모두 마쳤습니다 — 본인 수준에 맞는 새 지문을 생성하세요.",
+        "ai_reading_level_label": "레벨",
+        "ai_reading_generate":    "새 지문 생성",
     },
 }
 
@@ -1682,6 +1698,53 @@ def render_setup():
         )
         if _r_clicked is not None:
             _start_reading_lesson(_r_clicked)
+
+    # ── AI reading practice — once the curated track is exhausted ──────────
+    # (CLAUDE.md, 2026-08-27): reading_lessons.xlsx is a fixed, finite list
+    # (30-80 lessons per language) -- once every lesson has a real attempt,
+    # engine.recommender.get_path_next() stops surfacing reading as a
+    # dedicated phase and it becomes background SRS review only. Natalia
+    # asked for a follow-up so "reading" stays alive as active practice
+    # instead: level-appropriate passages generated on demand.
+    if _r_done_lids and len(_r_done_lids) >= len(_r_int_lessons):
+        st.markdown("---")
+        with st.expander("📖 " + _ui("ai_reading_title"), expanded=False):
+            st.caption(_ui("ai_reading_intro"))
+            _levels = ["A1", "A2", "B1", "B2", "C1", "C2"]
+            _ai_level = st.selectbox(
+                _ui("ai_reading_level_label"), _levels,
+                index=_levels.index("A1"), key=f"r_ai_level_{chosen_lang}",
+            )
+            _ai_key = f"r_ai_passage_{chosen_lang}_{_ai_level}"
+            from engine import gemini as _gemini
+            if st.button("✨ " + _ui("ai_reading_generate"), key=f"r_ai_gen_{chosen_lang}"):
+                try:
+                    target_lang_name = _recommender.CODE_TO_LANG.get(chosen_lang, chosen_lang)
+                    passage = _gemini.generate_reading_passage(
+                        target_lang=target_lang_name, native_lang=native_lang,
+                        level=_ai_level,
+                    )
+                    st.session_state[_ai_key] = passage
+                except _gemini.PaidFeatureRequired:
+                    _show_upsell_reading(f"r_ai_{chosen_lang}")
+                except Exception as _e:
+                    st.error(f"Помилка: {_e}")
+            _passage = st.session_state.get(_ai_key)
+            if _passage and _passage.get("sentences"):
+                st.markdown(f"**{_passage.get('title', '')}**")
+                for _s in _passage["sentences"]:
+                    st.write(_s.get("target", ""))
+                    with st.expander("🌐", expanded=False):
+                        st.caption(_s.get("native", ""))
+
+
+def _show_upsell_reading(key: str) -> None:
+    """Same pattern as grammar.py::_show_upsell — kept local (not shared
+    import) since reading_app.py otherwise never touches engine.gemini."""
+    st.warning("⭐ This is a Premium feature — live AI generation isn't included in the free plan.")
+    if st.button("⭐ Go to Upgrade", key=f"upsell_{key}"):
+        st.session_state["_show_launcher"] = True
+        st.rerun()
 
 
 # ═══════════════════════════════════════════════════════════════════════════

@@ -806,6 +806,64 @@ def generate_target_grammar_drill(
 
 
 @_require_paid
+def generate_reading_passage(
+    target_lang: str,
+    native_lang: str,
+    level: str,
+    grammar_topics: list[str] | None = None,
+    n_sentences: int = 8,
+) -> dict:
+    """
+    A short, connected reading passage at the student's CEFR level — the
+    follow-up Natalia asked for once a language's curated reading_lessons.xlsx
+    track (letters/phonics/words) runs out (CLAUDE.md, 2026-08-27): rather
+    than reading dropping straight into pure spaced-repetition review, keep
+    it alive as level-appropriate comprehension practice.
+
+    Unlike reading_lessons.xlsx's fixed lesson list, this has no unit_id / no
+    catalog row — ephemeral like generate_practice_test and
+    generate_lesson_construction_drill (no @_cache.memoize(): the point is a
+    fresh text each time, not one shared cached passage repeated forever), so
+    it isn't recorded in mastery/srs_state either.
+
+    grammar_topics (optional): plain-text names of grammar the student has
+    recently studied (e.g. from grammar.py::get_grammar_topics) — when given,
+    nudges Gemini to naturally weave those constructions in, so the passage
+    doubles as grammar review instead of only fresh vocabulary exposure.
+
+    Returns: {"title": str, "sentences": [{"target": str, "native": str}, ...]}
+    """
+    topic_instruction = ""
+    if grammar_topics:
+        topics_str = ", ".join(grammar_topics[:5])
+        topic_instruction = (
+            f" Where it fits naturally, use grammar the student has recently "
+            f"studied: {topics_str}."
+        )
+    prompt = (
+        f"Write a short, coherent reading passage in {target_lang} for a "
+        f"{level} CEFR-level language learner — {n_sentences} simple, "
+        f"connected sentences forming one short story or description (not a "
+        f"list of unrelated facts), using vocabulary and grammar appropriate "
+        f"for {level}.{topic_instruction}\n\n"
+        "Return JSON only — no markdown fences:\n"
+        "{\n"
+        f'  "title": "short title in {target_lang}",\n'
+        '  "sentences": [\n'
+        "    {\n"
+        f'      "target": "sentence in {target_lang}",\n'
+        f'      "native": "translation in {native_lang}"\n'
+        "    }\n"
+        "  ]\n"
+        "}"
+    )
+    return _parse_json(
+        _model(_FLASH).generate_content(prompt).text,
+        fallback={"title": "", "sentences": []},
+    )
+
+
+@_require_paid
 def check_practice_answer(
     question: str,
     student_answer: str,

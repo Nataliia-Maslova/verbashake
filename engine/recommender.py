@@ -64,6 +64,29 @@ _SRS_MAX_INTERVAL  = 60.0
 _UNSEEN_MASTERY    = 0.0   # a topic with no attempts yet is "not yet mastered", not "half mastered" —
                             # this is what makes novelty correctly favor A1 first for a brand-new user
 
+# ── Path ordering (2026-08-27, Natalia's tutoring model) ───────────────────
+# get_next()/get_stats() above score every module uniformly, all competing on
+# one formula -- fine for within-module picks, but Natalia's real teaching
+# order is stricter: reading (script/phonics) FIRST for a brand-new learner,
+# THEN grammar+vocab, with grammar taught strictly in sequence (each lesson
+# is deliberately harder than the last) rather than freely reordered by
+# score. get_path_next() below is a thin ordering layer on top of the
+# existing per-unit scoring -- it decides WHICH MODULE gets to go next and,
+# for grammar, WHICH LESSON; it still calls get_next()/mastery/srs_state
+# underneath for the actual within-module ranking (vocab keeps its free
+# score-based mixing, exactly as before).
+SCRIPT_GATE_LANGS: frozenset[str] = frozenset({"ko", "ja", "zh"})
+# Languages whose script has to be learned as a whole before grammar/vocab
+# are legible at all (confirmed by Natalia's own experience learning Korean:
+# without the letters, even the easiest grammar was unreadable) -- for these,
+# the reading gate is every reading lesson for that language, not a fixed
+# count. Everyone else uses a short fixed intro instead (Latin/Cyrillic
+# learners mostly need a quick refresher on sound-spelling, not the whole
+# alphabet from zero).
+READING_INTRO_COUNT     = 5   # non-script languages: fixed reading-first batch before anything else opens
+READING_INTERLEAVE_BATCH = 3  # once the gate clears but reading isn't exhausted yet: reading lessons per interleave cycle
+GRAMMAR_ADVANCE_THRESHOLD = 0.5  # mastery score a grammar lesson's topic needs before the "frontier" moves past it
+
 
 def _level_norm(level: str | None) -> float:
     if not level or level not in CEFR_RANK:
@@ -277,6 +300,164 @@ def get_next(user_id: str, target_lang: str, module: str | None = None, limit: i
     return scored[:limit]
 
 
+def _is_script_lang(target_lang: str) -> bool:
+    return LANG_TO_CODE.get(target_lang) in SCRIPT_GATE_LANGS
+
+
+def _reading_progress(user_id: str, target_lang: str) -> tuple[int, int]:
+    """(attempted, total) reading units for this (user, target_lang) — "attempted"
+    means it has an srs_state row (written on the first checked answer, same
+    signal lesson_progress_map() already uses for the wave-picker colors)."""
+    total = len(_candidates(target_lang, module="reading"))
+    if total == 0:
+        return 0, 0
+    srs = _srs_map(user_id, target_lang)
+    done = sum(1 for uid in srs if uid.startswith("reading:"))
+    return done, total
+
+
+def _grammar_frontier_unit(user_id: str, target_lang: str,
+                            threshold: float = GRAMMAR_ADVANCE_THRESHOLD) -> dict | None:
+    """
+    The single grammar lesson to teach next, in the curriculum's own designed
+    order (lesson_id ascending -- each lesson is deliberately harder than the
+    last, per Natalia: free score-based reordering would undo that). "Done
+    enough to move past" = mastery for that lesson's topic at/above
+    `threshold`, not merely attempted -- so a lesson that was attempted and
+    failed (mastery stays low) keeps being the frontier, which is exactly the
+    "return to the missing topic" behavior Natalia described, with no extra
+    state needed beyond the mastery table that already exists. A student who
+    jumps ahead via the manual "harder" lesson picker and does well raises
+    that lesson's own mastery (record_result already does this) without
+    moving the frontier past whatever's still actually weak/unseen before it.
+    """
+    units = _candidates(target_lang, module="grammar")
+    if not units:
+        return None
+
+    def _lid(u: dict) -> int:
+        try:
+            return parse_unit_id(u["unit_id"])["lesson_id"]
+        except Exception:
+            return 0
+
+    units.sort(key=_lid)
+    mastery = _mastery_map(user_id, target_lang)
+    for u in units:
+        topic = _mastery_topic(u["topic"])
+        row = mastery.get(("grammar", topic))
+        score = row["score"] if row else _UNSEEN_MASTERY
+        if score < threshold:
+            return u
+    return units[-1]   # everything at/above threshold — nothing left to introduce, stay put
+
+
+def grammar_neighbor(target_lang: str, lesson_id: int, direction: int) -> dict | None:
+    """
+    The grammar lesson immediately before (direction=-1, "Easier") or after
+    (direction=+1, "Harder") `lesson_id` in the curriculum's own designed
+    order -- backs the manual override buttons next to My Path's recommended
+    grammar lesson (2026-08-27, Natalia: "можна пробувати давати вправу
+    поскладніше... якщо учень не справляється, повертатися"). Purely a
+    launch-time override — it doesn't touch mastery/srs_state itself, so it
+    doesn't move _grammar_frontier_unit()'s own next recommendation; only a
+    real attempt (record_result) does that, exactly like probing ahead via
+    the ordinary lesson picker already worked before this function existed.
+    None at either end of the sequence (already at lesson 1 / already at the
+    last lesson).
+    """
+    units = _candidates(target_lang, module="grammar")
+    if not units:
+        return None
+    units.sort(key=lambda u: parse_unit_id(u["unit_id"])["lesson_id"])
+    ids = [parse_unit_id(u["unit_id"])["lesson_id"] for u in units]
+    try:
+        idx = ids.index(lesson_id)
+    except ValueError:
+        return None
+    new_idx = idx + direction
+    if 0 <= new_idx < len(units):
+        return units[new_idx]
+    return None
+
+
+def _interleave_path(user_id: str, target_lang: str, limit: int) -> list[dict]:
+    """Reading gate is cleared but reading isn't exhausted yet: 1 grammar +
+    1 vocab + READING_INTERLEAVE_BATCH reading, repeating -- Natalia's own
+    tutoring pattern ("граматика лексика по 1, потім ще 2-3 читання")."""
+    pattern = ["grammar", "vocab"] + ["reading"] * READING_INTERLEAVE_BATCH
+    frontier = _grammar_frontier_unit(user_id, target_lang)
+    vocab_pool = get_next(user_id, target_lang, module="vocab", limit=limit)
+    reading_pool = get_next(user_id, target_lang, module="reading", limit=limit)
+
+    picks: list[dict] = []
+    seen: set[str] = set()
+    vi = ri = 0
+    guard = 0
+    while len(picks) < limit and guard < limit * len(pattern) + len(pattern):
+        kind = pattern[guard % len(pattern)]
+        guard += 1
+        unit = None
+        if kind == "grammar":
+            unit = frontier
+        elif kind == "vocab" and vi < len(vocab_pool):
+            unit, vi = vocab_pool[vi], vi + 1
+        elif kind == "reading" and ri < len(reading_pool):
+            unit, ri = reading_pool[ri], ri + 1
+        if unit is not None and unit["unit_id"] not in seen:
+            picks.append(unit)
+            seen.add(unit["unit_id"])
+    return picks[:limit]
+
+
+def _normal_path(user_id: str, target_lang: str, limit: int) -> list[dict]:
+    """Reading is exhausted (or this target_lang has no reading content at
+    all) -- grammar keeps its sequential frontier, everything else (vocab,
+    phrasebook, reading review, target_grammar) keeps the free score-based
+    mixing get_next() already does. Reading doesn't disappear here: overdue
+    reading units still surface through get_next()'s own SRS-urgency term,
+    just as background review, not a dedicated phase."""
+    picks: list[dict] = []
+    frontier = _grammar_frontier_unit(user_id, target_lang)
+    if frontier:
+        picks.append(frontier)
+    for u in get_next(user_id, target_lang, limit=limit + 5):
+        if u["module"] == "grammar":
+            continue
+        picks.append(u)
+        if len(picks) >= limit:
+            break
+    return picks[:limit]
+
+
+def get_path_next(user_id: str, target_lang: str, limit: int = 6) -> list[dict]:
+    """
+    Cross-module ordering for "My Path" (replaces the raw get_next(module=None)
+    call get_stats() used to make). Three phases per (user, target_lang):
+
+      1. Reading gate — pure reading, nothing else recommended. Full reading
+         catalog for script languages (ko/ja/zh — without the alphabet
+         nothing else is legible), a short fixed intro (READING_INTRO_COUNT)
+         for everyone else.
+      2. Interleave — gate cleared, reading not yet exhausted: 1 grammar +
+         1 vocab + a small reading batch, repeating (_interleave_path).
+      3. Normal — reading exhausted (or none exists for this language):
+         grammar advances one lesson at a time via its mastery-gated
+         frontier, everything else keeps free score-based mixing
+         (_normal_path).
+    """
+    done, total = _reading_progress(user_id, target_lang)
+    if total == 0:
+        return _normal_path(user_id, target_lang, limit)
+
+    gate = total if _is_script_lang(target_lang) else min(READING_INTRO_COUNT, total)
+    if done < gate:
+        return get_next(user_id, target_lang, module="reading", limit=limit)
+    if done < total:
+        return _interleave_path(user_id, target_lang, limit)
+    return _normal_path(user_id, target_lang, limit)
+
+
 # ── Recording results ───────────────────────────────────────────────────────
 
 def record_result(user_id: str, target_lang: str, unit_id: str, correct: bool) -> None:
@@ -480,7 +661,7 @@ def get_stats(user_id: str, target_lang: str) -> dict:
 
     total = sum(totals.values())
     done  = sum(seen_by_module.values())
-    top   = get_next(user_id, target_lang, limit=6)
+    top   = get_path_next(user_id, target_lang, limit=6)
 
     return {
         "done_grammar": seen_by_module["grammar"], "total_grammar": totals["grammar"],

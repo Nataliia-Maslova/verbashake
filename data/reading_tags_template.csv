@@ -272,3 +272,243 @@ ko,72,C2,
 ko,73,C2,
 ko,74,C2,
 ko,75,C2,
+fr,1,A1,
+fr,2,A1,
+fr,3,A1,
+fr,4,A1,
+fr,5,A1,
+fr,6,A2,"É читається як [e]: café [kafe], été [ete]"
+fr,7,A2,"À читається як [a]: là [la], voilà [vwala]"
+fr,8,A2,
+fr,9,A2,"OU читається як [u]: ou [u], tour [tuʁ]"
+fr,10,A2,"OI читається як [wa]: moi [mwa], toi [twa]"
+fr,11,B1,"AI читається як [ɛ]: mai [mɛ], lait [lɛ]"
+fr,12,B1,"AU читається як [o]: au [o], faux [fo]"
+fr,13,B1,"EU у відкритому складі читається як [ø]: feu [fø], jeu [ʒø]"
+fr,14,B1,"AN, EN, AM, EM читаються як [ɑ̃]: an [ɑ̃], dans [dɑ̃]"
+fr,15,B1,"IN, AIN, IM, AIM, EIN читаються як [ɛ̃]: fin [fɛ̃], pain [pɛ̃]"
+fr,16,B2,"ON, OM читаються як [ɔ̃]: on [ɔ̃], bon [bɔ̃]"
+fr,17,B2,"UN, UM читаються як [œ̃]: un [œ̃], brun [bʁœ̃]"
+fr,18,B2,
+fr,19,B2,
+fr,20,B2,"Ç завжди читається як [s]: ça [sa], garçon [gaʁsɔ̃]"
+fr,21,C1,
+fr,22,C1,
+fr,23,C1,"H muet — приєднання можливе: l'homme [lɔm], l'heure [lœʁ]"
+fr,24,C1,
+fr,25,C1,"Винятки: mille [mil], ville [vil], tranquille [tʁɑ̃kil]"
+fr,26,C2,
+fr,27,C2,
+fr,28,C2,
+fr,29,C2,
+fr,30,C2,
+de,1,A1,
+de,2,A1,
+de,3,A1,
+de,4,A1,
+de,5,A1,
+de,6,A2,"Подвоєна голосна або голосна + H читається довго: aa [aː], ee [eː], oo [oː], ie [iː]; голосна+H → довга: Bahn [baːn]"
+de,7,A2,"Умлаути: Ä [ɛ], Ö [øː], Ü [yː] — змінюють звучання базових голосних"
+de,8,A2,
+de,9,A2,"EI та AI читаються як [aɪ]: ein [aɪn], Mai [maɪ]"
+de,10,A2,"AU читається як [aʊ]: aus [aʊs], Haus [haʊs]"
+de,11,B1,"EU та ÄU читаються як [ɔɪ]: neu [nɔɪ], Häuser [hɔɪzəʁ]"
+de,12,B1,
+de,13,B1,
+de,14,B1,
+de,15,B1,"ß читається як [s] після довгої голосної або дифтонга: Straße [ʃtʁaːsə], heißen [haɪsən]"
+de,16,B2,
+de,17,B2,
+de,18,B2,
+de,19,B2,
+de,20,B2,
+de,21,C1,"Голосна + R: ar [aːʁ], er [eːʁ], ir [iːʁ], or [oːʁ], ur [uːʁ]"
+de,22,C1,
+de,23,C1,
+de,24,C1,
+de,25,C1,
+de,26,C2,
+de,27,C2,
+de,28,C2,
+de,29,C2,
+de,30,C2,
+pt,1,A1,
+pt,2,A1,
+pt,3,A1,
+pt,4,A1,
+pt,5,A1,
+pt,6,A2,"Á читається як [a]: está [ɨʃta], pá [pa], lá [la]"
+pt,7,A2,"ã читається як [ɐ̃]: irmã [iʁmɐ̃], maçã [masɐ̃], manhã [mɐɲɐ̃]"
+pt,8,A2,
+pt,9,A2,
+pt,10,A2,"x на початку слова та після ai/ei читається як [ʃ]: xícara [ʃikaɾɐ], baixo [bajʃu]"
+pt,11,B1,
+pt,12,B1,
+pt,13,B1,
+pt,14,B1,
+pt,15,B1,"ai читається як [aj]: pai [paj], mais [majʃ], caixa [kajʃɐ], baixo [bajʃu]"
+pt,16,B2,"au читається як [aw]: mau [maw], pau [paw], causa [kawzɐ], auto [awtu]"
+pt,17,B2,
+pt,18,B2,"H завжди мовчить: hora [oɾɐ], homem [omẽ], hoje [oʒɨ], há [a]"
+pt,19,B2,
+pt,20,B2,
+pt,21,C1,
+pt,22,C1,
+pt,23,C1,
+pt,24,C1,
+pt,25,C1,
+pt,26,C2,
+pt,27,C2,
+pt,28,C2,
+pt,29,C2,
+pt,30,C2,
+it,1,A1,
+it,2,A1,
+it,3,A1,
+it,4,A1,
+it,5,A1,
+it,6,A2,"E закрита [e]: mela [ˈmela], sera [ˈsera]; E відкрита [ɛ]: bello [ˈbɛllo], festa [ˈfɛsta]; O закрита [o]: sole [ˈsole]; O відкрита [ɔ]: cosa [ˈkɔza], porta [ˈpɔrta]"
+it,7,A2,"C перед A/O/U → [k]: casa [ˈkaza], come [ˈkome]; C перед E/I → [tʃ]: cena [ˈtʃena], città [tʃitˈta]; CC перед E/I → [ttʃ]: accento [atˈtʃento]"
+it,8,A2,"G перед A/O/U → [g]: gatto [ˈgatto], gola [ˈgola]; G перед E/I → [dʒ]: gente [ˈdʒente], giro [ˈdʒiro]; GG перед E/I → [ddʒ]: oggi [ˈoddʒi]"
+it,9,A2,
+it,10,A2,
+it,11,B1,
+it,12,B1,"Подвоєні приголосні подовжують звук — обидва приголосні вимовляються: fatto [ˈfatto], bello [ˈbɛllo], anno [ˈanno]"
+it,13,B1,"Z → [ts]: zero [ˈtsɛro], pizza [ˈpittsa], grazie [ˈgrattsjɛ]; Z → [dz]: zona [ˈdzona], zoo [ˈdzɔɔ], zio [ˈdzio]"
+it,14,B1,
+it,15,B1,
+it,16,B2,"Знак наголосу → наголошений кінцевий склад: città [tʃitˈta], caffè [kafˈfɛ], perché [perˈke]; Без знака — зазвичай наголос на передостанньому складі: casa [ˈkaza]"
+it,17,B2,"R [r] (одиночний, злегка вібруючий): caro [ˈkaro], sera [ˈsera]; RR [rr] (сильно вібруючий): carro [ˈkarro], terra [ˈtɛrra]"
+it,18,B2,"S → [s] (на початку слова або перед глухим): sale [ˈsale], pasta [ˈpasta]; S → [z] (між голосними): casa [ˈkaza], rosa [ˈrɔza]; S після приголосного → [s]: borsa [ˈborsa]"
+it,19,B2,Іноземні літери: J [j/dʒ]: jeans [dʒins]; K [k]: km; W [v/w]: web [wɛb]; X [ks]: taxi [ˈtaksi]; Y [j/i]: yoga [ˈjɔga]
+it,20,B2,
+it,21,C1,
+it,22,C1,
+it,23,C1,
+it,24,C1,
+it,25,C1,
+it,26,C2,
+it,27,C2,
+it,28,C2,
+it,29,C2,
+it,30,C2,
+pl,1,A1,
+pl,2,A1,
+pl,3,A1,
+pl,4,A1,
+pl,5,A1,
+pl,6,A2,"Ą читається як носовий [ɔ̃]; перед b/p → [ɔm]: ząb [zɔmp], trąba [ˈtrɔmba]; перед d/t/dz/c → [ɔn]: kąt [kɔnt]"
+pl,7,A2,"Ó звучить ідентично до U: mór [mur], pół [puw], córka [ˈtsurka]"
+pl,8,A2,"Ź — м'який [ʑ]; Ż — твердий [ʐ] (як RZ); Ś — м'який [ɕ]; Ź vs Ż: Ź м'який, Ż твердий"
+pl,9,A2,Ć читається як [tɕ]; DŹ — [dʑ]; Ń — [ɲ] (назалізований)
+pl,10,A2,"Ł читається як англійський [w]: łódź [wutɕ], stół [stuw], biały [ˈbjawɨ]"
+pl,11,B1,
+pl,12,B1,
+pl,13,B1,
+pl,14,B1,"Приголосні перед I пом'якшуються: bi [bʲi], di [dʲi], mi [mʲi], ni [ɲi], si [ɕi], zi [ʑi]"
+pl,15,B1,"CI, DZI, NI, SI, ZI перед голосною пом'якшують приголосний: ciało [ˈtɕawɔ], nie [ɲɛ]"
+pl,16,B2,
+pl,17,B2,
+pl,18,B2,"H і CH вимовляються однаково як [x]: herb [xɛrp], chleb [xlɛp]"
+pl,19,B2,
+pl,20,B2,
+pl,21,C1,
+pl,22,C1,
+pl,23,C1,
+pl,24,C1,
+pl,25,C1,
+pl,26,C2,
+pl,27,C2,
+pl,28,C2,
+pl,29,C2,"Наголос майже завжди на передостанній склад: mama [ˈmama], komputer [kɔmˈputɛr]"
+pl,30,C2,
+ru,1,A1,"Гласные буквы: А [a], О [o], У [u], Э [ɛ], И [i], Ы [ɨ]"
+ru,2,A1,
+ru,3,A1,
+ru,4,A1,
+ru,5,A1,
+ru,6,A2,"Йотовані голосні: Я, Ё, Ю, Е читаються як [ja/a], [jo/o], [ju/u], [je/e] залежно від позиції (на початку слова/після голосної — йотована; після м'якого приголосного — проста)"
+ru,7,A2,Шиплячі та африкати: Ж [ʐ] — завжди твердий; Ш [ʃ] — завжди твердий; Щ [ɕː] — завжди м'який; Ч [tɕ] — завжди м'який; Ц [ts] — завжди твердий
+ru,8,A2,"Ь (м'який знак) — пом'якшує попередній приголосний, сам не читається. Ъ (твердий знак) — розділяє префікс та йотований голосний, сам не читається"
+ru,9,A2,Редукція голосних (аканье): О в ненаголошеному складі → [ɐ] або [ə]; А ненаголошене → [ɐ]; Е/Я ненаголошене → [ɪ]
+ru,10,A2,"Пом'якшення приголосних перед Е/І/Я/Ё/Ю/Ь: більшість приголосних пом'якшуються. Виняток: Ж, Ш, Ц залишаються твердими навіть перед И/Е"
+ru,11,B1,"Оглушення приголосних в кінці слова: б→[p], в→[f], г→[k], д→[t], з→[s], ж→[ʃ]"
+ru,12,B1,"Спрощення груп приголосних: стн→[sn], здн→[zn], стл→[sl], лнц→[nts]"
+ru,13,B1,Буква Г: у закінченнях -ого/-його → [v]; у словах Бог/Господь → [x]; в усіх інших позиціях → [g]
+ru,14,B1,Орфографічні правила: жи/ши пишуться з И (вимовляються [ɨ]); ча/ща пишуться з А; чу/щу пишуться з У
+ru,15,B1,Префікси та суфікси: без-/бес- [bʲɪz/bʲɪs]; під-/пот- [pɐd/pɐt]; -ість [-əsʲtʲ]; -ення [-ʲenʲɪje]
+ru,16,B2,
+ru,17,B2,
+ru,18,B2,
+ru,19,B2,
+ru,20,B2,
+ru,21,C1,
+ru,22,C1,
+ru,23,C1,
+ru,24,C1,
+ru,25,C1,
+ru,26,C2,
+ru,27,C2,"Правила читання жи/ши/ци: жи → [ʐɨ]; ши → [ʃɨ]; ци → [tsɨ] (Ж, Ш, Ц — завжди тверді)"
+ru,28,C2,"М'які та тверді пари приголосних: більшість приголосних мають м'яку пару (перед ь/е/і/я/ё/ю). Приклади: брат/братья, кон/конь, мол/моль"
+ru,29,C2,
+ru,30,C2,
+ja,1,A1,"Hiragana (平仮名) — syllabic script; each character = one mora. Vowels あ行: あ [a], い [i], う [ɯ/u], え [e], お [o] — short, pure vowels."
+ja,2,A1,"か行 (KA row): consonant + vowel syllables. Words: かき [kaki], きく [kiku], こえ [koe], かお [kao]."
+ja,3,A1,
+ja,4,A1,
+ja,5,A1,
+ja,6,A2,"は行 (HA row): は [ha], ひ [hi], ふ [ɸɯ/fu], へ [he], ほ [ho]. Particle exception: は as topic marker reads [wa]; へ as direction marker reads [e]."
+ja,7,A2,
+ja,8,A2,
+ja,9,A2,
+ja,10,A2,
+ja,11,B1,拗音 (yoon): small や・ゆ・よ written after a consonant kana form compound syllables — ki+ya=kya [kya]. The small kana is not a separate mora; together they form one syllable.
+ja,12,B1,"長音 (choon): a repeated vowel kana extends the sound by one mora. おう and おお both become [oː]. Examples: おかあさん [okaasan], おとうさん [otousan], とおい [tooi]."
+ja,13,B1,促音 (sokuon) っ: small っ doubles the following consonant — hold/pause for one full mora before releasing. Before K: がっこう [gakkou]; S: ざっし [zasshi]; T: きって [kitte]; P: きっぷ [kippu].
+ja,14,B1,撥音 (hatsuon) ん: assimilates to the following consonant — [m] before m/b/p; [n] before n/t/d; [ŋ] before k/g; syllabic [N] elsewhere or word-finally.
+ja,15,B1,"Katakana (片仮名) — angular script used for foreign loanwords, onomatopoeia, and emphasis. Each character corresponds to the same sound as its hiragana counterpart."
+ja,16,B2,
+ja,17,B2,"Katakana long vowel mark ー (choonpu): extends the preceding vowel by one mora. Used in Katakana instead of repeating a vowel kana. コーヒー [koohii], スーパー [suupaa], ケーキ [keeki]."
+ja,18,B2,"Foreign sounds in Katakana: combinations not native to Japanese — ファ [fa], フィ [fi], フォ [fo], ウィ [wi], ヴァ [va], ティ [ti], ディ [di]. Used to approximate loanword pronunciations."
+ja,19,B2,
+ja,20,B2,
+ja,21,C1,
+ja,22,C1,
+ja,23,C1,
+ja,24,C1,"Kanji have two reading types: ON-yomi (音読み) — Chinese-derived, used in compounds; KUN-yomi (訓読み) — native Japanese, used standalone or in native compounds. Same kanji, different readings by context."
+ja,25,C1,"Japanese grammatical particles: は [wa] topic, が [ga] subject, を [o] object, に [ni] direction/time, で [de] location/means, へ [e] direction. Note: は and へ read differently than their normal hiragana values when used as particles."
+ja,26,C2,
+ja,27,C2,
+ja,28,C2,"Japanese pitch accent: words are distinguished by pitch pattern, not stress. Tokyo dialect: most words start LOW then go HIGH. The same pronunciation can mean different things with different pitch."
+ja,29,C2,
+ja,30,C2,
+zh,1,A1,"Pinyin tones: Mandarin has 4 tones + 1 neutral tone. Tone marks: ā (1st, high level), á (2nd, rising), ǎ (3rd, dip-rise), à (4th, falling), a (neutral, short/light). Examples: mā 妈 [ma˥˥] mother, má 麻 [ma˧˥] hemp, mǎ 马 [ma˨˩˦] horse, mà 骂 [ma˥˩] scold, ma 吗 [ma] question particle."
+zh,2,A1,"Pinyin simple finals (单韵母): a [a], o [o], e [ɤ/ə], i [i], u [u], ü [y]. These are the six basic vowel finals in Mandarin pinyin."
+zh,3,A1,"Pinyin initials — labials & dentals: b [p], p [pʰ], m [m], f [f]; d [t], t [tʰ], n [n], l [l]. Note: b/d/g are unaspirated, not voiced as in English. Words: bā 八 [pa˥˥], pá 爬 [pʰa˧˥], māo 猫 [mao˥˥], fā 发 [fa˥˥], dà 大 [ta˥˩], tā 他 [tʰa˥˥], nǎ 哪 [na˨˩˦], lái 来 [lai˧˥]."
+zh,4,A1,"Pinyin initials — velars & palatals: g [k], k [kʰ], h [x]; j [tɕ], q [tɕʰ], x [ɕ]. j/q/x only appear before i and ü. Words: gǒu 狗 [kou˨˩˦], kāi 开 [kʰai˥˥], hǎo 好 [xao˨˩˦], jiā 家 [tɕia˥˥], qù 去 [tɕʰy˥˩], xiǎo 小 [ɕiao˨˩˦]."
+zh,5,A1,"Pinyin initials — retroflexes & sibilants: zh [tʂ], ch [tʂʰ], sh [ʂ], r [ɻ] (tongue curled back); z [ts], c [tsʰ], s [s] (tongue flat). Words: zhōng 中 [tʂoŋ˥˥], chī 吃 [tʂʰɻ˥˥], shū 书 [ʂu˥˥], rén 人 [ɻən˧˥], zǒu 走 [tsou˨˩˦], cài 菜 [tsʰai˥˩], sān 三 [san˥˥]."
+zh,6,A2,"Compound finals with A: ai [ai], ao [au], an [an], ang [aŋ]. The a is always pronounced clearly and fully. Phrases: māo [mao] 猫 cat, hǎo [xao] 好 good, nán [nan] 南 south, máng [maŋ] 忙 busy."
+zh,7,A2,"Compound finals with O/E: ou [ou], ong [oŋ], en [ən], eng [əŋ], er [ɚ]. The er final is special — it's a rhotacized vowel unique to Mandarin. Words: óu 欧 [ou˧˥], tóng 同 [tʰoŋ˧˥], mén 门 [mən˧˥], féng 缝 [fəŋ˧˥], ér 儿 [ɚ˧˥]."
+zh,8,A2,"Finals with I (i-group): ia [ia], ie [iɛ], iao [iau], iou [iou], ian [iɛn], iang [iaŋ], in [in], ing [iŋ], iong [ioŋ]. When used without an initial, i → y (ya, ye, yao, you, yan, yang, yin, ying, yong). Words: jiā 家 [tɕia˥˥], jiě 姐 [tɕiɛ˨˩˦], xiǎo 小 [ɕiau˨˩˦], niú 牛 [niou˧˥], tiān 天 [tʰiɛn˥˥], liǎng 两 [liaŋ˨˩˦], xīn 心 [ɕin˥˥], míng 明 [miŋ˧˥]."
+zh,9,A2,"Finals with U (u-group): ua [ua], uo [uo], uai [uai], uei [uei], uan [uan], uang [uaŋ], un [uən], ueng [uəŋ]. When used without initial, u → w (wa, wo, wai, wei, wan, wang, wen, weng). Words: huā 花 [xua˥˥], duō 多 [tuo˥˥], kuài 快 [kʰuai˥˩], guī 贵 [kuei˥˩], tuán 团 [tʰuan˧˥], wáng 王 [uaŋ˧˥], lùn 论 [luən˥˩]."
+zh,10,A2,"Finals with Ü (ü-group): üe [yɛ], üan [yɛn], ün [yn]. After j/q/x/y, ü is written as u (the two dots are omitted): ju [tɕy], qu [tɕʰy], xu [ɕy], yu [y]. Words: xuě 雪 [ɕyɛ˨˩˦], yuǎn 远 [yɛn˨˩˦], yún 云 [yn˧˥], jù 句 [tɕy˥˩], qún 裙 [tɕʰyn˧˥]."
+zh,11,B1,"Tone sandhi rules: (1) Two 3rd tones in sequence: the first changes to 2nd tone: nǐ hǎo → ní hǎo [ni˧˥ xao˨˩˦]. (2) 一 yī: before 4th tone → yí [˧˥]; before 1st/2nd/3rd → yì [˥˩]. (3) 不 bù: before 4th tone → bú [˧˥]. Examples: nǐ hǎo → ní hǎo, yígè [i˧˥ kɤ˥˩], bú qù [pu˧˥ tɕʰy˥˩]."
+zh,12,B1,"Special pronunciations: (1) zh/ch/sh/r + i → special apical vowel [ɻ]: zhī [tʂɻ˥˥], chī [tʂʰɻ˥˥], shī [ʂɻ˥˥], rì [ɻɻ˥˩]. (2) z/c/s + i → special dental vowel [z̩]: zī [tsz̩˥˥], cí [tsʰz̩˧˥], sì [sz̩˥˩]. (3) y + u = yu [y]; w + u = wu [u]."
+zh,13,B1,"Basic radicals (部首): Chinese characters are built from radicals — components that hint at meaning. Learning key radicals helps decode new characters. 口 mouth, 人 person, 手 hand, 水 water, 火 fire, 木 wood, 土 earth, 金 gold/metal, 日 sun, 月 moon."
+zh,14,B1,
+zh,15,B1,
+zh,16,B2,
+zh,17,B2,
+zh,18,B2,
+zh,19,B2,
+zh,20,B2,"Chinese sentence structure: Subject–Verb–Object (SVO). Negation: 不 bù before verb. Yes/no questions: add 吗 ma at end. Follow-up: 呢 ne for 'and you?'. Examples: 我吃饭 [uo˨˩˦ tʂʰɻ˥˥ fan˥˩], 我不吃饭 [uo˨˩˦ pu˥˩ tʂʰɻ˥˥ fan˥˩], 你吃饭吗？, 你呢？"
+zh,21,C1,"Measure words (量词): Chinese requires a classifier between a number and noun. Common classifiers: 个 gè (general), 本 běn (books), 张 zhāng (flat things), 条 tiáo (long/thin), 只 zhī (animals), 杯 bēi (cups). Examples: 一个人 [yīgè rén], 一本书 [yīběn shū], 一张纸 [yīzhāng zhǐ]."
+zh,22,C1,
+zh,23,C1,
+zh,24,C1,
+zh,25,C1,"Aspect particles: 了 le marks completed action, 过 guò marks past experience, 着 zhe marks ongoing state. These attach after verbs and are toneless or light-toned in context. Examples: 我吃了饭 [uo˨˩˦ tʂʰɻ˥˥ lə fan˥˩], 我去过北京 [uo˨˩˦ tɕʰy˥˩ kuo˥˩ pei˨˩˦ tɕiŋ˥˥], 他穿着红衣服 [tʰa˥˥ tʂʰuan˥˥ tʂɤ˥˩ xoŋ˧˥ i˥˥ fu]."
+zh,26,C2,"Tone mark placement rules: (1) If a or e is present, the mark goes on a or e: māo [mao˥˥], hé [xɤ˧˥]. (2) If ou is present, the mark goes on o: gǒu [kou˨˩˦]. (3) Otherwise, the mark goes on the last vowel: guī [kuei˥˩], liú [liou˧˥]. Examples: xiǎo [ɕiau˨˩˦], duì [tuei˥˩], tīng [tʰiŋ˥˥], wén [uən˧˥]."
+zh,27,C2,"Erhua (儿化): Beijing/northern Mandarin feature where 儿 [r] suffix is added to words, causing the final vowel to become rhotacized. Written as 儿 but pronounced as a suffix. Examples: 这儿 [tʂɤ˥˩r] here, 那儿 [na˥˩r] there, 哪儿 [na˨˩˦r] where, 一点儿 [i˥˥ tiɛn˨˩˦r] a little, 玩儿 [uan˧˥r] play."
+zh,28,C2,
+zh,29,C2,
+zh,30,C2,

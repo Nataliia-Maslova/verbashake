@@ -310,6 +310,17 @@ def main() -> None:
             _launch_unit(unit, user, native, target)
 
     if utype == "grammar":
+        easier = _recommender.grammar_neighbor(target, lid, -1)
+        harder = _recommender.grammar_neighbor(target, lid, +1)
+        ec, hc = st.columns(2)
+        with ec:
+            if st.button("⬅ Easier", disabled=easier is None,
+                         use_container_width=True, key="path_easier"):
+                _launch_unit(easier, user, native, target)
+        with hc:
+            if st.button("Try harder ➡", disabled=harder is None,
+                         use_container_width=True, key="path_harder"):
+                _launch_unit(harder, user, native, target)
         _render_topic_explanation(unit, native, target)
 
     # ── Upcoming lessons ─────────────────────────────────────────────────────
