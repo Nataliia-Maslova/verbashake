@@ -3144,6 +3144,115 @@ def _init_adaptive_session(sess) -> None:
         "_adaptive_mode":      "cold_start",
         "_adaptive_lesson_id": sess.state.lesson_id,
     })
+
+
+def _render_step_nav_inline(cur_step: int) -> None:
+    """
+    Step progress + Previous/Repeat/Jump-to-step, rendered in the lesson
+    content itself instead of the sidebar (design review, 2026-08-27,
+    Natalia: the sidebar was overloaded -- this is exactly the part meant to
+    move to "where New Material/Reading actually trains, step by step").
+    Called from main()'s Phase 2 dispatch, right after the current step's
+    own content renders. Same session_state keys and logic the old sidebar
+    block used (_adaptive_steps/_adaptive_idx from _init_adaptive_session,
+    REQUIRED_STEPS lock icons) -- only where it renders changed.
+    """
+    _adp_steps = st.session_state.get("_adaptive_steps", list(range(1, 9)))
+    _adp_idx   = st.session_state.get("_adaptive_idx", cur_step - 1)
+    _adp_total = len(_adp_steps)
+    _adp_pos   = _adp_idx + 1
+    step_pct   = round(_adp_idx / max(_adp_total, 1) * 100, 0)
+    _adp_mode  = st.session_state.get("_adaptive_mode", "cold_start")
+    _adp_badge = (
+        ' <span style="background:#1a3a1a;color:#34d0a0;font-size:.62rem;'
+        'padding:1px 6px;border-radius:10px;font-family:\'JetBrains Mono\',monospace;'
+        'vertical-align:middle">adaptive</span>'
+        if _adp_mode == "adaptive" else ""
+    )
+    st.markdown(
+        f'<div class="progress-info">'
+        f'<span>Step {_adp_pos} / {_adp_total}{_adp_badge}</span>'
+        f'<span>{"🔒" if cur_step in REQUIRED_STEPS else ""}</span></div>'
+        f'<div class="progress-bar-wrap">'
+        f'<div class="progress-bar-fill" style="width:{step_pct}%;background:linear-gradient(90deg, var(--mova-mint), #34D0A0)"></div></div>',
+        unsafe_allow_html=True
+    )
+
+    with st.expander("Step navigation", expanded=False):
+        nav_c1, nav_c2 = st.columns(2)
+        with nav_c1:
+            _adp_idx_nav  = st.session_state.get("_adaptive_idx", 0)
+            back_disabled = _adp_idx_nav <= 0
+            if st.button("← Previous", disabled=back_disabled,
+                         use_container_width=True, key="nav_back",
+                         help="Go to the previous step"):
+                _clear_lesson()
+                _prev_idx = max(0, _adp_idx_nav - 1)
+                _prev_seq = st.session_state.get("_adaptive_steps", list(range(1, 9)))
+                st.session_state["_adaptive_idx"] = _prev_idx
+                st.session_state["lesson_step"]   = _prev_seq[_prev_idx]
+                st.rerun()
+        with nav_c2:
+            if st.button("🔄 Repeat", use_container_width=True,
+                         key="nav_repeat",
+                         help="Restart the current step"):
+                _clear_lesson()
+                # lesson_step stays the same, but per-step state is wiped
+                st.rerun()
+
+        # Quick-jump dropdown — all 8 steps always visible;
+        # steps skipped by adaptive are marked "(+ optional)"
+        _adp_seq_nav  = st.session_state.get("_adaptive_steps", list(range(1, 9)))
+        _adp_idx_jump = st.session_state.get("_adaptive_idx", 0)
+        # Deduplicate adaptive seq (EXTRA_REPEAT may repeat step 2)
+        _seen_j: set = set()
+        _adp_unique = [s for s in _adp_seq_nav
+                       if not (s in _seen_j or _seen_j.add(s))]  # type: ignore
+        # Always offer all 8 steps; skipped ones go at end with "(+ optional)" label
+        _all_8 = list(range(1, 9))
+        _optional_steps = [s for s in _all_8 if s not in _adp_unique]
+        _full_options = _adp_unique + _optional_steps
+
+        def _step_label(s):
+            base = f"Step {s}"
+            if s in REQUIRED_STEPS:
+                base += " \U0001f512"
+            if s in _optional_steps:
+                base += "  (+ optional)"
+            return base
+
+        jump_default = min(_adp_idx_jump, len(_full_options) - 1)
+        jump_to = st.selectbox(
+            "Jump to step",
+            options=_full_options,
+            index=jump_default,
+            format_func=_step_label,
+            key="nav_jump",
+        )
+        if jump_to != cur_step:
+            if st.button(f"Go to Step {jump_to}",
+                         use_container_width=True,
+                         key="nav_go"):
+                _clear_lesson()
+                if jump_to in _adp_seq_nav:
+                    # Step is in adaptive sequence -- use its index normally
+                    _new_idx = _adp_seq_nav.index(jump_to)
+                    st.session_state["_adaptive_idx"] = _new_idx
+                else:
+                    # Optional step (skipped by adaptive) -- insert it after
+                    # current position so adaptive flow continues after it
+                    _cur_pos = st.session_state.get("_adaptive_idx", 0)
+                    _new_seq = (
+                        _adp_seq_nav[:_cur_pos] +
+                        [jump_to] +
+                        _adp_seq_nav[_cur_pos:]
+                    )
+                    st.session_state["_adaptive_steps"] = _new_seq
+                    st.session_state["_adaptive_idx"]   = _cur_pos
+                st.session_state["lesson_step"] = jump_to
+                st.rerun()
+
+
 def main(module: str = "grammar"):
     """Entry point. `module` may be "grammar" or "vocab"."""
     # Remember the chosen module for downstream functions
@@ -3192,6 +3301,19 @@ def main(module: str = "grammar"):
                 st.session_state["launcher_target"] = _t
                 st.query_params["module"] = _mod_key
                 st.rerun()
+
+        # Main menu moved up here, right after module choice (design review,
+        # 2026-08-27, Natalia: sidebar was overloaded -- "keep the start,
+        # module choice, then main menu" was her literal order). Everything
+        # below (path progress, jump-to-lesson) stays in the sidebar too --
+        # not asked to remove, just no longer sits between module choice and
+        # this button. Step navigation specifically moved into the lesson
+        # content itself (_render_step_nav_inline below), not just reordered.
+        _sb_native_top = st.session_state.get("launcher_native", "English")
+        if st.button(i18n.get(_sb_native_top, "main_menu"), use_container_width=True,
+                     key="sb_home_top"):
+            _clear_all()
+            st.rerun()
 
         st.markdown("---")
         st.markdown(f"**{cfg['icon']} {cfg['label']}**")
@@ -3261,104 +3383,14 @@ def main(module: str = "grammar"):
                 f'</div>',
                 unsafe_allow_html=True
             )
-            _adp_steps = st.session_state.get("_adaptive_steps", list(range(1, 9)))
-            _adp_idx   = st.session_state.get("_adaptive_idx", cur_step - 1)
-            _adp_total = len(_adp_steps)
-            _adp_pos   = _adp_idx + 1
-            step_pct   = round(_adp_idx / max(_adp_total, 1) * 100, 0)
-            _adp_mode  = st.session_state.get("_adaptive_mode", "cold_start")
-            _adp_badge = (
-                ' <span style="background:#1a3a1a;color:#34d0a0;font-size:.62rem;'
-                'padding:1px 6px;border-radius:10px;font-family:\'JetBrains Mono\',monospace;'
-                'vertical-align:middle">adaptive</span>'
-                if _adp_mode == "adaptive" else ""
-            )
-            st.markdown(
-                f'<div class="progress-info">'
-                f'<span>Step {_adp_pos} / {_adp_total}{_adp_badge}</span>'
-                f'<span>{"🔒" if cur_step in REQUIRED_STEPS else ""}</span></div>'
-                f'<div class="progress-bar-wrap">'
-                f'<div class="progress-bar-fill" style="width:{step_pct}%;background:linear-gradient(90deg, var(--mova-mint), #34D0A0)"></div></div>',
-                unsafe_allow_html=True
-            )
-            st.caption(f"`{state.language_pair}`")
-
-            # Step navigation — back / repeat
-            st.markdown("---")
-            st.caption("Step navigation")
-            nav_c1, nav_c2 = st.columns(2)
-            with nav_c1:
-                _adp_idx_nav  = st.session_state.get("_adaptive_idx", 0)
-                back_disabled = _adp_idx_nav <= 0
-                if st.button("← Previous", disabled=back_disabled,
-                             use_container_width=True, key="nav_back",
-                             help="Go to the previous step"):
-                    _clear_lesson()
-                    _prev_idx = max(0, _adp_idx_nav - 1)
-                    _prev_seq = st.session_state.get("_adaptive_steps", list(range(1, 9)))
-                    st.session_state["_adaptive_idx"] = _prev_idx
-                    st.session_state["lesson_step"]   = _prev_seq[_prev_idx]
-                    st.rerun()
-            with nav_c2:
-                if st.button("🔄 Repeat", use_container_width=True,
-                             key="nav_repeat",
-                             help="Restart the current step"):
-                    _clear_lesson()
-                    # lesson_step stays the same, but per-step state is wiped
-                    st.rerun()
-
-            # Quick-jump dropdown — all 8 steps always visible;
-            # steps skipped by adaptive are marked "(+ optional)"
-            _adp_seq_nav  = st.session_state.get("_adaptive_steps", list(range(1, 9)))
-            _adp_idx_jump = st.session_state.get("_adaptive_idx", 0)
-            # Deduplicate adaptive seq (EXTRA_REPEAT may repeat step 2)
-            _seen_j: set = set()
-            _adp_unique = [s for s in _adp_seq_nav
-                           if not (s in _seen_j or _seen_j.add(s))]  # type: ignore
-            # Always offer all 8 steps; skipped ones go at end with "(+ optional)" label
-            _all_8 = list(range(1, 9))
-            _optional_steps = [s for s in _all_8 if s not in _adp_unique]
-            _full_options = _adp_unique + _optional_steps
-
-            def _step_label(s):
-                base = f"Step {s}"
-                if s in REQUIRED_STEPS:
-                    base += " \U0001f512"
-                if s in _optional_steps:
-                    base += "  (+ optional)"
-                return base
-
-            jump_default = min(_adp_idx_jump, len(_full_options) - 1)
-            jump_to = st.selectbox(
-                "Jump to step",
-                options=_full_options,
-                index=jump_default,
-                format_func=_step_label,
-                key="nav_jump",
-            )
-            if jump_to != cur_step:
-                if st.button(f"Go to Step {jump_to}",
-                             use_container_width=True,
-                             key="nav_go"):
-                    _clear_lesson()
-                    if jump_to in _adp_seq_nav:
-                        # Step is in adaptive sequence -- use its index normally
-                        _new_idx = _adp_seq_nav.index(jump_to)
-                        st.session_state["_adaptive_idx"] = _new_idx
-                    else:
-                        # Optional step (skipped by adaptive) -- insert it after
-                        # current position so adaptive flow continues after it
-                        _cur_pos = st.session_state.get("_adaptive_idx", 0)
-                        _new_seq = (
-                            _adp_seq_nav[:_cur_pos] +
-                            [jump_to] +
-                            _adp_seq_nav[_cur_pos:]
-                        )
-                        st.session_state["_adaptive_steps"] = _new_seq
-                        st.session_state["_adaptive_idx"]   = _cur_pos
-                    st.session_state["lesson_step"] = jump_to
-                    st.rerun()
-
+            # Step progress + Previous/Repeat/Jump-to-step now render inline in
+            # the lesson content itself (_render_step_nav_inline, called from
+            # main()'s Phase 2 dispatch) -- design review, 2026-08-27: the
+            # sidebar had grown to path progress + step progress + a raw debug
+            # caption (`{state.language_pair}`, an internal cache key, never
+            # meant to be user-facing -- dropped outright, not moved) + step
+            # nav + jump-to-lesson, all stacked before the student ever saw
+            # the lesson itself on a narrow phone.
 
             # -- Jump to lesson ----------------------------------------------------
             if module != "custom":
@@ -3412,13 +3444,6 @@ def main(module: str = "grammar"):
                             st.rerun()
                 except Exception:
                     pass
-
-            st.markdown("---")
-            _sb_native = st.session_state.get("launcher_native", "English")
-            _mm_label  = i18n.get(_sb_native, "main_menu")
-            if st.button(_mm_label, use_container_width=True, key="sb_home"):
-                _clear_all()
-                st.rerun()
 
     if "lesson_step" not in st.session_state:
         if module == "custom":
@@ -3498,6 +3523,7 @@ def main(module: str = "grammar"):
         fn = STEPS.get(step)
         if fn:
             done = fn(sess, tts, wh)
+            _render_step_nav_inline(step)
             if done:
                 try:
                     _sim  = float(st.session_state.get("_last_similarity", 0.0))

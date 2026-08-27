@@ -1810,6 +1810,60 @@ header [data-testid="stDecoration"]{display:none;}
 """, unsafe_allow_html=True)
 
 
+def _render_step_nav_inline(step: int) -> None:
+    """
+    Step progress + Previous/Repeat/Jump-to-step, rendered in the lesson
+    content itself instead of the sidebar (design review, 2026-08-27,
+    Natalia; same change made in grammar.py's sidebar). Called from main()'s
+    step dispatch, right after the current step's own content renders.
+    """
+    step_pct = round((step - 1) / 5 * 100, 0)
+    st.markdown(
+        f'<div style="display:flex;justify-content:space-between;'
+        f'font-family:\'JetBrains Mono\',monospace;font-size:.72rem;'
+        f'color:var(--mova-ink-3);margin-bottom:2px">'
+        f'<span>{_ui("step_word")} {step} / 5 — {_r_steps().get(step,"")}</span>'
+        f'<span>{"🔒" if step in REQUIRED else ""}</span></div>'
+        f'<div style="background:var(--mova-card);border-radius:6px;height:6px;overflow:hidden">'
+        f'<div style="height:6px;background:linear-gradient(90deg, var(--mova-mint), #34D0A0);'
+        f'width:{step_pct}%"></div></div>',
+        unsafe_allow_html=True,
+    )
+
+    with st.expander(_ui("nav_title"), expanded=False):
+        nav_c1, nav_c2 = st.columns(2)
+        with nav_c1:
+            back_disabled = step <= 1
+            if st.button(_ui("nav_prev"), disabled=back_disabled,
+                         use_container_width=True, key="r_nav_back",
+                         help=_ui("nav_prev_help")):
+                clear_step_state()
+                st.session_state["r_step"] = max(1, step - 1)
+                st.rerun()
+        with nav_c2:
+            if st.button(_ui("nav_repeat"), use_container_width=True,
+                         key="r_nav_repeat",
+                         help=_ui("nav_repeat_help")):
+                clear_step_state()
+                st.rerun()
+
+        jump_default = min(max(step, 1), 5) - 1
+        _sw = _ui("step_word")
+        jump_to = st.selectbox(
+            _ui("go_to_step"),
+            options=list(range(1, 6)),
+            index=jump_default,
+            format_func=lambda s: f"{_sw} {s}" + (" 🔒" if s in REQUIRED else ""),
+            key="r_nav_jump",
+        )
+        if jump_to != step:
+            if st.button(f"{_ui('go_to_step')} {jump_to}",
+                         use_container_width=True, key="r_nav_go"):
+                clear_step_state()
+                st.session_state["r_step"] = jump_to
+                st.rerun()
+
+
 def main():
     _inject_css()
     if not DB_PATH.exists():
@@ -1846,6 +1900,17 @@ def main():
         _render_module_nav_sidebar("reading")
         if GAMI_OK:
             _gami_sidebar(cur_user)
+
+        # Main menu moved up here, right after module choice (design review,
+        # 2026-08-27, Natalia: sidebar was overloaded -- "keep the start,
+        # module choice, then main menu" was her literal order, same change
+        # made in grammar.py's sidebar). Step navigation specifically moved
+        # into the lesson content itself (_render_step_nav_inline below).
+        if st.button(_ui("main_menu"), use_container_width=True, key="r_sb_home_top"):
+            clear_all()
+            st.rerun()
+        st.markdown("---")
+
         st.markdown("**🔤 Reading**")
         all_l    = sorted(df["lesson_id"].unique())
         lid      = st.session_state.get("r_lesson", 1)
@@ -1875,54 +1940,10 @@ def main():
             unsafe_allow_html=True,
         )
 
-        # Step indicator
-        step_pct = round((step - 1) / 5 * 100, 0)
-        st.markdown(
-            f'<div style="display:flex;justify-content:space-between;'
-            f'font-family:\'JetBrains Mono\',monospace;font-size:.72rem;'
-            f'color:var(--mova-ink-3);margin-bottom:2px">'
-            f'<span>{_ui("step_word")} {step} / 5 — {_r_steps().get(step,"")}</span>'
-            f'<span>{"🔒" if step in REQUIRED else ""}</span></div>'
-            f'<div style="background:var(--mova-card);border-radius:6px;height:6px;overflow:hidden">'
-            f'<div style="height:6px;background:linear-gradient(90deg, var(--mova-mint), #34D0A0);'
-            f'width:{step_pct}%"></div></div>',
-            unsafe_allow_html=True,
-        )
-
-        # ── Step navigation: Previous / Repeat / Jump ──
-        st.markdown("---")
-        st.caption(_ui("nav_title"))
-        nav_c1, nav_c2 = st.columns(2)
-        with nav_c1:
-            back_disabled = step <= 1
-            if st.button(_ui("nav_prev"), disabled=back_disabled,
-                         use_container_width=True, key="r_nav_back",
-                         help=_ui("nav_prev_help")):
-                clear_step_state()
-                st.session_state["r_step"] = max(1, step - 1)
-                st.rerun()
-        with nav_c2:
-            if st.button(_ui("nav_repeat"), use_container_width=True,
-                         key="r_nav_repeat",
-                         help=_ui("nav_repeat_help")):
-                clear_step_state()
-                st.rerun()
-
-        jump_default = min(max(step, 1), 5) - 1
-        _sw = _ui("step_word")
-        jump_to = st.selectbox(
-            _ui("go_to_step"),
-            options=list(range(1, 6)),
-            index=jump_default,
-            format_func=lambda s: f"{_sw} {s}" + (" 🔒" if s in REQUIRED else ""),
-            key="r_nav_jump",
-        )
-        if jump_to != step:
-            if st.button(f"{_ui('go_to_step')} {jump_to}",
-                         use_container_width=True, key="r_nav_go"):
-                clear_step_state()
-                st.session_state["r_step"] = jump_to
-                st.rerun()
+        # Step indicator + Previous/Repeat/Jump-to-step now render inline in
+        # the lesson content itself (_render_step_nav_inline, called from
+        # the step dispatch below) -- design review, 2026-08-27, Natalia:
+        # sidebar was overloaded, same change made in grammar.py's sidebar.
 
         # ── Jump to lesson ────────────────────────────────────────────────────
         st.caption(_ui("jump_lesson"))
@@ -1950,11 +1971,6 @@ def main():
                 st.session_state.pop("_r_gami_lesson_saved", None)
                 st.session_state.pop("_cached_r_streak", None)
                 st.rerun()
-
-        st.markdown("---")
-        if st.button(_ui("main_menu")):
-            clear_all()
-            st.rerun()
 
     if step > 5:
         # Save progress (idempotent guard)
@@ -2083,6 +2099,8 @@ def main():
             done = do_step5(rows)
         else:
             done = False
+
+        _render_step_nav_inline(step)
 
         if done:
             clear_step_state()
