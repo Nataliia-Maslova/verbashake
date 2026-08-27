@@ -49,6 +49,70 @@ _TYPE_COLOR = {
     "phrasebook": "var(--mova-coral)",
 }
 
+# Single-module shortcuts, swipeable on mobile (design review, 2026-08-27):
+# My Path used to be one of six near-identical cards a learner had to scroll
+# past on the launcher; now My Path IS the landing screen (app.py::render_launcher
+# leads straight here) and picking "just grammar" / "just vocab" happens from
+# here instead, via a horizontal scroll-snap strip -- real touch-swipe on a
+# phone, no JS gesture library needed, plain CSS.
+_SWIPE_MODULES = [
+    ("grammar",    "🗣️", "Grammar"),
+    ("vocab",      "📖", "Vocabulary"),
+    ("phrasebook", "💬", "Phrasebook"),
+    ("reading",    "🔤", "Reading"),
+    ("custom",     "📝", "My Phrases"),
+]
+
+
+def _render_module_swipe_strip() -> None:
+    """
+    Each card is a plain <a href="?swipe_module=..."> -- Streamlit buttons
+    can't be embedded inside custom st.markdown HTML, and a real link is
+    what makes this a genuine browser-level navigation (so touch-swipe/
+    scroll-snap works exactly like any other horizontally scrollable strip
+    on the page, no custom gesture JS). app.py::main() consumes
+    ?swipe_module explicitly (unconditionally, unlike the general
+    ?module sync) since it has to override the "path" session already
+    active here.
+    """
+    cards = "".join(
+        f'<a href="?swipe_module={key}" class="path-swipe-card">'
+        f'<div class="path-swipe-icon">{icon}</div>'
+        f'<div class="path-swipe-label">{label}</div>'
+        f'</a>'
+        for key, icon, label in _SWIPE_MODULES
+    )
+    st.markdown(
+        """
+        <style>
+        .path-swipe-strip{
+            display:flex; gap:10px; overflow-x:auto; scroll-snap-type:x mandatory;
+            padding:2px 2px 16px; -webkit-overflow-scrolling:touch;
+        }
+        .path-swipe-strip::-webkit-scrollbar{ display:none; }
+        a.path-swipe-card, a.path-swipe-card:hover, a.path-swipe-card:visited{
+            /* Streamlit's own stylesheet underlines markdown links via a
+               [data-testid="stMarkdownContainer"] a rule that ties or beats
+               a bare class selector on specificity -- !important + the "a"
+               element in the selector guarantees this wins regardless of
+               injection order (design review, 2026-08-27). */
+            scroll-snap-align:start; flex:0 0 auto; width:92px;
+            background:var(--mova-card); border:1px solid var(--mova-line);
+            border-radius:14px; padding:12px 6px; text-align:center;
+            text-decoration:none !important; transition:border-color .15s;
+            display:block;
+        }
+        a.path-swipe-card:hover{ border-color:var(--mova-indigo); }
+        .path-swipe-icon{ font-size:1.7rem; }
+        .path-swipe-label{
+            color:var(--mova-ink) !important; font-size:.75rem; font-weight:600;
+            margin-top:4px; white-space:nowrap;
+        }
+        </style>
+        """ + f'<div class="path-swipe-strip">{cards}</div>',
+        unsafe_allow_html=True,
+    )
+
 
 # ── Internal helpers ─────────────────────────────────────────────────────────
 
@@ -233,6 +297,9 @@ def main() -> None:
 
     # ── Page header ──────────────────────────────────────────────────────────
     st.markdown("## 🗺️ My Learning Path")
+
+    # ── Swipe to a single module ─────────────────────────────────────────────
+    _render_module_swipe_strip()
 
     # ── Overall progress bar ─────────────────────────────────────────────────
     col1, col2, col3 = st.columns(3)

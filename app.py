@@ -553,6 +553,13 @@ def render_launcher():
         st.session_state["_prefs_saved_target"] = target
         st.session_state["_prefs_is_new_user"]  = False
 
+    # ── Placement quiz — promoted right under language choice (was a hidden
+    # expander below 6 scrolling module cards on mobile; design review,
+    # 2026-08-27) so a new learner sees it before, not after, committing to
+    # a starting point. ─────────────────────────────────────────────────────
+    st.markdown("<div style='margin:18px 0 0'></div>", unsafe_allow_html=True)
+    _render_placement_quiz(native, target, user_id)
+
     # ── Sidebar: streak/XP + account + subscription ──────────────────────────
     with st.sidebar:
         if user_id:
@@ -577,81 +584,65 @@ def render_launcher():
         if st.button("Sign out", use_container_width=True, key="launcher_signout"):
             st.logout()
 
-    st.markdown("<div style='margin:10px 0 18px'></div>", unsafe_allow_html=True)
+    st.markdown("<div style='margin:18px 0 10px'></div>", unsafe_allow_html=True)
 
-    # One column per module — auto-extends if more modules are added later.
-    cols = st.columns(len(MODULES))
-    for col, (key, info) in zip(cols, MODULES.items()):
-        with col:
-            pr   = _module_progress_card(key, native, target, user_id)
-            tot  = pr["total"]
-            cur  = pr["current"]
-            pct  = pr["pct"]
-            word = pr["lesson_word"]
+    # ── Single "Continue to My Path" hero — replaces the 6-card grid that
+    # forced a horizontal/vertical scroll through near-identical cards on
+    # mobile (design review, 2026-08-27). My Path is now the one thing this
+    # screen leads to; the individual modules (Grammar/Vocab/Phrasebook/
+    # Reading/My Phrases) are reachable from a swipeable strip ON the My
+    # Path screen itself (path_app.py::_render_module_swipe_strip), not from
+    # here — picking one is a "pure single-module view" action you take
+    # once you're already looking at your recommended path, not instead of it.
+    info = MODULES["path"]
+    pr   = _module_progress_card("path", native, target, user_id)
+    tot, cur, pct, word = pr["total"], pr["current"], pr["pct"], pr["lesson_word"]
 
-            # Build progress block — varies by state
-            if tot <= 0:
-                # Was a two-span flex row mirroring the "N% " column of the
-                # other cards, but the empty state has no percentage to show
-                # -- the placeholder "—" span just forced longer translations
-                # ("Ще немає уроків") to wrap awkwardly against it. A single
-                # centered line reads cleaner and needs no dash filler
-                # (design review follow-up, 2026-08-23).
-                _no_lessons = i18n.get(native, "no_lessons_yet")
-                progress_html = (
-                    f'<div class="pb-info" style="justify-content:center">'
-                    f'<span class="pb-empty">{_no_lessons}</span></div>'
-                    '<div class="pb-wrap"><div class="pb-fill" style="width:0%"></div></div>'
-                )
-            elif pr["done"]:
-                # English pluralizes by appending "s" ("lessons"); other
-                # languages don't work that way, so only do it for English --
-                # everywhere else the bare localized word reads fine on its
-                # own in this short a label.
-                _word_done = f"{word.lower()}s" if native == "English" else word
-                progress_html = (
-                    f'<div class="pb-info">'
-                    f'<span class="pb-done">All {tot} {_word_done} done!</span>'
-                    f'<span class="pb-done">100%</span></div>'
-                    f'<div class="pb-wrap">'
-                    f'<div class="pb-fill pb-fill-done" style="width:100%"></div></div>'
-                )
-            else:
-                progress_html = (
-                    f'<div class="pb-info">'
-                    f'<span>{word} {cur} / {tot}</span>'
-                    f'<span>{pct:.0f}%</span></div>'
-                    f'<div class="pb-wrap">'
-                    f'<div class="pb-fill" style="width:{pct}%"></div></div>'
-                )
+    if tot <= 0:
+        _no_lessons = i18n.get(native, "no_lessons_yet")
+        progress_html = (
+            f'<div class="pb-info" style="justify-content:center">'
+            f'<span class="pb-empty">{_no_lessons}</span></div>'
+            '<div class="pb-wrap"><div class="pb-fill" style="width:0%"></div></div>'
+        )
+    elif pr["done"]:
+        _word_done = f"{word.lower()}s" if native == "English" else word
+        progress_html = (
+            f'<div class="pb-info">'
+            f'<span class="pb-done">All {tot} {_word_done} done!</span>'
+            f'<span class="pb-done">100%</span></div>'
+            f'<div class="pb-wrap">'
+            f'<div class="pb-fill pb-fill-done" style="width:100%"></div></div>'
+        )
+    else:
+        progress_html = (
+            f'<div class="pb-info">'
+            f'<span>{word} {cur} / {tot}</span>'
+            f'<span>{pct:.0f}%</span></div>'
+            f'<div class="pb-wrap">'
+            f'<div class="pb-fill" style="width:{pct}%"></div></div>'
+        )
 
-            _b64 = _img_b64(info.get("img", ""))
-            _img_html = (
-                f'<img src="{_b64}" style="width:100%;height:130px;'
-                f'object-fit:cover;border-radius:10px;margin-bottom:10px"/>'
-                if _b64 else
-                f'<div class="mode-icon">{info["icon"]}</div>'
-            )
-            st.markdown(f"""
-            <div class="mode-card">
-              {_img_html}
-              <div class="mode-title">{info['label']}</div>
-              {progress_html}
-            </div>
-            """, unsafe_allow_html=True)
-            # Just "Start", not "Start {ModuleName}" -- the module name is
-            # already the card title right above this button, and repeating
-            # it doubled the label length right when it was translated into
-            # a non-English word, overflowing these already-narrow columns
-            # again (design review, 2026-08-23).
-            _start_label = f"▶ {i18n.get(native, 'start_prefix')}"
-            if st.button(_start_label, key=f"pick_{key}",
-                         use_container_width=True,
-                         type="primary" if key == "path" else "secondary"):
-                _switch_to(key)
-
-    st.markdown("<div style='margin:24px 0 0'></div>", unsafe_allow_html=True)
-    _render_placement_quiz(native, target, user_id)
+    _b64 = _img_b64(info.get("img", ""))
+    _img_html = (
+        f'<img src="{_b64}" style="width:100%;height:150px;'
+        f'object-fit:cover;border-radius:10px;margin-bottom:10px"/>'
+        if _b64 else
+        f'<div class="mode-icon">{info["icon"]}</div>'
+    )
+    with st.container():
+        st.markdown(f"""
+        <div class="mode-card" style="max-width:420px;margin:0 auto">
+          {_img_html}
+          <div class="mode-title" style="font-size:1.1rem;white-space:normal">{info['label']}</div>
+          {progress_html}
+        </div>
+        """, unsafe_allow_html=True)
+        _cta_col1, _cta_col2, _cta_col3 = st.columns([1, 2, 1])
+        with _cta_col2:
+            if st.button(f"▶ {i18n.get(native, 'start_prefix')} My Path",
+                         use_container_width=True, type="primary", key="pick_path"):
+                _switch_to("path")
 
 
 def _render_placement_quiz(native: str, target: str, user_id: str) -> None:
@@ -823,6 +814,19 @@ def main():
 
     # ── Login gate — must pass before anything else is shown ────────────────
     if not auth_gate.check_and_gate():
+        return
+
+    # Swipe-strip navigation from My Path (path_app.py::_render_module_swipe_strip)
+    # -- a plain <a href="?swipe_module=grammar"> since Streamlit buttons can't
+    # live inside a custom scroll-snap strip. Checked unconditionally (unlike
+    # the general qp_module sync below, which only fills in an EMPTY
+    # active_module) because this needs to override an already-set "path"
+    # session — same "explicit query-param bridge, consumed once" pattern
+    # already used for reading_app.py's vnav_lesson wave-nav clicks.
+    _swipe_target = st.query_params.get("swipe_module")
+    if _swipe_target:
+        st.query_params.clear()
+        _switch_to(_swipe_target)
         return
 
     # Finalise a Stripe Checkout redirect, if we just came back from one.
