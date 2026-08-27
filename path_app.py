@@ -108,9 +108,18 @@ def _render_module_shortcuts(user: str, native: str, target: str) -> None:
         with col:
             b64 = _img_b64(img_path)
             if b64:
+                # Shorter than the first pass (72px -> 44px, design review,
+                # 2026-08-27): on a real phone st.columns(5) stacks into 5
+                # full-width rows (Streamlit switches multi-column layouts to
+                # a vertical stack below ~640px viewport width, regardless of
+                # column count/ratio -- confirmed on Natalia's own screenshot,
+                # not a workaround-able CSS quirk) -- 5x a wide banner crop
+                # pushed the actual "Next lesson" card a full screen down.
+                # Roughly button-height now, so the block reads as a compact
+                # icon list instead of 5 stacked banners.
                 st.markdown(
-                    f'<img src="{b64}" style="width:100%;height:72px;'
-                    f'object-fit:cover;border-radius:10px;margin-bottom:6px"/>',
+                    f'<img src="{b64}" style="width:100%;height:44px;'
+                    f'object-fit:cover;border-radius:8px;margin-bottom:4px"/>',
                     unsafe_allow_html=True,
                 )
                 btn_label = label
