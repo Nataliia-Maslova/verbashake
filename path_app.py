@@ -88,6 +88,12 @@ def _render_module_swipe_strip() -> None:
         .path-swipe-strip{
             display:flex; gap:10px; overflow-x:auto; scroll-snap-type:x mandatory;
             padding:2px 2px 16px; -webkit-overflow-scrolling:touch;
+            /* Without this, a horizontal-only touch drag that starts inside
+               this strip can get claimed by the page's own vertical scroll
+               instead (common nested-scroll-container gotcha on mobile
+               Safari/Chrome) -- pan-x tells the browser this element owns
+               horizontal panning, vertical still passes through to the page. */
+            touch-action: pan-x;
         }
         .path-swipe-strip::-webkit-scrollbar{ display:none; }
         a.path-swipe-card, a.path-swipe-card:hover, a.path-swipe-card:visited{
