@@ -49,13 +49,16 @@ _TYPE_COLOR = {
     "phrasebook": "var(--mova-coral)",
 }
 
-# Single-module shortcuts, swipeable on mobile (design review, 2026-08-27):
-# My Path used to be one of six near-identical cards a learner had to scroll
-# past on the launcher; now My Path IS the landing screen (app.py::render_launcher
-# leads straight here) and picking "just grammar" / "just vocab" happens from
-# here instead, via a horizontal scroll-snap strip -- real touch-swipe on a
-# phone, no JS gesture library needed, plain CSS.
-_SWIPE_MODULES = [
+# Single-module shortcuts, shown as plain buttons below My Path's own
+# content (design review, 2026-08-27). First tried a custom swipeable
+# scroll-snap strip -- looked right, but two rounds of live testing on
+# Natalia's own machine (onclick attributes silently stripped by
+# st.markdown, then scroll-snap locking scrollLeft in place at some
+# viewport widths) both needed iframe/JS workarounds and STILL didn't
+# swipe for her. Real st.button widgets have none of that fragility --
+# guaranteed to work everywhere Streamlit itself works, at the cost of a
+# tap instead of a swipe.
+_SHORTCUT_MODULES = [
     ("grammar",    "🗣️", "Grammar"),
     ("vocab",      "📖", "Vocabulary"),
     ("phrasebook", "💬", "Phrasebook"),
@@ -64,118 +67,28 @@ _SWIPE_MODULES = [
 ]
 
 
-def _render_module_swipe_strip() -> None:
-    """
-    Each card is a plain <a href="?swipe_module=..."> -- Streamlit buttons
-    can't be embedded inside custom st.markdown HTML, and a real link is
-    what makes this a genuine browser-level navigation (so touch-swipe/
-    scroll-snap works exactly like any other horizontally scrollable strip
-    on the page, no custom gesture JS). app.py::main() consumes
-    ?swipe_module explicitly (unconditionally, unlike the general
-    ?module sync) since it has to override the "path" session already
-    active here.
-    """
-    cards = "".join(
-        f'<a href="?swipe_module={key}" class="path-swipe-card">'
-        f'<div class="path-swipe-icon">{icon}</div>'
-        f'<div class="path-swipe-label">{label}</div>'
-        f'</a>'
-        for key, icon, label in _SWIPE_MODULES
-    )
-    st.markdown(
-        """
-        <style>
-        .path-swipe-row{ display:flex; align-items:center; gap:6px; }
-        .path-swipe-strip{
-            display:flex; gap:10px; overflow-x:auto;
-            padding:2px 2px 16px; -webkit-overflow-scrolling:touch;
-            /* Without this, a horizontal-only touch drag that starts inside
-               this strip can get claimed by the page's own vertical scroll
-               instead (common nested-scroll-container gotcha on mobile
-               Safari/Chrome) -- pan-x tells the browser this element owns
-               horizontal panning, vertical still passes through to the page. */
-            touch-action: pan-x;
-            flex:1; min-width:0;
-        }
-        .path-swipe-strip::-webkit-scrollbar{ display:none; }
-        a.path-swipe-card, a.path-swipe-card:hover, a.path-swipe-card:visited{
-            /* Streamlit's own stylesheet underlines markdown links via a
-               [data-testid="stMarkdownContainer"] a rule that ties or beats
-               a bare class selector on specificity -- !important + the "a"
-               element in the selector guarantees this wins regardless of
-               injection order (design review, 2026-08-27). scroll-snap was
-               here too (dropped 2026-08-27): with only ~2px of real overflow
-               at some viewport widths -- 5 fixed-width cards happen to land
-               right at the edge of common desktop content widths -- "x
-               mandatory" locked scrollLeft at its initial snapped position
-               and even a direct JS scrollTo() couldn't move it, which is
-               exactly the "can't swipe" Natalia hit on desktop. Plain
-               overflow-x:auto scrolls fine by touch, trackpad, or the arrow
-               buttons below with no such edge case; losing the little
-               "click into place" snap feel is a worthwhile trade. */
-            flex:0 0 auto; width:92px;
-            background:var(--mova-card); border:1px solid var(--mova-line);
-            border-radius:14px; padding:12px 6px; text-align:center;
-            text-decoration:none !important; transition:border-color .15s;
-            display:block;
-        }
-        a.path-swipe-card:hover{ border-color:var(--mova-indigo); }
-        .path-swipe-icon{ font-size:1.7rem; }
-        .path-swipe-label{
-            color:var(--mova-ink) !important; font-size:.75rem; font-weight:600;
-            margin-top:4px; white-space:nowrap;
-        }
-        /* Click-to-scroll arrows -- the hidden scrollbar (mobile-first look)
-           leaves desktop/mouse users with no visible way to move the strip
-           at all, only touch-swipe or trackpad works without them (design
-           review, 2026-08-27, Natalia). scrollBy() targets the sibling
-           strip directly -- no global selector, safe even if this component
-           ever renders more than once on a page. */
-        .path-swipe-arrow{
-            flex:0 0 auto; width:30px; height:30px; margin-bottom:14px;
-            border-radius:50%; background:var(--mova-card);
-            border:1px solid var(--mova-line); color:var(--mova-ink);
-            display:flex; align-items:center; justify-content:center;
-            cursor:pointer; font-size:1rem; -webkit-user-select:none; user-select:none;
-        }
-        .path-swipe-arrow:hover{ border-color:var(--mova-indigo); }
-        </style>
-        """
-        + '<div class="path-swipe-row">'
-        + '<div class="path-swipe-arrow" id="path-swipe-left">‹</div>'
-        + f'<div class="path-swipe-strip">{cards}</div>'
-        + '<div class="path-swipe-arrow" id="path-swipe-right">›</div>'
-        + '</div>',
-        unsafe_allow_html=True,
-    )
-    # Wire the arrows' clicks via the real top-level document -- st.markdown
-    # strips inline onclick="..." attributes outright (confirmed by reading
-    # the live DOM: the attribute simply isn't there), the same reason
-    # app.py's dark-mode toggle and PWA head injection already reach into
-    # window.parent instead of trying to run a plain <script> or onclick
-    # inside markdown HTML (design review, 2026-08-27, after the first
-    # onclick-based version rendered but silently did nothing on click).
-    # .onclick = (property assignment, not addEventListener) so a rerun that
-    # re-mounts this component just overwrites the handler instead of
-    # stacking a second one under the same elements.
-    import streamlit.components.v1 as _components
-    _components.html(
-        "<script>"
-        "const d = window.parent.document;"
-        "const L = d.getElementById('path-swipe-left');"
-        "const R = d.getElementById('path-swipe-right');"
-        "if (L && R) {"
-        # 'auto' (instant), not 'smooth' -- verified live that 'smooth'
-        # relies on requestAnimationFrame actually running, which browser
-        # automation can suppress for a backgrounded/non-composited tab; an
-        # instant jump has no such dependency and is exactly as usable for
-        # a 5-card strip.
-        "  L.onclick = () => L.nextElementSibling.scrollBy({left:-220, behavior:'auto'});"
-        "  R.onclick = () => R.previousElementSibling.scrollBy({left:220, behavior:'auto'});"
-        "}"
-        "</script>",
-        height=0,
-    )
+def _switch_module(module_key: str, user: str, native: str, target: str) -> None:
+    """Same wipe-and-reset app.py::_switch_to() does -- duplicated locally
+    (not imported) because app.py already imports path_app for its router,
+    so the reverse import would be circular."""
+    for k in list(st.session_state):
+        del st.session_state[k]
+    st.session_state["active_module"]   = module_key
+    st.session_state["launcher_user"]   = user
+    st.session_state["launcher_native"] = native
+    st.session_state["launcher_target"] = target
+    st.query_params["module"] = module_key
+    st.rerun()
+
+
+def _render_module_shortcuts(user: str, native: str, target: str) -> None:
+    st.markdown("### Or open a module directly")
+    cols = st.columns(len(_SHORTCUT_MODULES))
+    for col, (key, icon, label) in zip(cols, _SHORTCUT_MODULES):
+        with col:
+            if st.button(f"{icon}\n\n{label}", key=f"path_shortcut_{key}",
+                         use_container_width=True):
+                _switch_module(key, user, native, target)
 
 
 # ── Internal helpers ─────────────────────────────────────────────────────────
@@ -362,9 +275,6 @@ def main() -> None:
     # ── Page header ──────────────────────────────────────────────────────────
     st.markdown("## 🗺️ My Learning Path")
 
-    # ── Swipe to a single module ─────────────────────────────────────────────
-    _render_module_swipe_strip()
-
     # ── Overall progress bar ─────────────────────────────────────────────────
     col1, col2, col3 = st.columns(3)
     with col1:
@@ -484,3 +394,7 @@ def main() -> None:
         # forward so a different lesson surfaces next time.
         _recommender.record_result(user, target, unit["unit_id"], correct=True)
         st.rerun()
+
+    # ── Single-module shortcuts ─────────────────────────────────────────────
+    st.markdown("<div style='margin:24px 0 0'></div>", unsafe_allow_html=True)
+    _render_module_shortcuts(user, native, target)
