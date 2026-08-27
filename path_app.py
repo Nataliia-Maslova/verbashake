@@ -85,8 +85,9 @@ def _render_module_swipe_strip() -> None:
     st.markdown(
         """
         <style>
+        .path-swipe-row{ display:flex; align-items:center; gap:6px; }
         .path-swipe-strip{
-            display:flex; gap:10px; overflow-x:auto; scroll-snap-type:x mandatory;
+            display:flex; gap:10px; overflow-x:auto;
             padding:2px 2px 16px; -webkit-overflow-scrolling:touch;
             /* Without this, a horizontal-only touch drag that starts inside
                this strip can get claimed by the page's own vertical scroll
@@ -94,6 +95,7 @@ def _render_module_swipe_strip() -> None:
                Safari/Chrome) -- pan-x tells the browser this element owns
                horizontal panning, vertical still passes through to the page. */
             touch-action: pan-x;
+            flex:1; min-width:0;
         }
         .path-swipe-strip::-webkit-scrollbar{ display:none; }
         a.path-swipe-card, a.path-swipe-card:hover, a.path-swipe-card:visited{
@@ -101,8 +103,17 @@ def _render_module_swipe_strip() -> None:
                [data-testid="stMarkdownContainer"] a rule that ties or beats
                a bare class selector on specificity -- !important + the "a"
                element in the selector guarantees this wins regardless of
-               injection order (design review, 2026-08-27). */
-            scroll-snap-align:start; flex:0 0 auto; width:92px;
+               injection order (design review, 2026-08-27). scroll-snap was
+               here too (dropped 2026-08-27): with only ~2px of real overflow
+               at some viewport widths -- 5 fixed-width cards happen to land
+               right at the edge of common desktop content widths -- "x
+               mandatory" locked scrollLeft at its initial snapped position
+               and even a direct JS scrollTo() couldn't move it, which is
+               exactly the "can't swipe" Natalia hit on desktop. Plain
+               overflow-x:auto scrolls fine by touch, trackpad, or the arrow
+               buttons below with no such edge case; losing the little
+               "click into place" snap feel is a worthwhile trade. */
+            flex:0 0 auto; width:92px;
             background:var(--mova-card); border:1px solid var(--mova-line);
             border-radius:14px; padding:12px 6px; text-align:center;
             text-decoration:none !important; transition:border-color .15s;
@@ -114,9 +125,56 @@ def _render_module_swipe_strip() -> None:
             color:var(--mova-ink) !important; font-size:.75rem; font-weight:600;
             margin-top:4px; white-space:nowrap;
         }
+        /* Click-to-scroll arrows -- the hidden scrollbar (mobile-first look)
+           leaves desktop/mouse users with no visible way to move the strip
+           at all, only touch-swipe or trackpad works without them (design
+           review, 2026-08-27, Natalia). scrollBy() targets the sibling
+           strip directly -- no global selector, safe even if this component
+           ever renders more than once on a page. */
+        .path-swipe-arrow{
+            flex:0 0 auto; width:30px; height:30px; margin-bottom:14px;
+            border-radius:50%; background:var(--mova-card);
+            border:1px solid var(--mova-line); color:var(--mova-ink);
+            display:flex; align-items:center; justify-content:center;
+            cursor:pointer; font-size:1rem; -webkit-user-select:none; user-select:none;
+        }
+        .path-swipe-arrow:hover{ border-color:var(--mova-indigo); }
         </style>
-        """ + f'<div class="path-swipe-strip">{cards}</div>',
+        """
+        + '<div class="path-swipe-row">'
+        + '<div class="path-swipe-arrow" id="path-swipe-left">‹</div>'
+        + f'<div class="path-swipe-strip">{cards}</div>'
+        + '<div class="path-swipe-arrow" id="path-swipe-right">›</div>'
+        + '</div>',
         unsafe_allow_html=True,
+    )
+    # Wire the arrows' clicks via the real top-level document -- st.markdown
+    # strips inline onclick="..." attributes outright (confirmed by reading
+    # the live DOM: the attribute simply isn't there), the same reason
+    # app.py's dark-mode toggle and PWA head injection already reach into
+    # window.parent instead of trying to run a plain <script> or onclick
+    # inside markdown HTML (design review, 2026-08-27, after the first
+    # onclick-based version rendered but silently did nothing on click).
+    # .onclick = (property assignment, not addEventListener) so a rerun that
+    # re-mounts this component just overwrites the handler instead of
+    # stacking a second one under the same elements.
+    import streamlit.components.v1 as _components
+    _components.html(
+        "<script>"
+        "const d = window.parent.document;"
+        "const L = d.getElementById('path-swipe-left');"
+        "const R = d.getElementById('path-swipe-right');"
+        "if (L && R) {"
+        # 'auto' (instant), not 'smooth' -- verified live that 'smooth'
+        # relies on requestAnimationFrame actually running, which browser
+        # automation can suppress for a backgrounded/non-composited tab; an
+        # instant jump has no such dependency and is exactly as usable for
+        # a 5-card strip.
+        "  L.onclick = () => L.nextElementSibling.scrollBy({left:-220, behavior:'auto'});"
+        "  R.onclick = () => R.previousElementSibling.scrollBy({left:220, behavior:'auto'});"
+        "}"
+        "</script>",
+        height=0,
     )
 
 
