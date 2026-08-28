@@ -13,10 +13,14 @@ Flow:
   2. path_app.main() renders progress + "▶ Start next lesson" button
   3. Button calls _launch_unit() → sets session state + query params → rerun
   4. app.py routes to grammar / vocab / reading module for that lesson
-     (curriculum_mode=True is preserved in session state)
-  5. When the lesson finishes, _clear_all() / clear_all() in grammar/reading sees
-     curriculum_mode → sets active_module="path"
-  6. path_app.main() re-renders with fresh mastery/SRS-driven stats
+     (session_state["_return_module"] is preserved across the lesson)
+  5. When the lesson finishes, _clear_all() / clear_all() in grammar/reading
+     reads _return_module and sets active_module to it (defaults to "path",
+     since My Path is _launch_unit()'s original and most common caller --
+     search_app.py also reuses _launch_unit() to jump into a lesson from a
+     search hit, passing return_module="search" so exiting the lesson goes
+     back to the search results instead of always landing on My Path)
+  6. That screen (My Path or Search) re-renders with fresh state
 """
 from __future__ import annotations
 
@@ -124,17 +128,24 @@ def _render_module_shortcuts(user: str, native: str, target: str) -> None:
 
 # ── Internal helpers ─────────────────────────────────────────────────────────
 
-def _launch_unit(unit: dict, user: str, native: str, target: str) -> None:
+def _launch_unit(unit: dict, user: str, native: str, target: str,
+                  return_module: str = "path") -> None:
     """
     Set up session state so that the next rerun lands inside the right module
     at the right lesson.  Uses the existing vnav_lesson query-param bridge
     that grammar.py and reading_app.py already support.
+
+    return_module: where grammar.py/reading_app.py's _clear_all() should
+    send the user once they exit the lesson (default "path", since My Path
+    is this function's original caller). search_app.py passes "search" so a
+    lesson opened from a search hit returns to the search results instead
+    of always landing on My Path.
     """
     parsed = _recommender.parse_unit_id(unit["unit_id"])
     utype  = parsed["module"]
     lid    = parsed["lesson_id"]
 
-    st.session_state["curriculum_mode"] = True
+    st.session_state["_return_module"] = return_module
 
     if utype == "reading":
         lang_code = parsed["lang_code"]
@@ -190,11 +201,14 @@ def _render_topic_explanation(unit: dict, native_lang: str, target_lang: str) ->
     seed_phrases list: My Path doesn't load the lesson's own dataframe (it
     only has the content_units summary row), and the function already
     handles no-seed-phrases gracefully (it just leans on the topic name
-    alone) -- the cache key is (topic, level, target_lang, native_lang)
+    alone) -- the cache key is (topic_key, level, target_lang, native_lang)
     only, seed_phrases never part of it, so this shares the exact same
-    cached row Step 1 would produce for the same lesson.
+    cached row Step 1 would produce for the same lesson, as long as both
+    pass the same topic_key (see explain_lesson_rule's docstring).
     """
     level = unit.get("level") or "A1"
+    # content_units.topic is seeded from topic_en (scripts/seed_content_units.py)
+    # -- already language-invariant, so it doubles as topic_key directly.
     topic = unit.get("topic") or "General"
     # Keyed by unit_id (not a flat key) so a stale explanation from a
     # previously-recommended unit can never show under a new one once the
@@ -206,7 +220,7 @@ def _render_topic_explanation(unit: dict, native_lang: str, target_lang: str) ->
             try:
                 with st.spinner("..."):
                     st.session_state[state_key] = _gemini.explain_lesson_rule(
-                        topic, level, target_lang, native_lang, [],
+                        topic, level, target_lang, native_lang, [], topic_key=topic,
                     )
             except _gemini.PaidFeatureRequired:
                 st.warning("⭐ This is a Premium feature — live AI generation isn't included in the free plan.")
@@ -243,24 +257,12 @@ def main() -> None:
 
     st.session_state.pop("curriculum_advance_pending", None)  # no-op under the recommender
 
+    # get_stats()/get_path_next() (engine/recommender.py) exclude
+    # non-launchable "target_grammar" units at the source now -- this page
+    # used to filter its own copy of stats["upcoming"] here after a real
+    # KeyError (target_grammar units have no lesson_id, per CLAUDE.md's
+    # uk->es example), but that only protected this one call site.
     stats = _recommender.get_stats(user, target)
-
-    # My Path renders each unit as a launchable lesson with a numeric
-    # lesson_id (_launch_unit / the "Next lesson" card below) -- "target_grammar"
-    # content_units rows (engine/recommender.py's older ephemeral
-    # Phase-3-practice representation, still in ALL_MODULES) have no
-    # lesson_id at all (parse_unit_id returns lang_code/topic_key instead),
-    # so if the recommender ever ranks one top -- it already has, for a
-    # real user, per CLAUDE.md's uk->es example -- this whole page crashed
-    # with a KeyError before any click happened. The same topic is always
-    # ALSO seeded as a real grammar:1000+ lesson (engine/target_grammar_loader.py),
-    # so filtering target_grammar out here just prefers that launchable
-    # form instead of silently dropping the recommendation.
-    stats["upcoming"] = [
-        u for u in stats["upcoming"]
-        if _recommender.parse_unit_id(u["unit_id"])["module"] != "target_grammar"
-    ]
-    stats["current_unit"] = stats["upcoming"][0] if stats["upcoming"] else None
 
     # ── Sidebar ──────────────────────────────────────────────────────────────
     with st.sidebar:

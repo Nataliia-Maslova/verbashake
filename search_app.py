@@ -343,7 +343,12 @@ def main() -> None:
             with c2:
                 if hit["unit_id"] and st.button("→", key=f"go_{mkey}_{i}",
                                                 use_container_width=True):
-                    _launch_unit({"unit_id": hit["unit_id"]}, user, native, target)
+                    # return_module="search" -- without it this defaults to
+                    # "path", so finishing/exiting the lesson would silently
+                    # land the user on My Path instead of back on their
+                    # search results.
+                    _launch_unit({"unit_id": hit["unit_id"]}, user, native, target,
+                                  return_module="search")
         st.markdown("---")
 
     if not any_hits:

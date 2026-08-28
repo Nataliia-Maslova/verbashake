@@ -245,3 +245,25 @@ CREATE TABLE IF NOT EXISTS custom_phrases (
     PRIMARY KEY (user_id, lesson_id, phrase_id)
 );
 CREATE INDEX IF NOT EXISTS idx_custom_phrases_user ON custom_phrases (user_id);
+
+-- ── Row-Level Security ──────────────────────────────────────────────────────
+-- Supabase auto-publishes every table in `public` over its PostgREST API
+-- under the (non-secret) anon key -- without RLS, anyone with the project URL
+-- can read/write/delete these rows directly, bypassing the app entirely.
+-- engine/db.py connects with DATABASE_URL as the table owner (Session pooler,
+-- postgres.<project-ref>), which bypasses RLS automatically, so enabling it
+-- with zero policies here is a pure default-deny for the public API and does
+-- not affect the app itself (confirmed live: db.fetch_all/execute succeeded
+-- immediately after enabling RLS on these tables, 2026-08-28).
+ALTER TABLE content_units        ENABLE ROW LEVEL SECURITY;
+ALTER TABLE mastery              ENABLE ROW LEVEL SECURITY;
+ALTER TABLE srs_state            ENABLE ROW LEVEL SECURITY;
+ALTER TABLE lesson_pointer       ENABLE ROW LEVEL SECURITY;
+ALTER TABLE subscriptions        ENABLE ROW LEVEL SECURITY;
+ALTER TABLE gamification         ENABLE ROW LEVEL SECURITY;
+ALTER TABLE phrase_translations  ENABLE ROW LEVEL SECURITY;
+ALTER TABLE lesson_explanations  ENABLE ROW LEVEL SECURITY;
+ALTER TABLE phrase_explanations  ENABLE ROW LEVEL SECURITY;
+ALTER TABLE daily_feature_usage  ENABLE ROW LEVEL SECURITY;
+ALTER TABLE user_prefs           ENABLE ROW LEVEL SECURITY;
+ALTER TABLE custom_phrases       ENABLE ROW LEVEL SECURITY;

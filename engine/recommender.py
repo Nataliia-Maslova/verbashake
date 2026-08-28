@@ -19,6 +19,7 @@ and a DATABASE_URL (see engine/db.py).
 """
 from __future__ import annotations
 
+import threading
 from datetime import date, timedelta
 
 from engine import db
@@ -426,16 +427,29 @@ def _interleave_path(user_id: str, target_lang: str, limit: int) -> list[dict]:
 def _normal_path(user_id: str, target_lang: str, limit: int) -> list[dict]:
     """Reading is exhausted (or this target_lang has no reading content at
     all) -- grammar keeps its sequential frontier, everything else (vocab,
-    phrasebook, reading review, target_grammar) keeps the free score-based
-    mixing get_next() already does. Reading doesn't disappear here: overdue
-    reading units still surface through get_next()'s own SRS-urgency term,
-    just as background review, not a dedicated phase."""
+    phrasebook, reading review) keeps the free score-based mixing get_next()
+    already does. Reading doesn't disappear here: overdue reading units
+    still surface through get_next()'s own SRS-urgency term, just as
+    background review, not a dedicated phase.
+
+    target_grammar units are excluded (not just grammar): a "target_grammar"
+    content_units row is an older, ephemeral Phase-3-practice representation
+    with no lesson_id (parse_unit_id() returns lang_code/topic_key instead
+    of lesson_id for it) -- every consumer of get_stats()/get_path_next()
+    that treats a returned unit as a launchable lesson (My Path's card, the
+    launcher progress cards) will KeyError on one. The same topic is always
+    ALSO seeded as a real, launchable grammar:1000+ lesson
+    (engine/target_grammar_loader.py), so dropping the bare target_grammar
+    form here just prefers that launchable one instead of losing the
+    recommendation. This used to be patched only in path_app.py, on its own
+    copy of stats["upcoming"] after the call -- fixed at the source instead
+    so every caller gets it, not just the one that already got bitten."""
     picks: list[dict] = []
     frontier = _grammar_frontier_unit(user_id, target_lang)
     if frontier:
         picks.append(frontier)
     for u in get_next(user_id, target_lang, limit=limit + 5):
-        if u["module"] == "grammar":
+        if u["module"] in ("grammar", "target_grammar"):
             continue
         picks.append(u)
         if len(picks) >= limit:
@@ -473,13 +487,113 @@ def get_path_next(user_id: str, target_lang: str, limit: int = 6) -> list[dict]:
 
 # ── Recording results ───────────────────────────────────────────────────────
 
+# _update_mastery/_update_srs (and record_results below) are each a plain
+# read-then-write with no row lock in between: two near-simultaneous calls
+# for the same (user_id, target_lang, unit_id) -- a double-click, or two
+# open tabs on the same lesson -- can both read the same old row and race
+# to overwrite each other's UPSERT, silently losing one attempt's effect on
+# mastery/SRS. A per-key lock closes this for the realistic case (concurrent
+# requests hitting the same long-running Streamlit process, which is how
+# this app is actually deployed) -- it doesn't help across separate server
+# processes, but there's only ever one such process for this app today.
+# Grows by one Lock per distinct (user, lang, unit) ever seen for the life
+# of the process -- unbounded in principle, negligible in practice at this
+# app's scale (each Lock is a few dozen bytes; not worth an eviction scheme
+# before there's any real evidence it matters).
+_record_locks: dict[tuple[str, str, str], threading.Lock] = {}
+_record_locks_guard = threading.Lock()
+
+
+def _lock_for(user_id: str, target_lang: str, unit_id: str) -> threading.Lock:
+    key = (user_id, target_lang, unit_id)
+    with _record_locks_guard:
+        lock = _record_locks.get(key)
+        if lock is None:
+            lock = threading.Lock()
+            _record_locks[key] = lock
+        return lock
+
+
 def record_result(user_id: str, target_lang: str, unit_id: str, correct: bool) -> None:
     """Update mastery (EMA) and srs_state (SM-2-lite) after an attempt on unit_id."""
-    unit = lookup_unit(unit_id)
-    if unit is None:
+    with _lock_for(user_id, target_lang, unit_id):
+        unit = lookup_unit(unit_id)
+        if unit is None:
+            return
+        _update_mastery(user_id, target_lang, unit["module"], _mastery_topic(unit["topic"]), correct)
+        _update_srs(user_id, target_lang, unit_id, correct)
+
+
+def record_results(user_id: str, target_lang: str, unit_id: str, results: list[bool]) -> None:
+    """
+    Same effect as calling record_result() once per entry in `results` (in
+    order) on the same unit_id, but in a fixed 5 DB round-trips total
+    instead of 5 per result. Both mastery's EMA (_mastery_step) and SRS's
+    SM-2-lite (_srs_step) are purely sequential -- each step depends only on
+    the state the previous step produced, not on anything else -- so
+    replaying them in memory and writing just the final state once produces
+    the exact same mastery/SRS rows as calling record_result() in a loop.
+
+    Written for grammar.py's target_grammar Check button, which used to
+    call record_result() once per test item (up to 5 items -> up to 25
+    sequential round-trips on Supabase's pooler for one click).
+    """
+    if not results:
         return
-    _update_mastery(user_id, target_lang, unit["module"], _mastery_topic(unit["topic"]), correct)
-    _update_srs(user_id, target_lang, unit_id, correct)
+    with _lock_for(user_id, target_lang, unit_id):
+        unit = lookup_unit(unit_id)
+        if unit is None:
+            return
+        module, topic = unit["module"], _mastery_topic(unit["topic"])
+
+        mrow = db.fetch_one(
+            "SELECT * FROM mastery WHERE user_id=:uid AND target_lang=:lang AND module=:mod AND topic=:topic",
+            {"uid": user_id, "lang": target_lang, "mod": module, "topic": topic},
+        )
+        score = mrow["score"] if mrow else _UNSEEN_MASTERY
+        n_attempts = mrow["n_attempts"] if mrow else 0
+        for correct in results:
+            score = _mastery_step(score, correct)
+            n_attempts += 1
+        db.upsert(
+            "mastery",
+            keys={"user_id": user_id, "target_lang": target_lang, "module": module, "topic": topic},
+            values={"score": score, "n_attempts": n_attempts},
+        )
+
+        srow = db.fetch_one(
+            "SELECT * FROM srs_state WHERE user_id=:uid AND target_lang=:lang AND unit_id=:uid2",
+            {"uid": user_id, "lang": target_lang, "uid2": unit_id},
+        )
+        reps = srow["reps"] if srow else 0
+        interval = srow["interval_days"] if srow else _SRS_MIN_INTERVAL
+        for correct in results:
+            reps, interval = _srs_step(reps, interval, correct)
+        db.upsert(
+            "srs_state",
+            keys={"user_id": user_id, "target_lang": target_lang, "unit_id": unit_id},
+            values={
+                "interval_days": interval,
+                "due_date": date.today() + timedelta(days=interval),
+                "last_result": results[-1],
+                "reps": reps,
+            },
+        )
+
+
+def _mastery_step(old_score: float, correct: bool) -> float:
+    return old_score + _MASTERY_EMA_ALPHA * (float(correct) - old_score)
+
+
+def _srs_step(reps: int, prev_interval: float, correct: bool) -> tuple[int, float]:
+    """One SM-2-lite step. Returns (new_reps, new_interval_days)."""
+    if correct:
+        reps += 1
+        interval = _SRS_MIN_INTERVAL if reps <= 1 else min(prev_interval * 2.0, _SRS_MAX_INTERVAL)
+    else:
+        reps = 0
+        interval = _SRS_MIN_INTERVAL
+    return reps, interval
 
 
 def _update_mastery(user_id: str, target_lang: str, module: str, topic: str, correct: bool) -> None:
@@ -488,7 +602,7 @@ def _update_mastery(user_id: str, target_lang: str, module: str, topic: str, cor
         {"uid": user_id, "lang": target_lang, "mod": module, "topic": topic},
     )
     old_score = row["score"] if row else _UNSEEN_MASTERY
-    new_score = old_score + _MASTERY_EMA_ALPHA * (float(correct) - old_score)
+    new_score = _mastery_step(old_score, correct)
     db.upsert(
         "mastery",
         keys={"user_id": user_id, "target_lang": target_lang, "module": module, "topic": topic},
@@ -504,16 +618,11 @@ def _update_srs(user_id: str, target_lang: str, unit_id: str, correct: bool) -> 
         "SELECT * FROM srs_state WHERE user_id=:uid AND target_lang=:lang AND unit_id=:uid2",
         {"uid": user_id, "lang": target_lang, "uid2": unit_id},
     )
-    reps = (row["reps"] if row else 0)
-    if correct:
-        reps += 1
-        interval = _SRS_MIN_INTERVAL if reps <= 1 else min(
-            (row["interval_days"] if row else _SRS_MIN_INTERVAL) * 2.0, _SRS_MAX_INTERVAL
-        )
-    else:
-        reps = 0
-        interval = _SRS_MIN_INTERVAL
-
+    reps, interval = _srs_step(
+        row["reps"] if row else 0,
+        row["interval_days"] if row else _SRS_MIN_INTERVAL,
+        correct,
+    )
     db.upsert(
         "srs_state",
         keys={"user_id": user_id, "target_lang": target_lang, "unit_id": unit_id},

@@ -23,6 +23,12 @@ import streamlit as st
 from engine import db
 
 _STALE_AFTER = timedelta(hours=1)
+# Beyond this, a cached "active" status is no longer trusted even if Stripe
+# sync keeps failing (revoked key, rate limiting, outage) -- without this,
+# get_status() would keep serving a stale "active" row indefinitely, the
+# false-positive-paid direction, instead of just for the ~1h a healthy
+# re-sync would normally take.
+_HARD_STALE_AFTER = timedelta(hours=24)
 
 _DEFAULT_STATUS = {
     "status": "free",
@@ -60,13 +66,21 @@ def get_status(user_id: str) -> dict:
     checked_at = row["checked_at"]
     if checked_at.tzinfo is None:
         checked_at = checked_at.replace(tzinfo=timezone.utc)
-    is_stale = datetime.now(timezone.utc) - checked_at > _STALE_AFTER
+    age = datetime.now(timezone.utc) - checked_at
 
-    if is_stale and row.get("stripe_customer_id"):
+    if age > _STALE_AFTER and row.get("stripe_customer_id"):
         try:
             return _sync_from_stripe(user_id, row["stripe_customer_id"])
         except Exception:
-            pass  # Stripe unreachable — serve the stale cache rather than crash
+            pass  # Stripe unreachable — fall through to the staleness check below
+
+    if age > _HARD_STALE_AFTER and row.get("status") == "active":
+        # Sync has been failing for a long time (checked_at is only ever
+        # updated on a *successful* sync) -- stop trusting a possibly-
+        # cancelled subscription just because Stripe is unreachable. Not
+        # persisted: once sync succeeds again it overwrites this normally.
+        row = dict(row)
+        row["status"] = "unknown"
     return row
 
 
@@ -86,9 +100,17 @@ def _sync_from_stripe(user_id: str, customer_id: str) -> dict:
         item = sub["items"]["data"][0] if sub["items"]["data"] else None
         values["stripe_subscription_id"] = sub.id
         values["status"] = "active" if sub.status in ("active", "trialing") else sub.status
-        values["plan"] = item["price"]["id"] if item else None
-        # current_period_end moved from the Subscription object to each
-        # subscription item in newer Stripe API versions.
+        # Both of these read into the same Stripe API item object, whose
+        # nested shape has already changed between API versions once
+        # (current_period_end moved from the Subscription to each item) --
+        # guard both the same way so a future reshape degrades one field to
+        # None instead of throwing and aborting the whole sync (which used
+        # to mean db.upsert() below never ran and a real charge went
+        # unrecorded, see CLAUDE.md's current_period_end incident).
+        try:
+            values["plan"] = item["price"]["id"] if item else None
+        except (KeyError, TypeError):
+            values["plan"] = None
         try:
             end_ts = item["current_period_end"] if item else None
         except (KeyError, TypeError):

@@ -827,6 +827,10 @@ def _render_rule_explanation(session: LessonSession, phrases: list[dict]) -> Non
     native_lang = state.native_lang
     level       = _lesson_level(session)
     topic       = _current_topic(session, native_lang)
+    # Language-invariant cache key -- `topic` above may be a translated
+    # label that isn't guaranteed unique across lessons (see
+    # explain_lesson_rule's docstring); topic_en is the stable identifier.
+    topic_key   = get_grammar_topics(session.df, native_lang="English").get(state.lesson_id) or topic
     state_key   = f"s1_explanation_{state.lesson_id}"
 
     with st.expander(i18n.get(native_lang, "rule_explanation_title"), expanded=False):
@@ -836,7 +840,7 @@ def _render_rule_explanation(session: LessonSession, phrases: list[dict]) -> Non
                     with st.spinner("..."):
                         st.session_state[state_key] = _gemini.explain_lesson_rule(
                             topic, level, target_lang, native_lang,
-                            [p["target"] for p in phrases],
+                            [p["target"] for p in phrases], topic_key=topic_key,
                         )
                 except _gemini.PaidFeatureRequired:
                     _show_upsell("s1_explain")
@@ -1415,8 +1419,8 @@ def render_complete(session: LessonSession):
         session.complete()
         st.session_state["_progress_saved"] = True
         try:
-            _llang = {"English":"en","Ukrainian":"uk","Spanish":"es","Korean":"ko","French":"fr","German":"de","Japanese":"ja","Chinese":"zh","Portuguese":"pt","Italian":"it","Polish":"pl","Russian":"ru"}.get(
-                st.session_state.get("launcher_native","English"), "en")
+            _llang = _recommender.LANG_TO_CODE.get(
+                st.session_state.get("launcher_native", "English"), "en")
             _lres  = on_lesson_complete(session.state.user_id, _llang)
             _ltoasts = [f"🎉 Урок завершено! +{_lres['xp_earned']} XP бонус"]
             if _lres.get("leveled_up"):
@@ -1462,8 +1466,13 @@ def render_complete(session: LessonSession):
             try:
                 df_all    = cfg["load"](str(cfg["db_path"]), state.native_lang, state.target_lang)
                 lessons   = cfg["get_lessons"](df_all)
-                next_id   = state.lesson_id + 1
-                if next_id in lessons:
+                # Position-based, not lesson_id + 1 -- same fix as
+                # render_setup()'s resume banner: lesson_id isn't dense once
+                # target-grammar-path lessons (1000+) are spliced in.
+                next_id = (lessons[lessons.index(state.lesson_id) + 1]
+                           if state.lesson_id in lessons and lessons.index(state.lesson_id) + 1 < len(lessons)
+                           else None)
+                if next_id is not None:
                     lang_pair = state.language_pair
                     lesson_df = cfg["get_lesson"](df_all, next_id)
                     st.session_state.pop("_progress_saved", None)
@@ -1630,9 +1639,19 @@ def render_setup():
         saved_step   = progress["last_step"]
 
         if saved_step >= 99:
-            # Lesson fully done -> offer next lesson at step 1
-            next_lesson = saved_lesson + 1
-            if next_lesson in lessons:
+            # Lesson fully done -> offer next lesson at step 1. `lessons` is
+            # sorted but not dense: target-grammar-path lessons are spliced
+            # in at id 1000+ for most target languages, leaving a gap after
+            # the last original id (e.g. 182) -- saved_lesson + 1 would miss
+            # them entirely and falsely claim "all lessons completed" while
+            # real further lessons exist. Find the next one by position
+            # instead of by arithmetic on the id.
+            if saved_lesson in lessons:
+                _idx = lessons.index(saved_lesson)
+                next_lesson = lessons[_idx + 1] if _idx + 1 < len(lessons) else None
+            else:
+                next_lesson = None
+            if next_lesson is not None:
                 default_idx = lessons.index(next_lesson)
                 resume_step = 1
                 resume_msg  = f"▶ Continuing from {cfg['lesson_word']} {next_lesson} (last completed: {saved_lesson})"
@@ -1948,15 +1967,19 @@ def _clear_all():
     _keep = {k: st.session_state[k] for k in
              ("launcher_user", "launcher_native", "launcher_target")
              if k in st.session_state}
-    _curriculum = st.session_state.get("curriculum_mode", False)
+    # Set by path_app.py::_launch_unit() when the lesson was opened from My
+    # Path (default) or from Search (return_module="search") -- routes back
+    # to whichever screen the student actually came from instead of always
+    # landing on My Path.
+    _return_module = st.session_state.get("_return_module")
     for k in list(st.session_state):
         del st.session_state[k]
     st.session_state.update(_keep)
-    if _curriculum:
-        st.session_state["active_module"] = "path"
-        st.session_state["curriculum_mode"] = True
+    if _return_module:
+        st.session_state["active_module"] = _return_module
+        st.session_state["_return_module"] = _return_module
         st.session_state["curriculum_advance_pending"] = True
-        st.query_params["module"] = "path"
+        st.query_params["module"] = _return_module
     else:
         st.query_params.clear()
 
@@ -2734,6 +2757,7 @@ def phase3_practice(session: LessonSession, tts_lang: str, wh_lang: str) -> bool
     # ── Check button ──────────────────────────────────────────────────────
     if st.button(i18n.get(native_lang, "check_btn"), type="primary", key="p3_check"):
         results = []
+        _tg_correct_seq: list[bool] = []
         try:
             for i, item in enumerate(test.get("items", [])):
                 student_ans = st.session_state["p3_answers"].get(i, "")
@@ -2762,15 +2786,21 @@ def phase3_practice(session: LessonSession, tts_lang: str, wh_lang: str) -> bool
                 # already covers the underlying lesson's own phrases in
                 # Phase 2), but target_grammar topics have no Phase-2
                 # equivalent at all, so without this they'd never
-                # accumulate any progress anywhere.
+                # accumulate any progress anywhere. Collected here and
+                # written once after the loop via record_results() instead
+                # of once per item -- record_result() per item meant up to
+                # 5 items x 5 DB round-trips each = up to 25 sequential
+                # round-trips for one click.
                 if test_type == "target_grammar" and st.session_state.get("p3_tg_unit_id"):
-                    try:
-                        _recommender.record_result(
-                            session.state.user_id, target_lang,
-                            st.session_state["p3_tg_unit_id"], res["correct"],
-                        )
-                    except Exception:
-                        pass
+                    _tg_correct_seq.append(res["correct"])
+            if test_type == "target_grammar" and st.session_state.get("p3_tg_unit_id") and _tg_correct_seq:
+                try:
+                    _recommender.record_results(
+                        session.state.user_id, target_lang,
+                        st.session_state["p3_tg_unit_id"], _tg_correct_seq,
+                    )
+                except Exception:
+                    pass
         except _gemini.PaidFeatureRequired:
             _show_upsell("p3_check")
             return False
@@ -3454,10 +3484,14 @@ def main(module: str = "grammar"):
             if done:
                 try:
                     _sim  = float(st.session_state.get("_last_similarity", 0.0))
-                    _lang = {
-                        "en": "English", "uk": "Ukrainian",
-                        "es": "Spanish",  "ko": "Korean",
-                    }.get(st.session_state.get("launcher_native", "English"), "en")
+                    # launcher_native holds a language *name* ("English",
+                    # "French"...) -- LANG_TO_CODE is the canonical name->code
+                    # map for all 14 supported languages (previously a local
+                    # 4-entry dict keyed the wrong direction here, so this
+                    # lookup could never match and always fell back to "en"
+                    # for every user).
+                    _lang = _recommender.LANG_TO_CODE.get(
+                        st.session_state.get("launcher_native", "English"), "en")
                     _gres   = on_step_complete(sess.state.user_id, step, _sim, _lang)
                     _toasts = []
                     if _gres.get("leveled_up"):
@@ -3508,9 +3542,11 @@ def main(module: str = "grammar"):
             # always read "0 days" regardless of actual usage.
             _ltoasts: list[str] = []
             try:
-                _llang = {
-                    "English": "en", "Ukrainian": "uk", "Spanish": "es", "Korean": "ko",
-                }.get(st.session_state.get("launcher_native", "English"), "en")
+                # Same canonical map as the Phase 2 step-complete toast above
+                # -- was a local 4-language-only dict, so 10 of the app's 14
+                # native languages silently fell back to English here.
+                _llang = _recommender.LANG_TO_CODE.get(
+                    st.session_state.get("launcher_native", "English"), "en")
                 _lres = on_lesson_complete(sess.state.user_id, _llang)
                 _ltoasts.append(f"🎉 Lesson complete! +{_lres['xp_earned']} XP bonus")
                 if _lres.get("leveled_up"):

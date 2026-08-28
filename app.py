@@ -293,10 +293,14 @@ def _module_progress(user_id: str, target: str, module: str, total: int,
     1000+ -- both instantly clamp to `total`, producing a false "100%,
     N/N" on the launcher card the moment such a lesson is opened (found
     live, 2026-08-24: Vocabulary showed "Тема 981 / 981 · 100%" for a
-    student five lessons in). Reading/Custom keep the old raw-id fallback
-    below (lesson_ids=None) -- their ids are already a contiguous
-    per-language/per-user 1..N sequence, so the old arithmetic is correct
-    for them.
+    student five lessons in). Custom lesson_ids look sequential but are NOT
+    (engine.custom_store hands out ids from one global Postgres sequence
+    shared across every user) -- found live, 2026-08-28: a user's first
+    custom lesson could get e.g. id 57 and instantly show "1/1 · 100%", so
+    it now also passes a real lesson_ids list. Reading is the only module
+    still using the raw-id fallback below (lesson_ids=None) -- its ids
+    really are a contiguous per-language 1..N sequence from the fixed
+    reading_lessons.xlsx catalog.
     """
     info = {"current": 1, "total": max(total, 0), "pct": 0.0, "done": False}
     if not user_id or total <= 0:
@@ -381,8 +385,18 @@ def _module_progress_card(module_key: str, native: str, target: str,
                     "lesson_word": i18n.get(native, "word_unit"), "module_key": "path"}
     else:
         try:
-            total = len(list_user_lessons(user_id, native_lang=native,
-                                          target_lang=target))
+            # Custom lesson_ids come from a global Postgres sequence
+            # (nextval('custom_lesson_id_seq') in engine.custom_store),
+            # shared across ALL users -- not a per-user 1..N sequence, so
+            # (unlike Reading) this module needs the real lesson_ids list
+            # too, same as grammar/vocab/phrasebook above. Without it, the
+            # very first lesson a user creates could get e.g. id 57 and
+            # instantly render as "1/1 · 100% done".
+            lesson_ids = sorted(
+                list_user_lessons(user_id, native_lang=native, target_lang=target)
+                ["lesson_id"].tolist()
+            )
+            total = len(lesson_ids)
         except Exception:
             total = 0
         module = "custom"
@@ -581,7 +595,15 @@ def render_launcher():
                     )
                     st.rerun()
                 except Exception as e:
-                    st.error(f"Checkout unavailable: {e}")
+                    # Never echo the raw exception into the UI: a malformed
+                    # STRIPE_SECRET_KEY (e.g. trailing whitespace from a
+                    # copy-paste) can produce a Stripe AuthenticationError
+                    # whose message includes the offending key value --
+                    # printing it server-side keeps it out of anyone's
+                    # browser, including other users viewing the same
+                    # misconfigured deployment.
+                    print(f"[app] checkout session error: {e}")
+                    st.error("Checkout unavailable right now — please try again in a moment.")
         if st.button("Sign out", use_container_width=True, key="launcher_signout"):
             st.logout()
 

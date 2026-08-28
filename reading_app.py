@@ -1471,15 +1471,19 @@ def clear_all():
     _keep = {k: st.session_state[k] for k in
              ("launcher_user", "launcher_native", "launcher_target")
              if k in st.session_state}
-    _curriculum = st.session_state.get("curriculum_mode", False)
+    # Set by path_app.py::_launch_unit() when the lesson was opened from My
+    # Path (default) or from Search (return_module="search") -- routes back
+    # to whichever screen the student actually came from instead of always
+    # landing on My Path. Same fix as grammar.py::_clear_all().
+    _return_module = st.session_state.get("_return_module")
     for k in list(st.session_state):
         del st.session_state[k]
     st.session_state.update(_keep)
-    if _curriculum:
-        st.session_state["active_module"] = "path"
-        st.session_state["curriculum_mode"] = True
+    if _return_module:
+        st.session_state["active_module"] = _return_module
+        st.session_state["_return_module"] = _return_module
         st.session_state["curriculum_advance_pending"] = True
-        st.query_params["module"] = "path"
+        st.query_params["module"] = _return_module
     else:
         st.query_params.clear()
 
@@ -1731,7 +1735,12 @@ def render_setup():
     # Plotly wave (Streamlit ≥ 1.33 + plotly installed), else dropdown fallback
     from engine import recommender as _recommender
     try:
-        _r_done_lids = _recommender.lesson_progress_map(user_id, chosen_lang, "reading")
+        # lesson_progress_map() filters srs_state.target_lang, which always
+        # stores the full language name ("French"), never the 2-letter code
+        # this file otherwise uses (chosen_lang) — must convert or the query
+        # never matches any row.
+        _r_target_lang_name = _recommender.CODE_TO_LANG.get(chosen_lang, chosen_lang)
+        _r_done_lids = _recommender.lesson_progress_map(user_id, _r_target_lang_name, "reading")
     except Exception:
         _r_done_lids = {}
 
