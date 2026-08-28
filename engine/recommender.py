@@ -353,6 +353,38 @@ def _grammar_frontier_unit(user_id: str, target_lang: str,
     return units[-1]   # everything at/above threshold — nothing left to introduce, stay put
 
 
+def _reading_frontier_units(user_id: str, target_lang: str, limit: int) -> list[dict]:
+    """
+    Next reading lesson(s) in the curriculum's own order (lesson_id
+    ascending), not freely reordered by score -- reading lessons build on
+    each other the same way grammar lessons do (phonics/letters), but unlike
+    grammar there's no per-lesson mastery topic to gate on: many reading
+    units share the fallback "general" mastery bucket (untagged topic, see
+    _mastery_topic), so get_next()'s novelty term ends up comparing them all
+    against the SAME rising mastery score after just a couple of correct
+    answers on lesson 1 -- its "aim slightly above known ability" logic then
+    jumps straight to whichever lesson sits at that CEFR level deep in the
+    catalog (reported 2026-08-28: "after reading lesson 1, lesson 51 is
+    immediately recommended"). Already-attempted lessons still resurface
+    later through get_next()'s own SRS-urgency term as background review;
+    this only decides what's NEXT to introduce.
+    """
+    units = _candidates(target_lang, module="reading")
+    if not units:
+        return []
+
+    def _lid(u: dict) -> int:
+        try:
+            return parse_unit_id(u["unit_id"])["lesson_id"]
+        except Exception:
+            return 0
+
+    units.sort(key=_lid)
+    srs = _srs_map(user_id, target_lang)
+    unseen = [u for u in units if u["unit_id"] not in srs]
+    return (unseen if unseen else units)[:limit]
+
+
 def grammar_neighbor(target_lang: str, lesson_id: int, direction: int) -> dict | None:
     """
     The grammar lesson immediately before (direction=-1, "Easier") or after
@@ -402,7 +434,7 @@ def _interleave_path(user_id: str, target_lang: str, limit: int) -> list[dict]:
     pattern = ["grammar", "vocab"] + ["reading"] * READING_INTERLEAVE_BATCH
     frontier = _grammar_frontier_unit(user_id, target_lang)
     vocab_pool = get_next(user_id, target_lang, module="vocab", limit=limit)
-    reading_pool = get_next(user_id, target_lang, module="reading", limit=limit)
+    reading_pool = _reading_frontier_units(user_id, target_lang, limit)
 
     picks: list[dict] = []
     seen: set[str] = set()
@@ -479,7 +511,7 @@ def get_path_next(user_id: str, target_lang: str, limit: int = 6) -> list[dict]:
 
     gate = total if _is_script_lang(target_lang) else min(READING_INTRO_COUNT, total)
     if done < gate:
-        return get_next(user_id, target_lang, module="reading", limit=limit)
+        return _reading_frontier_units(user_id, target_lang, limit)
     if done < total:
         return _interleave_path(user_id, target_lang, limit)
     return _normal_path(user_id, target_lang, limit)
