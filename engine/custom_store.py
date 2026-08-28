@@ -416,25 +416,3 @@ def rename_lesson(user_id: str, lesson_id: int, new_name: str) -> bool:
         _migrate_csv_once()
         return _db_rename_lesson(user_id, lesson_id, new_name)
     return _csv_rename_lesson(user_id, lesson_id, new_name)
-
-
-def parse_pairs_text(text: str, sep: str = "=") -> list[tuple[str, str]]:
-    """Parse a chunk of text in the form
-
-        native = target
-        another native = another target
-        ...
-
-    Returns a list of (native, target) tuples. Lines without ``sep`` are
-    skipped silently.
-    """
-    pairs = []
-    for line in (text or "").splitlines():
-        line = line.strip()
-        if not line or sep not in line:
-            continue
-        nat, _, tgt = line.partition(sep)
-        nat, tgt = nat.strip(), tgt.strip()
-        if nat and tgt:
-            pairs.append((nat, tgt))
-    return pairs

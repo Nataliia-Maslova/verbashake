@@ -381,6 +381,19 @@ def grammar_neighbor(target_lang: str, lesson_id: int, direction: int) -> dict |
     return None
 
 
+def current_level(user_id: str, target_lang: str) -> str | None:
+    """
+    The student's current CEFR level in target_lang, read off the grammar
+    frontier (whatever lesson _grammar_frontier_unit says is next -- the
+    lesson they're actually working on right now, not a guess). Used by
+    My Phrases' word-list generator (2026-08-28) to pick a sensible default
+    grammar difficulty when the student doesn't name a specific construction.
+    None if there's no grammar catalog for this language at all.
+    """
+    unit = _grammar_frontier_unit(user_id, target_lang)
+    return unit["level"] if unit else None
+
+
 def _interleave_path(user_id: str, target_lang: str, limit: int) -> list[dict]:
     """Reading gate is cleared but reading isn't exhausted yet: 1 grammar +
     1 vocab + READING_INTERLEAVE_BATCH reading, repeating -- Natalia's own

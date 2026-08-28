@@ -1,9 +1,11 @@
 """
-custom_app.py — "My phrases" practice mode.
+custom_app.py — "My phrases" practice mode. Premium-only (2026-08-28).
 
-Lets the user create their own lessons (lesson name + native↔target pairs)
-and then run them through the exact same 8-step flow as grammar / vocabulary.
-Storage: data/custom_phrases.csv (mirrored to Google Sheets if configured).
+Lets the user build their own lesson from a word list + optional grammar
+topic (Gemini generates the native<->target pairs) and then run it through
+the exact same 8-step flow as grammar / vocabulary. Storage: Postgres via
+engine.custom_store (falls back to data/custom_phrases.csv when
+DATABASE_URL isn't configured).
 
 Run via app.py launcher; direct entry: ``custom_app.main()``.
 """
@@ -23,7 +25,7 @@ sys.path.insert(0, str(ROOT))
 
 from engine.custom_store import (
     add_lesson, delete_lesson, get_lesson_phrases,
-    list_user_lessons, parse_pairs_text, rename_lesson,
+    list_user_lessons, rename_lesson,
 )
 from engine import i18n
 from engine.loader  import LANG_COLUMNS, TTS_LANG, WHISPER_LANG
@@ -80,6 +82,24 @@ def _show_upsell_custom(key: str) -> None:
 
 def render_setup():
     _inject_css()
+
+    # ── Premium gate (2026-08-28, Natalia: "my phrases только премиум
+    # фичей") — the whole module is now paid-only, not just the AI
+    # generator: manual pair entry (the only free path into it) is gone as
+    # of the same change, so there's no free path left to gate around
+    # anyway. Checked before the query-param bridge below so a
+    # ?vnav_lesson=... deep link can't be used to start a lesson either.
+    _user_gate = st.session_state.get("launcher_user", "student1")
+    from engine import billing
+    if not billing.is_paid(_user_gate):
+        st.markdown(f"""
+        <div style="text-align:center;padding:32px 0 16px">
+          <h1 style="color:var(--mova-ink);font-weight:700;margin:0;font-size:2rem">{_t("title")}</h1>
+        </div>
+        """, unsafe_allow_html=True)
+        st.info(_t("premium_intro"))
+        _show_upsell_custom("module")
+        return
 
     # ── Query-params bridge: wave clicked a lesson ────────────────────────────
     _qp = st.query_params
@@ -264,59 +284,56 @@ def render_setup():
                                      placeholder=_t("lesson_name_ph"),
                                      key="cu_new_lesson_name")
 
-        # ── Generate from a word list + grammar topic (Natalia's idea,
-        # 2026-08-28) — an alternative to typing pairs by hand: student
-        # supplies a short word list ("nose, eye, lips, leg") and a grammar
-        # construction ("I have got / we have / they have"), Gemini writes
-        # one example sentence per word using that construction. Result is
-        # written into the SAME cu_new_pairs textarea the manual-entry flow
-        # already reads from below, so parsing/preview/save needs no
-        # changes — this only ever pre-fills that one field.
-        with st.expander(_t("generate_expander"), expanded=False):
-            gen_words = st.text_input(
-                _t("generate_words_label"),
-                placeholder=_t("generate_words_ph"),
-                key="cu_gen_words",
-            )
-            gen_topic = st.text_input(
-                _t("generate_topic_label"),
-                placeholder=_t("generate_topic_ph"),
-                key="cu_gen_topic",
-            )
-            if st.button(_t("generate_btn"), key="cu_gen_btn"):
-                word_list = [w.strip() for w in gen_words.split(",") if w.strip()]
-                if not word_list or not gen_topic.strip():
-                    st.warning(_t("generate_need_both"))
-                elif len(word_list) > 20:
-                    st.warning(_t("generate_too_many"))
-                else:
-                    try:
-                        from engine import gemini as _gemini
-                        with st.spinner("…"):
-                            result = _gemini.generate_custom_word_drill(
-                                word_list, gen_topic.strip(), native, target)
-                        items = result.get("items") or []
-                        if not items:
-                            st.error(_t("generate_failed"))
-                        else:
-                            st.session_state["cu_new_pairs"] = "\n".join(
-                                f"{it['native']} = {it['target']}" for it in items
-                                if it.get("native") and it.get("target")
-                            )
-                            st.success(_t("generate_filled", n=len(items)))
-                            st.rerun()
-                    except _gemini.PaidFeatureRequired:
-                        _show_upsell_custom("cu_gen")
-
-        st.caption(_t("pairs_hint", native=native, target=target))
-        text = st.text_area(
-            _t("pairs_label", native=native, target=target),
-            height=200,
-            key="cu_new_pairs",
-            placeholder=_t("pairs_ph", native=native, target=target),
+        # ── Generate from a word list + optional grammar topic (Natalia,
+        # 2026-08-28) — now the ONLY way to build a lesson (manual native=
+        # target typing removed the same day, since the whole module is
+        # Premium-only anyway and this is strictly less typing for the
+        # same result). Student supplies a short word list ("nose, eye,
+        # lips, leg") and, optionally, a grammar construction ("I have got
+        # / we have / they have"); Gemini writes one example sentence per
+        # word. If no topic is given, sentences are generated at the
+        # student's current level in target_lang instead of one named
+        # pattern (engine.recommender.current_level — the grammar frontier
+        # they're actually working on, not a guess).
+        gen_words = st.text_input(
+            _t("generate_words_label"),
+            placeholder=_t("generate_words_ph"),
+            key="cu_gen_words",
         )
+        gen_topic = st.text_input(
+            _t("generate_topic_label"),
+            placeholder=_t("generate_topic_ph"),
+            key="cu_gen_topic",
+        )
+        if st.button(_t("generate_btn"), type="primary", key="cu_gen_btn"):
+            word_list = [w.strip() for w in gen_words.split(",") if w.strip()]
+            if not word_list:
+                st.warning(_t("generate_need_words"))
+            elif len(word_list) > 20:
+                st.warning(_t("generate_too_many"))
+            else:
+                try:
+                    from engine import gemini as _gemini
+                    from engine import recommender as _recommender
+                    topic = gen_topic.strip() or None
+                    level = None if topic else _recommender.current_level(user_id, target)
+                    with st.spinner("…"):
+                        result = _gemini.generate_custom_word_drill(
+                            word_list, topic, native, target, level=level)
+                    items = result.get("items") or []
+                    if not items:
+                        st.error(_t("generate_failed"))
+                    else:
+                        st.session_state["cu_pairs"] = [
+                            (it["native"], it["target"]) for it in items
+                            if it.get("native") and it.get("target")
+                        ]
+                        st.success(_t("generate_filled", n=len(items)))
+                        st.rerun()
+                except _gemini.PaidFeatureRequired:
+                    _show_upsell_custom("cu_gen")
 
-        pairs = parse_pairs_text(text, sep="=")
+        pairs = st.session_state.get("cu_pairs", [])
         if pairs:
             st.caption(_t("recognized", n=len(pairs)))
             preview_html = ""
@@ -327,7 +344,7 @@ def render_setup():
                     f'<span style="color:var(--mova-indigo-ink);min-width:28px;'
                     f'font-family:\'JetBrains Mono\',monospace;font-size:.72rem">{i:02d}</span>'
                     f'<span style="flex:1;color:var(--mova-ink)">{nat}</span>'
-                    f'<span style="flex:1;color:#ffffff;font-weight:500">{tgt}</span>'
+                    f'<span style="flex:1;color:var(--mova-ink);font-weight:600">{tgt}</span>'
                     f'</div>'
                 )
             if len(pairs) > 8:
@@ -340,8 +357,6 @@ def render_setup():
                 f'background:var(--mova-card);border:1px solid var(--mova-line)">{preview_html}</div>',
                 unsafe_allow_html=True,
             )
-        elif text.strip():
-            st.warning(_t("no_pairs"))
 
         save_disabled = (not pairs) or (not user_id)
         if st.button(_t("save_lesson"), type="primary",
@@ -350,7 +365,7 @@ def render_setup():
             try:
                 lid = add_lesson(user_id, lesson_name, native, target, pairs)
                 st.success(_t("saved_ok", lid=lid, n=len(pairs)))
-                st.session_state.pop("cu_new_pairs", None)
+                st.session_state.pop("cu_pairs", None)
                 st.session_state.pop("cu_new_lesson_name", None)
                 st.rerun()
             except ValueError as e:

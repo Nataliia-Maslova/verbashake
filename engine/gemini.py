@@ -756,17 +756,26 @@ def generate_lesson_construction_drill(
 @_require_paid
 def generate_custom_word_drill(
     words: list[str],
-    topic: str,
+    topic: str | None,
     native_lang: str,
     target_lang: str,
+    level: str | None = None,
 ) -> dict:
     """
     "My Phrases" word-list + grammar-topic generator (Natalia's idea,
     2026-08-28): the student supplies their own short word list (e.g. nose,
-    eye, lips, leg) and a grammar construction to practice it with (e.g.
-    "have got"), instead of typing native/target pairs by hand. One sentence
-    per word, each demonstrating the requested construction, so every word
-    in the list is used at least once.
+    eye, lips, leg) and, optionally, a grammar construction to practice it
+    with (e.g. "have got"), instead of typing native/target pairs by hand.
+    One sentence per word, each demonstrating the requested construction,
+    so every word in the list is used at least once.
+
+    `topic` is now optional (2026-08-28, part of making My Phrases
+    Premium-only + dropping manual pair entry): when the student doesn't
+    name a specific construction, `level` (their current CEFR level in
+    target_lang — the caller passes the grammar frontier's level, i.e. what
+    they're actually working on right now, not a guess) steers the prompt
+    toward grammar appropriate for that level instead of one named pattern.
+    `level` is ignored when `topic` is given — an explicit topic always wins.
 
     Unlike generate_lesson_construction_drill (vocabulary pulled from a
     CEFR-level pool, English-only for the strict path), the word list here
@@ -777,19 +786,24 @@ def generate_custom_word_drill(
     drill / generate_open_question) — a student regenerating with the same
     words+topic expects fresh sentences, not a frozen first answer.
 
-    custom_app.py feeds the result straight into the same native=target
-    pair textarea the manual-entry flow already uses, so the existing
-    parse/preview/save code needs no changes for this to work.
-
     Returns: {"items": [{"target": str, "native": str}, ...]}
     """
     _configure()
     word_list = ", ".join(words)
+    if topic:
+        grammar_instruction = f"Every sentence must demonstrate this grammar pattern: {topic}."
+    else:
+        lvl = level or "A1"
+        grammar_instruction = (
+            f"The student's current level in {target_lang} is CEFR {lvl}. "
+            f"Use grammar and sentence structures appropriate for that level "
+            f"— nothing more advanced, nothing so simple it teaches nothing new."
+        )
     prompt = (
         f"Generate one example sentence in {target_lang} for EACH of these "
         f"words, using every word at least once across the sentences: "
         f"{word_list}.\n"
-        f"Every sentence must demonstrate this grammar pattern: {topic}.\n"
+        f"{grammar_instruction}\n"
         f"Keep sentences short and natural — the kind a beginner student "
         f"would practice.\n\n"
         "Return JSON only — no markdown fences:\n"
