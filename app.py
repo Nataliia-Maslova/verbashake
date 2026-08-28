@@ -42,6 +42,7 @@ import grammar as grammar_app          # noqa: E402
 import reading_app                  # noqa: E402
 import custom_app                   # noqa: E402
 import path_app                     # noqa: E402
+import search_app                   # noqa: E402
 from engine import auth_gate        # noqa: E402
 from engine import billing          # noqa: E402
 from engine import user_prefs       # noqa: E402
@@ -904,6 +905,8 @@ def main():
         custom_app.main()
     elif active == "path":
         path_app.main()
+    elif active == "search":
+        search_app.main()
     else:
         # Unknown module - reset
         for k in list(st.session_state):

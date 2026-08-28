@@ -25,7 +25,8 @@ Reading covers every language with real content in reading_lessons.xlsx
 (2026-08-27 -- was hardcoded to en/uk/es/ko only, even though fr/de/pt/it/
 pl/ru/ja/zh already had real lesson data sitting unused; see
 scripts/tag_reading_new_langs.py for how those 8 got tagged). Catalan/Dutch
-still have no reading sheet at all -- extend READING_LANGS once one exists.
+sheets added 2026-08-27 and tagged the same way -- READING_LANGS now covers
+all 14 languages with reading content.
 """
 from __future__ import annotations
 
@@ -42,7 +43,7 @@ from engine.recommender import DIFFICULTY_TO_CEFR, LANG_TO_CODE
 
 DATA_DIR = Path(__file__).parent.parent / "data"
 
-READING_LANGS = ["en", "uk", "es", "ko", "fr", "de", "pt", "it", "pl", "ru", "ja", "zh"]
+READING_LANGS = ["en", "uk", "es", "ko", "fr", "de", "pt", "it", "pl", "ru", "ja", "zh", "nl", "ca"]
 
 
 def _load_tags_template(path: Path, key_cols: list[str]) -> dict[tuple, dict]:

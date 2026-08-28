@@ -25,153 +25,38 @@ from engine.custom_store import (
     add_lesson, delete_lesson, get_lesson_phrases,
     list_user_lessons, parse_pairs_text, rename_lesson,
 )
-from engine.loader  import TTS_LANG, WHISPER_LANG
+from engine import i18n
+from engine.loader  import LANG_COLUMNS, TTS_LANG, WHISPER_LANG
 from engine.session import LessonSession
 
 import grammar as grammar_app  # we reuse its 8-step machinery
 
 
-LANGUAGES = ["English", "Ukrainian", "Spanish", "Korean"]
+# All 14 languages the rest of the app supports (2026-08-28 — was hardcoded
+# to just English/Ukrainian/Spanish/Korean; My Phrases has no language-
+# specific content of its own, unlike CEFR-J Vocabulary, so there was no
+# real reason for the narrower list once its i18n moved to engine.i18n).
+LANGUAGES = list(LANG_COLUMNS.keys())
 
 
 # ─── i18n strings ─────────────────────────────────────────────────────────
 
-_I18N: dict[str, dict[str, str]] = {
-    "Ukrainian": {
-        "module_label":     "Модуль",
-        "main_menu":        "🏠 Головне меню",
-        "title":            "Мої фрази",
-        "subtitle":         "Створи свій урок із власних фраз — і тренуй той самий 8-кроковий цикл.",
-        "your_name":        "👤 Ваше ім'я",
-        "native_label":     "🌐 Рідна",
-        "target_label":     "🎯 Цільова",
-        "your_lessons":     "📚 Ваші уроки ({native} → {target})",
-        "no_lessons":       "Поки що жодного уроку для цієї пари. Створіть перший нижче ↓",
-        "manage_lessons":   "✏️ Керування уроками (перейменування / видалення)",
-        "phrases_count":    "· {n} фраз",
-        "rename_btn":       "✏ Перейменувати",
-        "delete_btn":       "🗑 Видалити",
-        "new_name_label":   "Нова назва уроку",
-        "save_btn":         "Зберегти",
-        "cancel_btn":       "Скасувати",
-        "delete_confirm":   "Видалити урок «{name}» назавжди?",
-        "delete_yes":       "Так, видалити",
-        "create_expander":  "➕ Створити новий урок",
-        "lesson_name":      "Назва уроку",
-        "lesson_name_ph":   "наприклад, Подорож у Париж",
-        "pairs_hint":       "Список фраз — по одній на рядок у форматі **{native} = {target}**. Приклад:\n\n`Я хочу каву = I want a coffee`\n`Скільки коштує? = How much is it?`",
-        "pairs_label":      "Пари фраз ({native} = {target})",
-        "pairs_ph":         "{native} = {target}\n...\n...",
-        "recognized":       "Розпізнано {n} пар(и):",
-        "more_pairs":       "... та ще {n} пар",
-        "no_pairs":         "Жодної валідної пари не знайдено. Перевірте, що використовуєте `=` між фразами.",
-        "save_lesson":      "💾 Зберегти урок",
-        "saved_ok":         "✓ Урок створено (id {lid}, {n} фраз).",
-        "no_phrases_err":   "У цьому уроці немає фраз.",
-    },
-    "English": {
-        "module_label":     "Module",
-        "main_menu":        "🏠 Main menu",
-        "title":            "My Phrases",
-        "subtitle":         "Create your own lesson from custom phrases and practice the same 8-step cycle.",
-        "your_name":        "👤 Your name",
-        "native_label":     "🌐 Native",
-        "target_label":     "🎯 Target",
-        "your_lessons":     "📚 Your lessons ({native} → {target})",
-        "no_lessons":       "No lessons yet for this pair. Create your first one below ↓",
-        "manage_lessons":   "✏️ Manage lessons (rename / delete)",
-        "phrases_count":    "· {n} phrases",
-        "rename_btn":       "✏ Rename",
-        "delete_btn":       "🗑 Delete",
-        "new_name_label":   "New lesson name",
-        "save_btn":         "Save",
-        "cancel_btn":       "Cancel",
-        "delete_confirm":   "Delete lesson «{name}» permanently?",
-        "delete_yes":       "Yes, delete",
-        "create_expander":  "➕ Create new lesson",
-        "lesson_name":      "Lesson name",
-        "lesson_name_ph":   "e.g. Trip to Paris",
-        "pairs_hint":       "One phrase per line in the format **{native} = {target}**. Example:\n\n`I want coffee = Я хочу каву`\n`How much is it? = Скільки коштує?`",
-        "pairs_label":      "Phrase pairs ({native} = {target})",
-        "pairs_ph":         "{native} = {target}\n...\n...",
-        "recognized":       "Recognized {n} pair(s):",
-        "more_pairs":       "... and {n} more",
-        "no_pairs":         "No valid pairs found. Make sure you use `=` between phrases.",
-        "save_lesson":      "💾 Save lesson",
-        "saved_ok":         "✓ Lesson created (id {lid}, {n} phrases).",
-        "no_phrases_err":   "No phrases in this lesson.",
-    },
-    "Spanish": {
-        "module_label":     "Módulo",
-        "main_menu":        "🏠 Menú principal",
-        "title":            "Mis frases",
-        "subtitle":         "Crea tu propia lección con frases personales y practica el ciclo de 8 pasos.",
-        "your_name":        "👤 Tu nombre",
-        "native_label":     "🌐 Idioma nativo",
-        "target_label":     "🎯 Idioma objetivo",
-        "your_lessons":     "📚 Tus lecciones ({native} → {target})",
-        "no_lessons":       "Aún no hay lecciones para este par. Crea la primera abajo ↓",
-        "manage_lessons":   "✏️ Gestionar lecciones (renombrar / eliminar)",
-        "phrases_count":    "· {n} frases",
-        "rename_btn":       "✏ Renombrar",
-        "delete_btn":       "🗑 Eliminar",
-        "new_name_label":   "Nuevo nombre de lección",
-        "save_btn":         "Guardar",
-        "cancel_btn":       "Cancelar",
-        "delete_confirm":   "¿Eliminar la lección «{name}» permanentemente?",
-        "delete_yes":       "Sí, eliminar",
-        "create_expander":  "➕ Crear nueva lección",
-        "lesson_name":      "Nombre de la lección",
-        "lesson_name_ph":   "p.ej. Viaje a París",
-        "pairs_hint":       "Una frase por línea en el formato **{native} = {target}**. Ejemplo:\n\n`Quiero un café = I want a coffee`\n`¿Cuánto cuesta? = How much is it?`",
-        "pairs_label":      "Pares de frases ({native} = {target})",
-        "pairs_ph":         "{native} = {target}\n...\n...",
-        "recognized":       "Se reconocieron {n} par(es):",
-        "more_pairs":       "... y {n} más",
-        "no_pairs":         "No se encontraron pares válidos. Asegúrate de usar `=` entre las frases.",
-        "save_lesson":      "💾 Guardar lección",
-        "saved_ok":         "✓ Lección creada (id {lid}, {n} frases).",
-        "no_phrases_err":   "Esta lección no tiene frases.",
-    },
-    "Korean": {
-        "module_label":     "모듈",
-        "main_menu":        "🏠 메인 메뉴",
-        "title":            "내 문장",
-        "subtitle":         "나만의 문장으로 수업을 만들고 8단계 사이클로 연습하세요.",
-        "your_name":        "👤 이름",
-        "native_label":     "🌐 모국어",
-        "target_label":     "🎯 학습 언어",
-        "your_lessons":     "📚 내 수업 ({native} → {target})",
-        "no_lessons":       "이 언어 쌍에 대한 수업이 없습니다. 아래에서 첫 수업을 만드세요 ↓",
-        "manage_lessons":   "✏️ 수업 관리 (이름 변경 / 삭제)",
-        "phrases_count":    "· {n}개 문장",
-        "rename_btn":       "✏ 이름 변경",
-        "delete_btn":       "🗑 삭제",
-        "new_name_label":   "새 수업 이름",
-        "save_btn":         "저장",
-        "cancel_btn":       "취소",
-        "delete_confirm":   "수업 «{name}»을(를) 영구적으로 삭제할까요?",
-        "delete_yes":       "예, 삭제",
-        "create_expander":  "➕ 새 수업 만들기",
-        "lesson_name":      "수업 이름",
-        "lesson_name_ph":   "예: 파리 여행",
-        "pairs_hint":       "**{native} = {target}** 형식으로 한 줄에 하나씩 입력하세요. 예:\n\n`커피 주세요 = I want a coffee`\n`얼마예요? = How much is it?`",
-        "pairs_label":      "문장 쌍 ({native} = {target})",
-        "pairs_ph":         "{native} = {target}\n...\n...",
-        "recognized":       "{n}개 쌍을 인식했습니다:",
-        "more_pairs":       "... 외 {n}개",
-        "no_pairs":         "유효한 쌍을 찾을 수 없습니다. 문장 사이에 `=`를 사용했는지 확인하세요.",
-        "save_lesson":      "💾 수업 저장",
-        "saved_ok":         "✓ 수업이 생성되었습니다 (id {lid}, {n}개 문장).",
-        "no_phrases_err":   "이 수업에 문장이 없습니다.",
-    },
-}
-
 def _t(key: str, **kwargs) -> str:
-    """Return localized string for the current native language."""
+    """Return localized string for the current native language.
+
+    Migrated off this file's own hand-rolled _I18N dict (2026-08-28, part of
+    extending My Phrases from 4 languages to all 14) onto engine.i18n's
+    shared STRINGS, prefixed "custom_" to avoid colliding with other
+    modules' keys -- except "main_menu", which reuses the app-wide key
+    verbatim (this file's own value was byte-identical to it in every
+    language it had). en/uk/es/ko are hand-written there (copied straight
+    from this file's old dict, not re-translated); the other 10 languages
+    come from scripts/generate_i18n_strings.py, same as every other
+    module's strings.
+    """
     lang = st.session_state.get("launcher_native", "Ukrainian")
-    strings = _I18N.get(lang, _I18N["Ukrainian"])
-    tmpl = strings.get(key, _I18N["Ukrainian"].get(key, key))
+    ikey = key if key == "main_menu" else f"custom_{key}"
+    tmpl = i18n.get(lang, ikey)
     return tmpl.format(**kwargs) if kwargs else tmpl
 
 
@@ -179,6 +64,16 @@ def _t(key: str, **kwargs) -> str:
 
 def _inject_css():
     grammar_app._inject_css()
+
+
+def _show_upsell_custom(key: str) -> None:
+    """Same pattern as grammar.py::_show_upsell / reading_app.py::
+    _show_upsell_reading — kept local since custom_app.py otherwise never
+    touches engine.gemini."""
+    st.warning("⭐ This is a Premium feature — live AI generation isn't included in the free plan.")
+    if st.button("⭐ Go to Upgrade", key=f"upsell_{key}"):
+        st.session_state["_show_launcher"] = True
+        st.rerun()
 
 
 # ─── Setup screen ─────────────────────────────────────────────────────────
@@ -368,6 +263,50 @@ def render_setup():
         lesson_name = st.text_input(_t("lesson_name"),
                                      placeholder=_t("lesson_name_ph"),
                                      key="cu_new_lesson_name")
+
+        # ── Generate from a word list + grammar topic (Natalia's idea,
+        # 2026-08-28) — an alternative to typing pairs by hand: student
+        # supplies a short word list ("nose, eye, lips, leg") and a grammar
+        # construction ("I have got / we have / they have"), Gemini writes
+        # one example sentence per word using that construction. Result is
+        # written into the SAME cu_new_pairs textarea the manual-entry flow
+        # already reads from below, so parsing/preview/save needs no
+        # changes — this only ever pre-fills that one field.
+        with st.expander(_t("generate_expander"), expanded=False):
+            gen_words = st.text_input(
+                _t("generate_words_label"),
+                placeholder=_t("generate_words_ph"),
+                key="cu_gen_words",
+            )
+            gen_topic = st.text_input(
+                _t("generate_topic_label"),
+                placeholder=_t("generate_topic_ph"),
+                key="cu_gen_topic",
+            )
+            if st.button(_t("generate_btn"), key="cu_gen_btn"):
+                word_list = [w.strip() for w in gen_words.split(",") if w.strip()]
+                if not word_list or not gen_topic.strip():
+                    st.warning(_t("generate_need_both"))
+                elif len(word_list) > 20:
+                    st.warning(_t("generate_too_many"))
+                else:
+                    try:
+                        from engine import gemini as _gemini
+                        with st.spinner("…"):
+                            result = _gemini.generate_custom_word_drill(
+                                word_list, gen_topic.strip(), native, target)
+                        items = result.get("items") or []
+                        if not items:
+                            st.error(_t("generate_failed"))
+                        else:
+                            st.session_state["cu_new_pairs"] = "\n".join(
+                                f"{it['native']} = {it['target']}" for it in items
+                                if it.get("native") and it.get("target")
+                            )
+                            st.success(_t("generate_filled", n=len(items)))
+                            st.rerun()
+                    except _gemini.PaidFeatureRequired:
+                        _show_upsell_custom("cu_gen")
 
         st.caption(_t("pairs_hint", native=native, target=target))
         text = st.text_area(

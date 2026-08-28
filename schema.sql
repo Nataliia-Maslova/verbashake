@@ -213,3 +213,35 @@ CREATE TABLE IF NOT EXISTS user_prefs (
     target_lang  TEXT,
     updated_at   TIMESTAMPTZ NOT NULL DEFAULT now()
 );
+
+-- ── custom_phrases ───────────────────────────────────────────────────────────
+-- "My Phrases" user-created lessons (2026-08-28, replacing the CSV-file
+-- store engine/custom_store.py used to be). The CSV version did a full
+-- read-all/append-in-memory/write-all-back on every add/delete/rename, plus
+-- a full clear+rewrite of a Google Sheets mirror on top -- safe with one
+-- person testing alone, but a genuine data-loss race the moment two real
+-- users save around the same time: whoever's full-file write lands last
+-- silently overwrites the other's just-created lesson. Real Postgres rows
+-- with a per-row INSERT/DELETE/UPDATE remove that race entirely, the same
+-- way mastery/srs_state/gamification already left CSV/Sheets behind.
+--
+-- lesson_id is a global surrogate key (not "max lesson_id for this user + 1"
+-- the way the CSV version computed it -- that arithmetic was itself racy
+-- under two concurrent saves by the *same* user, e.g. two open tabs).
+-- custom_lesson_id_seq hands out a fresh id atomically per new lesson;
+-- app-facing code never sees or depends on the numbers being small/dense.
+CREATE SEQUENCE IF NOT EXISTS custom_lesson_id_seq;
+
+CREATE TABLE IF NOT EXISTS custom_phrases (
+    user_id      TEXT NOT NULL,
+    lesson_id    BIGINT NOT NULL,
+    lesson_name  TEXT NOT NULL,
+    phrase_id    INT NOT NULL,
+    native_lang  TEXT NOT NULL,
+    target_lang  TEXT NOT NULL,
+    native       TEXT NOT NULL,
+    target       TEXT NOT NULL,
+    created_at   TIMESTAMPTZ NOT NULL DEFAULT now(),
+    PRIMARY KEY (user_id, lesson_id, phrase_id)
+);
+CREATE INDEX IF NOT EXISTS idx_custom_phrases_user ON custom_phrases (user_id);

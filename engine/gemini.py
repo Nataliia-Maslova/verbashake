@@ -754,6 +754,61 @@ def generate_lesson_construction_drill(
 
 
 @_require_paid
+def generate_custom_word_drill(
+    words: list[str],
+    topic: str,
+    native_lang: str,
+    target_lang: str,
+) -> dict:
+    """
+    "My Phrases" word-list + grammar-topic generator (Natalia's idea,
+    2026-08-28): the student supplies their own short word list (e.g. nose,
+    eye, lips, leg) and a grammar construction to practice it with (e.g.
+    "have got"), instead of typing native/target pairs by hand. One sentence
+    per word, each demonstrating the requested construction, so every word
+    in the list is used at least once.
+
+    Unlike generate_lesson_construction_drill (vocabulary pulled from a
+    CEFR-level pool, English-only for the strict path), the word list here
+    is fully student-supplied, so there's no target_lang-specific branching
+    needed — it works the same way for every target_lang from the start.
+
+    Not cached (like generate_practice_test / generate_lesson_construction_
+    drill / generate_open_question) — a student regenerating with the same
+    words+topic expects fresh sentences, not a frozen first answer.
+
+    custom_app.py feeds the result straight into the same native=target
+    pair textarea the manual-entry flow already uses, so the existing
+    parse/preview/save code needs no changes for this to work.
+
+    Returns: {"items": [{"target": str, "native": str}, ...]}
+    """
+    _configure()
+    word_list = ", ".join(words)
+    prompt = (
+        f"Generate one example sentence in {target_lang} for EACH of these "
+        f"words, using every word at least once across the sentences: "
+        f"{word_list}.\n"
+        f"Every sentence must demonstrate this grammar pattern: {topic}.\n"
+        f"Keep sentences short and natural — the kind a beginner student "
+        f"would practice.\n\n"
+        "Return JSON only — no markdown fences:\n"
+        "{\n"
+        '  "items": [\n'
+        "    {\n"
+        f'      "target": "sentence in {target_lang}",\n'
+        f'      "native": "translation in {native_lang}"\n'
+        "    }\n"
+        "  ]\n"
+        "}"
+    )
+    return _parse_json(
+        _model(_FLASH).generate_content(prompt).text,
+        fallback={"items": []},
+    )
+
+
+@_require_paid
 def generate_target_grammar_drill(
     title: str,
     description: str,

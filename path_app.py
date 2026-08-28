@@ -73,6 +73,7 @@ _SHORTCUT_MODULES = [
     ("phrasebook", "💬", "Phrasebook",  APP_IMG_DIR / "vocab_greetings.jpg"),
     ("reading",    "🔤", "Reading",     APP_IMG_DIR / "reading_banner.jpg"),
     ("custom",     "📝", "My Phrases",  APP_IMG_DIR / "my_phrases_banner.jpg"),
+    ("search",     "🔍", "Search",      APP_IMG_DIR / "search_banner.jpg"),
 ]
 
 

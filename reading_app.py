@@ -98,6 +98,16 @@ TTS_CONFIG = {
     "it": {"voice": "it-IT-ElsaNeural",          "gtts": "it"},
     "pl": {"voice": "pl-PL-ZofiaNeural",         "gtts": "pl"},
     "ru": {"voice": "ru-RU-SvetlanaNeural",      "gtts": "ru"},
+    "nl": {"voice": "nl-NL-FennaNeural",         "gtts": "nl"},
+    # gTTS/edge-tts only have standard (Barcelona-based) Catalan -- no Valencian
+    # voice exists in either free engine (checked 2026-08-27: edge-tts's voice
+    # list has just ca-ES-EnricNeural/JoanaNeural, gTTS has one generic "ca").
+    # A real Valencian voice exists (projecte-aina/matxa-tts-cat-multiaccent,
+    # BSC-CNS "Aina" project, speakers Lluc/Gina) but it's a self-hosted
+    # PyTorch model (needs espeak-ng, GPU-friendly but CPU-workable) under
+    # GPL-3.0 with a separate voice-artist commercial license requirement --
+    # not a drop-in swap for the gTTS/edge-tts call here. Left as future work.
+    "ca": {"voice": "ca-ES-JoanaNeural",         "gtts": "ca"},
 }
 LANG_LABELS = {
     "en": "English 🇬🇧",
@@ -112,11 +122,14 @@ LANG_LABELS = {
     "it": "Italiano 🇮🇹",
     "pl": "Polski 🇵🇱",
     "ru": "Русский 🇷🇺",
+    "nl": "Nederlands 🇳🇱",
+    "ca": "Català 🇪🇸",
 }
 WHISPER_LANG = {
     "en": "en", "uk": "uk", "es": "es", "ko": "ko",
     "fr": "fr", "de": "de", "ja": "ja", "zh": "zh",
     "pt": "pt", "it": "it", "pl": "pl", "ru": "ru",
+    "nl": "nl", "ca": "ca",
 }
 
 # Native language → column name in «Правила» sheet (rules for English lessons)
@@ -218,6 +231,48 @@ def _log_score(step: int, phrase_id: int, similarity: float,
         )
     except Exception as e:
         print(f"[reading_app] record_result error: {e}")
+
+
+_KANA_RANGE = ("぀", "ヿ")  # hiragana + katakana
+
+
+def is_phonics_only_lesson(rows: pd.DataFrame, lang: str = None) -> bool:
+    """True when every row in the lesson is a bare letter/digraph or a
+    disconnected syllable-drill entry (e.g. en 'Ee', es 'MA', uk 'ДЖ'),
+    never a real connected word — Whisper reliably mis-transcribes isolated
+    sounds like these, so similarity scoring against them is just noise, not
+    a real pronunciation signal (steps 2/5 skip scoring for such lessons).
+
+    Word length alone is a safe signal for the Latin/Cyrillic-script courses
+    (verified against every lesson in data/reading_lessons.xlsx: once real
+    words show up they're always longer, e.g. Spanish switches to hyphenated
+    "BO-TA"/"A-ZUL" past lesson 44 — length>2 there, correctly left alone).
+
+    It is NOT safe for Korean or Chinese/Japanese: genuine 1-2-character
+    words are completely normal there (Korean "나비" = butterfly, Japanese
+    "一" = one), not a sign of a bare-letter drill — checked directly against
+    the ko sheet, which has real length<=2 vocabulary from lesson 40 onward
+    that a blind length rule would wrongly silence. So: ko is excluded
+    entirely (left exactly as it already scores — no safe way to tell its
+    real length<=2 words from its jamo/syllable-name drills by shape alone);
+    ja gets a narrower, verified-safe check (only lesson 1's bare hiragana
+    vowels are ever "all rows length 1 and in the kana block" — its later
+    lessons mix kana-length-1 rows with real kanji/kana words, so they never
+    match and keep scoring as before); zh needs no special case — its bare
+    tone-mark rows (lesson 1: "ā", "á"...) always appear in the same lesson
+    as longer real syllable+character examples, so the length rule already
+    leaves it alone on its own.
+    """
+    words = [str(r["word"]).strip() for _, r in rows.iterrows() if r["word"]]
+    if not words:
+        return False
+    lang = lang or _r_lang()
+    if lang == "ko":
+        return False
+    if lang == "ja":
+        lo, hi = _KANA_RANGE
+        return all(len(w) == 1 and lo <= w <= hi for w in words)
+    return all(len(w) <= 2 for w in words)
 
 
 def score_audio(audio_bytes, expected_text, lang: str = None):
@@ -695,7 +750,7 @@ def load(path: str, lang: str = "en", native_lang: str = "Ukrainian") -> pd.Data
         except Exception as e:
             print(f"[load] rules merge failed: {e}")
             df["rule"] = df["rule"].fillna("").astype(str).str.strip()
-    elif lang in ("ko", "fr", "de", "ja", "zh", "pt", "it", "pl", "ru"):
+    elif lang in ("ko", "fr", "de", "ja", "zh", "pt", "it", "pl", "ru", "nl", "ca"):
         # 5-column sheets: lesson_id, row_id, word, transcription, rule
         df = df.iloc[:, :5]
         df.columns = ["lesson_id", "row_id", "word", "transcription", "rule"]
@@ -785,6 +840,7 @@ READING_UI = {
         "step2": "Прочитай слова",
         "step2_icon": "👁️",
         "step2_hint": "🎤 Запиши себе вголос і перевір вимову.",
+        "phonics_note": "🔤 Тут ми лише практикуємо звучання — оцінка вимови на окремих буквах/складах ненадійна, тож не рахуємо бали.",
         "step3": "Послухай і знайди переклад",
         "step3_icon": "🎯",
         "step3_hint": "🎧 Слухай → 👆 натисни правильний переклад.",
@@ -846,6 +902,7 @@ READING_UI = {
         "step2": "Read the Words",
         "step2_icon": "👁️",
         "step2_hint": "🎤 Record yourself and check your pronunciation.",
+        "phonics_note": "🔤 Just practicing the sound here — pronunciation scoring on single letters/syllables isn't reliable, so we skip it.",
         "step3": "Listen & Find",
         "step3_icon": "🎯",
         "step3_hint": "🎧 Listen → 👆 tap the correct translation.",
@@ -907,6 +964,7 @@ READING_UI = {
         "step2": "Lee las palabras",
         "step2_icon": "👁️",
         "step2_hint": "🎤 Grábate y verifica tu pronunciación.",
+        "phonics_note": "🔤 Aquí solo practicamos el sonido — la evaluación de pronunciación en letras/sílabas sueltas no es fiable, así que no la usamos.",
         "step3": "Escucha y encuentra",
         "step3_icon": "🎯",
         "step3_hint": "🎧 Escucha → 👆 toca la traducción correcta.",
@@ -968,6 +1026,7 @@ READING_UI = {
         "step2": "단어 읽기",
         "step2_icon": "👁️",
         "step2_hint": "🎤 녹음하여 발음을 확인하세요.",
+        "phonics_note": "🔤 여기서는 소리 연습만 해요 — 낱자/음절 단위 발음 채점은 정확하지 않아서 점수를 매기지 않아요.",
         "step3": "듣고 찾기",
         "step3_icon": "🎯",
         "step3_hint": "🎧 듣기 → 👆 올바른 번역 누르기.",
@@ -1039,10 +1098,10 @@ def current_step() -> int:
     return st.session_state.get("r_step", 1)
 
 
-def shdr(step: int):
+def shdr(step: int, hint_override: str = None):
     icon  = _ui(f"step{step}_icon")
     title = _ui(f"step{step}")
-    hint  = _ui(f"step{step}_hint")
+    hint  = hint_override or _ui(f"step{step}_hint")
     st.markdown(
         f'<div class="step-header">'
         f'<div class="step-icon-row">'
@@ -1116,12 +1175,8 @@ def do_step1(rows: pd.DataFrame) -> bool:
 # ═══════════════════════════════════════════════════════════════════════════
 
 def do_step2(rows: pd.DataFrame) -> bool:
-    shdr(2)
-    st.markdown(
-        f'<div style="color:var(--mova-ink-2);font-size:.9rem;margin:-6px 0 14px">'
-        f'{_ui("step2_hint")}</div>',
-        unsafe_allow_html=True,
-    )
+    phonics_only = is_phonics_only_lesson(rows)
+    shdr(2, hint_override=_ui("phonics_note") if phonics_only else None)
 
     scores = st.session_state.get("s2_scores", {})
 
@@ -1133,38 +1188,46 @@ def do_step2(rows: pd.DataFrame) -> bool:
     expected = ". ".join(str(r["word"]).strip() for _, r in rows.iterrows())
     audio = mic("s2")
 
-    if not STT_OK or not SCORER_OK:
-        st.caption("⚠️ Для перевірки потрібно: `pip install openai-whisper rapidfuzz`")
+    if phonics_only:
+        # Bare letters/syllables — Whisper can't reliably score isolated
+        # sounds, so this is self-practice only: record, listen back, and the
+        # "Next" button below unlocks as soon as they've recorded (no check
+        # button, no score, nothing written to mastery/SRS for this step).
+        pass
+    else:
+        if not STT_OK or not SCORER_OK:
+            st.caption("⚠️ Для перевірки потрібно: `pip install openai-whisper rapidfuzz`")
 
-    if st.button(_ui("check_pron"), type="primary",
-                 use_container_width=True, key="s2_check"):
-        if not audio:
-            st.warning(_ui("record_first"))
-        elif not STT_OK or not SCORER_OK:
-            st.warning("Whisper/RapidFuzz не встановлені.")
-        else:
-            t_ms = _audio_duration_ms(audio)
-            with st.spinner(_ui("transcribing")):
-                r = score_audio(audio, expected)
-            if r:
-                scores = {i: r for i in range(len(rows))}
-                st.session_state["s2_scores"] = scores
-                color = "var(--mova-mint)" if r["passed"] else "var(--mova-coral-ink)"
-                st.markdown(
-                    f'<div style="text-align:center;font-size:1.6rem;'
-                    f'color:{color};font-weight:600">{int(r["score"]*100)}%</div>',
-                    unsafe_allow_html=True,
-                )
-                _log_score(step=2, phrase_id=0,
-                           similarity=r["score"],
-                           response_time_ms=t_ms,
-                           success=bool(r["passed"]))
-                st.rerun()
+        if st.button(_ui("check_pron"), type="primary",
+                     use_container_width=True, key="s2_check"):
+            if not audio:
+                st.warning(_ui("record_first"))
+            elif not STT_OK or not SCORER_OK:
+                st.warning("Whisper/RapidFuzz не встановлені.")
             else:
-                st.error("Не вдалося розпізнати аудіо.")
+                t_ms = _audio_duration_ms(audio)
+                with st.spinner(_ui("transcribing")):
+                    r = score_audio(audio, expected)
+                if r:
+                    scores = {i: r for i in range(len(rows))}
+                    st.session_state["s2_scores"] = scores
+                    color = "var(--mova-mint)" if r["passed"] else "var(--mova-coral-ink)"
+                    st.markdown(
+                        f'<div style="text-align:center;font-size:1.6rem;'
+                        f'color:{color};font-weight:600">{int(r["score"]*100)}%</div>',
+                        unsafe_allow_html=True,
+                    )
+                    _log_score(step=2, phrase_id=0,
+                               similarity=r["score"],
+                               response_time_ms=t_ms,
+                               success=bool(r["passed"]))
+                    st.rerun()
+                else:
+                    st.error("Не вдалося розпізнати аудіо.")
 
     # ── Phrases table BELOW mic ───────────────────────────────────────────────
-    lessons_table(rows, show_word=True, show_trans=True, scores=scores)
+    lessons_table(rows, show_word=True, show_trans=True,
+                  scores=scores if not phonics_only else None)
 
     # ── Next button — active only after audio recorded or scores exist ─────────
     attempted = bool(audio) or bool(st.session_state.get("s2_scores"))
@@ -1313,9 +1376,12 @@ def do_step4(rows: pd.DataFrame) -> bool:
 
 def do_step5(rows: pd.DataFrame) -> bool:
     shdr(5)
+    phonics_only = is_phonics_only_lesson(rows)
 
     # Mic FIRST so mobile users don't need to scroll past the word grid
     st.markdown(f"#### {_ui('step5_record')}")
+    if phonics_only:
+        st.caption(_ui("phonics_note"))
     audio = mic("s5")
 
     # Show all words as grid
@@ -1334,7 +1400,7 @@ def do_step5(rows: pd.DataFrame) -> bool:
         unsafe_allow_html=True,
     )
 
-    if not STT_OK or not SCORER_OK:
+    if not phonics_only and (not STT_OK or not SCORER_OK):
         st.caption("⚠️ Для перевірки вимови потрібно: `pip install openai-whisper rapidfuzz`")
 
     expected = ". ".join(str(r["word"]).strip() for _, r in rows.iterrows())
@@ -1348,19 +1414,22 @@ def do_step5(rows: pd.DataFrame) -> bool:
             else:
                 t_ms = _audio_duration_ms(audio)
                 res = {"time": max(1, round(t_ms / 1000))}
-                if STT_OK and SCORER_OK:
-                    with st.spinner(_ui("checking")):
-                        r = score_audio(audio, expected)
-                    if r:
-                        res["score"]  = r["score"]
-                        res["passed"] = r["passed"]
-                # Log step 5 outcome
-                _log_score(
-                    step=5, phrase_id=0,
-                    similarity=res.get("score", 0.0),
-                    response_time_ms=t_ms,
-                    success=bool(res.get("passed", False)),
-                )
+                if not phonics_only:
+                    if STT_OK and SCORER_OK:
+                        with st.spinner(_ui("checking")):
+                            r = score_audio(audio, expected)
+                        if r:
+                            res["score"]  = r["score"]
+                            res["passed"] = r["passed"]
+                    # Log step 5 outcome — skipped for phonics-only lessons
+                    # (isolated letters/syllables aren't a reliable pronunciation
+                    # signal, so nothing is written to mastery/SRS for this step).
+                    _log_score(
+                        step=5, phrase_id=0,
+                        similarity=res.get("score", 0.0),
+                        response_time_ms=t_ms,
+                        success=bool(res.get("passed", False)),
+                    )
                 st.session_state["s5_result"] = res
                 st.rerun()
     with c2:
@@ -1426,6 +1495,7 @@ def _render_module_nav_sidebar(current_module: str) -> None:
         ("vocab",   "📖", "Vocabulary"),
         ("reading", "🔤", "Reading"),
         ("custom",  "📝", "My Phrases"),
+        ("search",  "🔍", "Search"),
     ]
     st.markdown(
         '<div style="font-size:.7rem;color:var(--mova-ink-3);'

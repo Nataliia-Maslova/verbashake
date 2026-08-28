@@ -196,6 +196,44 @@ def _load_grammar(db_path, native_lang, target_lang, **kwargs):
     return pd.concat([df, extra], ignore_index=True)
 
 
+def _build_topics_map(df, cfg: dict, module: str, native: str, db_path) -> dict | None:
+    """{lesson_id: display_name} for the picker (wave nav, dropdown fallback,
+    preview expander) AND the sidebar "Jump to lesson" selectbox — shared so
+    the two don't drift (2026-08-28 fix: the sidebar selectbox built its own
+    `f"{cfg['lesson_word']} {lid}"` with no topic lookup at all, so Vocabulary
+    — whose lesson_id is a meaningless 6-digit CEFR-J index (100000+) — showed
+    literally "Topic 100003" there while the main picker correctly showed a
+    real label for the same lesson).
+
+    Grammar: optional topic_en / topic_uk columns in the workbook.
+    Vocabulary (CEFR-J): a lesson is 10 words at one CEFR level with no
+    real theme, so the label is position-based — "Words N-M" — rather than
+    a headword preview (dropped 2026-08-28: verified directly against the
+    data that the 10 words in a lesson are a random slice of that level,
+    e.g. lesson 100003 is "CD, thirteen, spot, sad, Miss, hand, big,
+    surprise, late, sky" — no thematic link a 3-word preview could honestly
+    imply). The CEFR band itself is added separately by the caller's
+    level_map, so it isn't repeated here.
+    Phrasebook/Word Bank: topic loader that takes the db path (index-only).
+    """
+    if cfg["topics"] == "from_df":
+        return get_grammar_topics(df, native_lang=native)
+    if module == "vocab":
+        words_label = i18n.get(native, "vocab_words_label")
+        grp = df.groupby("lesson_id")
+        first_local = grp["local_lesson"].first()
+        counts = grp.size()
+        topics_map = {}
+        for lid, n in first_local.items():
+            start = (int(n) - 1) * 10 + 1
+            end = start + int(counts[lid]) - 1  # last chunk per level may be <10 words
+            topics_map[int(lid)] = f"{words_label} {start}–{end}"
+        return topics_map
+    if cfg["topics"]:
+        return cfg["topics"](str(db_path))
+    return None
+
+
 def _module_config(module: str) -> dict:
     """Return loader dispatch + UI labels for the chosen practice module."""
     if module == "vocab":
@@ -1690,31 +1728,7 @@ def render_setup():
                         st.session_state["_jump_recommended_lid"] = rec_lid
                         st.rerun()
 
-    # Build topics map: either from the workbook (grammar), a topic loader
-    # (phrasebook/Word Bank), or straight from df (vocab/CEFR-J — a lesson is
-    # 10 unrelated words at one CEFR level, no real theme to name it by, so
-    # the label previews the lesson's own first few headwords instead of a
-    # bare "Vocabulary 3" — lets a learner see at a glance what's inside
-    # before opening it, closer to what a real topic name gave Word
-    # Bank/Grammar. CLAUDE.md 2026-08-22: vocab is CEFR-J for every
-    # target_lang now, so this branch is unconditional on module=="vocab",
-    # not just target=="English". The CEFR band itself is added separately
-    # by level_map below, so it isn't repeated here.)
-    if cfg["topics"] == "from_df":
-        # Grammar: optional topic_en / topic_uk columns in the workbook
-        topics_map = get_grammar_topics(df, native_lang=native)
-    elif module == "vocab":
-        _cefrj_preview = (
-            df.sort_values(["lesson_id", "phrase_id"])
-              .groupby("lesson_id")["headword"]
-              .apply(lambda s: ", ".join(s.head(3)))
-        )
-        topics_map = {int(lid): words for lid, words in _cefrj_preview.items()}
-    elif cfg["topics"]:
-        # Phrasebook/Word Bank: topic loader that takes the db path (index-only, fast)
-        topics_map = cfg["topics"](str(db_path))
-    else:
-        topics_map = None
+    topics_map = _build_topics_map(df, cfg, module, native, db_path)
 
     # ── Grammar / Reading / Phrasebook / CEFR-J Vocabulary: flat wave nav ──
     # Vocabulary's old hierarchical Category→Topic nav (_render_vocab_nav)
@@ -3238,6 +3252,7 @@ def main(module: str = "grammar"):
             ("phrasebook", "💬", "Phrasebook"),
             ("reading",    "🔤", "Reading"),
             ("custom",     "📝", "My Phrases"),
+            ("search",     "🔍", "Search"),
         ]
         st.markdown(
             '<div style="font-size:.7rem;color:var(--mova-ink-3);'
@@ -3304,17 +3319,27 @@ def main(module: str = "grammar"):
                     _all_lids = cfg["get_lessons"](_df_jmp)
                     _cur_idx  = (_all_lids.index(state.lesson_id)
                                  if state.lesson_id in _all_lids else 0)
+                    # Same topics_map _render_flat_wave_nav uses (2026-08-28
+                    # fix) — this selectbox used to format every option as a
+                    # bare `f"{cfg['lesson_word']} {lid}"` with no lookup at
+                    # all, so Vocabulary (lesson_id = a meaningless 6-digit
+                    # CEFR-J index, 100000+) showed literally "Topic 100003"
+                    # here while the main picker showed a real label for the
+                    # very same lesson.
+                    _jmp_topics = _build_topics_map(_df_jmp, cfg, module,
+                                                     state.native_lang, cfg["db_path"]) or {}
+                    _jmp_name = lambda lid: _jmp_topics.get(lid, f"{cfg['lesson_word']} {lid}")
                     _jump_lid = st.selectbox(
                         "lesson_jump_sel",
                         options=_all_lids,
                         index=_cur_idx,
-                        format_func=lambda lid: f"{cfg['lesson_word']} {lid}",
+                        format_func=_jmp_name,
                         key="sb_jump_lid",
                         label_visibility="collapsed",
                     )
                     if _jump_lid != state.lesson_id:
                         if st.button(
-                            f"Go to {cfg['lesson_word']} {_jump_lid}",
+                            f"Go to {_jmp_name(_jump_lid)}",
                             use_container_width=True,
                             key="sb_go_lid",
                         ):
