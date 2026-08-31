@@ -937,3 +937,18 @@ def sidebar_widget(user_id: str) -> None:
         )
     except Exception:
         pass  # never crash the UI for gamification
+
+    # Own try/except (own import too) — independent of the stats block
+    # above, so the Privacy Policy link still shows even if gamification
+    # stats fail to load.
+    try:
+        import streamlit as st
+        st.markdown(
+            '<div style="text-align:center;margin-top:2px">'
+            '<a href="app/static/legal/privacy.html" target="_blank" '
+            'style="font-size:.68rem;color:var(--mova-ink-3);text-decoration:none">'
+            '🔒 Privacy Policy</a></div>',
+            unsafe_allow_html=True,
+        )
+    except Exception:
+        pass

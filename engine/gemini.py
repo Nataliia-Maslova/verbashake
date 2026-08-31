@@ -10,8 +10,13 @@ Covers:
 Requires: pip install google-genai>=1.0.0
 Env var:  GEMINI_API_KEY
 
-Phase D: every public function here is @_require_paid — free accounts get
-zero live Gemini calls (CLAUDE.md decisions #1-#2). See engine/billing.py.
+Phase D established "free = zero live AI" (@_require_paid on every public
+function, CLAUDE.md decisions #1-#2). FREE_LAUNCH_MODE (2026-08-31) is a
+temporary, easily-reversed relaxation of that for a ~4-month free launch
+period: most functions now use @_gated(feature, daily_limit) instead —
+Premium stays unlimited exactly as before, free users get a metered daily
+allowance per feature instead of an outright block. See engine/billing.py
+and FREE_LAUNCH_MODE below.
 """
 from __future__ import annotations
 
@@ -50,6 +55,59 @@ def _require_paid(fn):
             )
         return fn(*args, **kwargs)
     return wrapper
+
+
+# ── Free launch mode (Наталя, 2026-08-31) ───────────────────────────────────
+# ~4 months fully free before turning payments on for real, but "free" still
+# needs a lid on live-AI cost. Free users now get METERED access instead of
+# zero access: up to a daily-per-feature call limit, then locked out until
+# UTC midnight (same mechanism engine/rate_limit.py already uses for
+# explain_phrase_part's abuse guard). Flip this back to False to restore the
+# original "free = zero live AI" behavior once the free period ends — no
+# other code needs to change.
+FREE_LAUNCH_MODE = True
+
+
+def _gated(feature: str, daily_limit: int):
+    """
+    Replaces the plain @_require_paid on most public functions below. Paid
+    users: unchanged, always unlimited. Free users: blocked outright if
+    FREE_LAUNCH_MODE is False (old behavior); otherwise allowed up to
+    `daily_limit` live calls/day for THIS feature, then PaidFeatureRequired
+    — reusing that one exception (rather than inventing a second) keeps
+    every existing `except PaidFeatureRequired: _show_upsell(...)` call site
+    in grammar.py/reading_app.py/custom_app.py/path_app.py working
+    unchanged; only the upsell copy itself was updated to also make sense
+    for "hit today's free limit," not only "this is Premium-only."
+
+    Must be the OUTERMOST decorator (same rule as @_require_paid) — written
+    above @_cache.memoize() so a free user can't slip past the counter via
+    another user's cached hit before the limit check ever runs.
+    """
+    def decorator(fn):
+        @functools.wraps(fn)
+        def wrapper(*args, **kwargs):
+            from engine import auth_gate, billing, rate_limit
+            user_id = auth_gate.current_user_id()
+            if billing.is_paid(user_id):
+                return fn(*args, **kwargs)
+            if not FREE_LAUNCH_MODE:
+                raise PaidFeatureRequired(
+                    "This feature needs Premium — live AI generation isn't included in the free plan."
+                )
+            from engine import signup_gate
+            effective_limit = max(0, round(daily_limit * signup_gate.get_limit_scale(user_id)))
+            try:
+                rate_limit.check_and_increment(user_id, feature, effective_limit)
+            except rate_limit.DailyLimitExceeded:
+                raise PaidFeatureRequired(
+                    f"Free daily limit reached for {feature!r} — try again "
+                    f"tomorrow, or upgrade to Premium for unlimited."
+                )
+            return fn(*args, **kwargs)
+        return wrapper
+    return decorator
+
 
 _LANG_NAMES: dict[str, str] = {
     "en": "English", "uk": "Ukrainian", "de": "German", "es": "Spanish",
@@ -108,9 +166,16 @@ class _ModelHandle:
     def __init__(self, client: genai.Client, name: str, system_instruction: str | None = None):
         self._client = client
         self._name = name
-        self._config = (
-            types.GenerateContentConfig(system_instruction=system_instruction)
-            if system_instruction else None
+        # thinking_budget=0 (2026-08-31): every call site here wants a short
+        # structured answer (JSON or a couple of sentences), not deep
+        # reasoning -- 2.5 Flash's default "thinking" mode can spend a
+        # meaningful number of hidden output tokens (billed at the same
+        # $2.50/1M output rate as the visible text) before it ever writes
+        # the reply. Disabling it makes real cost match the visible-token
+        # estimates used to size FREE_LAUNCH_MODE's daily limits below.
+        self._config = types.GenerateContentConfig(
+            system_instruction=system_instruction,
+            thinking_config=types.ThinkingConfig(thinking_budget=0),
         )
 
     def generate_content(self, prompt: str):
@@ -166,7 +231,7 @@ _WARMUP_TOPICS = [
 ]
 
 
-@_require_paid
+@_gated("warmup_question", 40)
 def warmup_question(
     level: str, target_lang: str, native_lang: str, bilingual: bool = False,
 ) -> dict:
@@ -216,7 +281,7 @@ def _warmup_question_cached(
     return parsed
 
 
-@_require_paid
+@_gated("evaluate_warmup", 15)
 def evaluate_warmup(
     answer: str,
     question: str,
@@ -264,7 +329,7 @@ def evaluate_warmup(
 # PHASE 2: Grammar correction  (replaces T5 GEC models)
 # ─────────────────────────────────────────────────────────────────────────────
 
-@_require_paid
+@_gated("correct_grammar", 20)
 @_cache.memoize()
 def correct_grammar(text: str, target_lang: str, native_lang: str) -> dict:
     """
@@ -310,7 +375,7 @@ def correct_grammar(text: str, target_lang: str, native_lang: str) -> dict:
 # STEP 1 (New Material): rule explanation — CLAUDE.md idea A, 2026-08-23
 # ─────────────────────────────────────────────────────────────────────────────
 
-@_require_paid
+@_gated("explain_lesson_rule", 30)
 @_cache.memoize()
 def explain_lesson_rule(
     topic: str, level: str, target_lang: str, native_lang: str,
@@ -443,7 +508,6 @@ def _save_lesson_explanation_to_db(
 # (CLAUDE.md, 2026-08-24)
 # ─────────────────────────────────────────────────────────────────────────────
 
-@_require_paid
 @_cache.memoize()
 def explain_phrase_part(
     target_phrase: str, native_phrase: str, confusing_part: str,
@@ -451,6 +515,13 @@ def explain_phrase_part(
 ) -> str:
     """
     Explain why one specific fragment of a phrase is built the way it is.
+
+    No @_require_paid / @_gated of its own (2026-08-31, FREE_LAUNCH_MODE) —
+    this was already open to free users' own separate cap: grammar.py's
+    caller runs rate_limit.check_and_increment("explain_phrase_part", 30)
+    itself, for free AND paid users alike, via phrase_explanation_is_cached()
+    below (see engine/rate_limit.py's docstring for why this one needed a
+    bespoke free-form-text guard before FREE_LAUNCH_MODE existed at all).
 
     Phrase-level, not lesson-level like explain_lesson_rule(): the student
     points at one confusing bit inside one specific sentence (e.g. "Чи
@@ -586,7 +657,7 @@ _TEST_TYPE_GUIDANCE = {
 }
 
 
-@_require_paid
+@_gated("generate_practice_test", 10)
 def generate_practice_test(
     level: str,
     topic: str,
@@ -670,7 +741,7 @@ def generate_practice_test(
     )
 
 
-@_require_paid
+@_gated("generate_lesson_construction_drill", 10)
 def generate_lesson_construction_drill(
     lesson_id: int,
     topic: str,
@@ -781,6 +852,11 @@ def generate_custom_word_drill(
     One sentence per word, each demonstrating the requested construction,
     so every word in the list is used at least once.
 
+    Deliberately still plain @_require_paid, not @_gated (2026-08-31,
+    FREE_LAUNCH_MODE) — kept fully Premium-only rather than metered-free,
+    since that's exactly what made My Phrases a Premium feature in the
+    first place (see below); opening it too would undo that decision.
+
     `topic` is now optional (2026-08-28, part of making My Phrases
     Premium-only + dropping manual pair entry): when the student doesn't
     name a specific construction, `level` (their current CEFR level in
@@ -834,7 +910,7 @@ def generate_custom_word_drill(
     )
 
 
-@_require_paid
+@_gated("generate_target_grammar_drill", 10)
 def generate_target_grammar_drill(
     title: str,
     description: str,
@@ -886,7 +962,7 @@ def generate_target_grammar_drill(
     )
 
 
-@_require_paid
+@_gated("generate_reading_passage", 5)
 def generate_reading_passage(
     target_lang: str,
     native_lang: str,
@@ -944,7 +1020,7 @@ def generate_reading_passage(
     )
 
 
-@_require_paid
+@_gated("check_practice_answer", 40)
 def check_practice_answer(
     question: str,
     student_answer: str,
@@ -1002,7 +1078,7 @@ def check_practice_answer(
 # PHASE 4: Висловлювання — speaking task + tutor chat
 # ─────────────────────────────────────────────────────────────────────────────
 
-@_require_paid
+@_gated("generate_open_question", 10)
 def generate_open_question(
     topic: str,
     seed_phrases: list[str],
@@ -1070,36 +1146,147 @@ def generate_open_question(
     return parsed
 
 
-@_require_paid
+# Roleplay scenarios for the voice conversation mode in Phase 4 (Expression) —
+# each gives chat_with_tutor a persona/setting instead of the generic
+# "friendly tutor" system prompt, so the model plays a consistent character
+# across the whole conversation (barista, receptionist...) rather than just
+# answering as itself. `label` is shown in the UI as-is for every native_lang
+# (short, emoji-led, self-explanatory — same "don't translate everything"
+# call already made for target_grammar_paths' gloss_en).
+ROLEPLAY_SCENARIOS: dict[str, dict[str, str]] = {
+    "cafe": {
+        "label": "☕ Café",
+        "persona": (
+            "You are a barista at a small café. The student is a customer "
+            "ordering a drink and a snack. Ask what they'd like, mention a "
+            "special or two, and handle payment naturally."
+        ),
+    },
+    "restaurant": {
+        "label": "🍽️ Restaurant",
+        "persona": (
+            "You are a waiter at a restaurant. The student is a customer "
+            "ordering food. Recommend dishes, ask about preferences or "
+            "allergies, and take their order."
+        ),
+    },
+    "hotel": {
+        "label": "🏨 Hotel check-in",
+        "persona": (
+            "You are a hotel receptionist. The student is a guest checking "
+            "in. Ask for their reservation name, mention breakfast/wifi, and "
+            "hand over the room key."
+        ),
+    },
+    "directions": {
+        "label": "🧭 Asking directions",
+        "persona": (
+            "You are a friendly local. The student is a tourist who is lost "
+            "and asks you for directions to a nearby place. Give clear, "
+            "simple directions and ask where they're headed."
+        ),
+    },
+    "shopping": {
+        "label": "🛍️ Clothes shopping",
+        "persona": (
+            "You are a shop assistant in a clothing store. The student is a "
+            "customer looking for an outfit. Ask about size, colour, and "
+            "occasion, and offer suggestions."
+        ),
+    },
+    "doctor": {
+        "label": "🩺 Doctor visit",
+        "persona": (
+            "You are a doctor doing a routine check-up. The student is a "
+            "patient. Ask about their symptoms and general health, and give "
+            "simple advice."
+        ),
+    },
+    "job_interview": {
+        "label": "💼 Job interview",
+        "persona": (
+            "You are a hiring manager doing a first-round interview for an "
+            "entry-level job. The student is the candidate. Ask about their "
+            "experience, strengths, and availability."
+        ),
+    },
+    "small_talk": {
+        "label": "👋 Small talk at a party",
+        "persona": (
+            "You are a new acquaintance at a social gathering. Make casual "
+            "small talk with the student, ask about their interests and "
+            "life, and keep the conversation light and friendly."
+        ),
+    },
+}
+
+# Sent as the first "user" turn to kick off a roleplay — never shown to the
+# student (grammar.py renders only the returned model line as the persona's
+# opener), just an instruction telling the model to open in character.
+_ROLEPLAY_KICKOFF = (
+    "(Begin the roleplay now. Greet the student in character with a short, "
+    "natural opening line — 1-2 sentences — appropriate to the scene.)"
+)
+
+
+def _tutor_system_instruction(
+    target_lang: str, level: str, native_lang: str, scenario_key: str | None,
+) -> str:
+    if scenario_key and scenario_key in ROLEPLAY_SCENARIOS:
+        persona = ROLEPLAY_SCENARIOS[scenario_key]["persona"]
+        return (
+            f"You are playing a role in a roleplay conversation so a language "
+            f"learner can practice speaking {target_lang}. ROLE: {persona} "
+            f"Stay fully in character for the whole conversation — never break "
+            f"character or mention that this is a language exercise. "
+            f"ALWAYS reply in {target_lang} only — never switch to {native_lang}. "
+            f"The student's level is {level} CEFR — use vocabulary and grammar "
+            f"appropriate for that level. Keep every reply to 1–3 short "
+            f"sentences, natural spoken style. If the student makes a language "
+            f"mistake, don't correct them explicitly — just continue naturally, "
+            f"optionally modelling the correct form in your own reply. Keep the "
+            f"scene moving with an in-character question or prompt when it "
+            f"feels natural, but don't force one every single turn."
+        )
+    return (
+        f"You are a friendly, encouraging {target_lang} language tutor. "
+        f"The student's level is {level} CEFR. "
+        f"ALWAYS reply in {target_lang} only — never switch to {native_lang}. "
+        f"Keep every reply to 2–3 sentences. "
+        f"If the student makes a grammar mistake, seamlessly rephrase their "
+        f"idea correctly in your reply without pointing out the error explicitly. "
+        f"End each reply with a short follow-up question to keep the conversation going."
+    )
+
+
+@_gated("chat_with_tutor", 30)
 def chat_with_tutor(
     history: list[dict],
     user_msg: str,
     target_lang: str,
     level: str,
     native_lang: str,
+    scenario_key: str | None = None,
 ) -> str:
     """
     Continue a conversation with the AI language tutor.
 
     history format: [{"role": "user"/"model", "parts": ["text"]}]
 
-    The tutor:
-    - Replies only in target_lang
-    - Keeps responses to 2–3 sentences
-    - Silently rephrases errors in its own reply (does not call them out)
-    - Encourages the student to keep talking
+    Default (scenario_key=None): generic tutor persona, replies only in
+    target_lang, silently rephrases errors, ends with a follow-up question.
+
+    scenario_key (one of ROLEPLAY_SCENARIOS): plays that persona instead —
+    used for the Phase 4 "Roleplay" voice-conversation mode (grammar.py).
+    Shares this same function/quota bucket rather than a separate one, since
+    it's the same underlying feature (a live chat turn), just with a
+    different system prompt.
     """
     _configure()
     model = _model(
         _FLASH,
-        system_instruction=(
-            f"You are a friendly, encouraging {target_lang} language tutor. "
-            f"The student's level is {level} CEFR. "
-            f"ALWAYS reply in {target_lang} only — never switch to {native_lang}. "
-            f"Keep every reply to 2–3 sentences. "
-            f"If the student makes a grammar mistake, seamlessly rephrase their "
-            f"idea correctly in your reply without pointing out the error explicitly. "
-            f"End each reply with a short follow-up question to keep the conversation going."
+        system_instruction=_tutor_system_instruction(
+            target_lang, level, native_lang, scenario_key
         ),
     )
     chat = model.start_chat(history=history)
@@ -1110,7 +1297,7 @@ def chat_with_tutor(
 # Misc helpers
 # ─────────────────────────────────────────────────────────────────────────────
 
-@_require_paid
+@_gated("suggest_alternatives", 40)
 @_cache.memoize()
 def suggest_alternatives(
     native_prompt: str, target_lang: str, native_lang: str
@@ -1128,7 +1315,7 @@ def suggest_alternatives(
     return [re.sub(r"^\d+\.\s*", "", l) for l in lines if l]
 
 
-@_require_paid
+@_gated("translate_phrase", 300)
 @_cache.memoize()
 def translate_phrase(phrase: str, from_lang: str, to_lang: str) -> str:
     """

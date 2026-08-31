@@ -1987,7 +1987,7 @@ def _clear_all():
 def _show_upsell(key: str) -> None:
     """Rendered wherever a free-tier user hits a paid-only Gemini call
     (engine.gemini.PaidFeatureRequired) — see engine/gemini.py's @_require_paid."""
-    st.warning("⭐ This is a Premium feature — live AI generation isn't included in the free plan.")
+    st.warning("⭐ Premium feature, or you've hit today's free AI limit for it — try again tomorrow, or upgrade to Premium for unlimited.")
     if st.button("⭐ Go to Upgrade", key=f"upsell_{key}"):
         st.session_state["_show_launcher"] = True
         st.rerun()
@@ -2825,6 +2825,20 @@ def phase4_expression(session: LessonSession, tts_lang: str, wh_lang: str) -> bo
     st.markdown(f"## {i18n.get(native_lang, 'speaking_title')}")
     st.info(i18n.get(native_lang, "speaking_strategy"))
 
+    # Open Question (existing flow, unchanged below) vs Roleplay (new,
+    # self-contained in _phase4_roleplay). Locked once either mode has
+    # started, same "disabled while in progress" pattern as p4_bilingual.
+    _mode_q, _mode_rp = i18n.get(native_lang, "speaking_mode_question"), i18n.get(native_lang, "speaking_mode_roleplay")
+    if "p4_top_mode" not in st.session_state:
+        st.session_state["p4_top_mode"] = _mode_q
+    top_mode = st.radio(
+        i18n.get(native_lang, "speaking_mode_label"), [_mode_q, _mode_rp],
+        horizontal=True, key="p4_top_mode",
+        disabled=("p4_task" in st.session_state or "p4rp_scenario" in st.session_state),
+    )
+    if top_mode == _mode_rp:
+        return _phase4_roleplay(session, tts_lang, wh_lang)
+
     # Bilingual display defaults on for A1, same convention as warmup
     # (CLAUDE.md item 2, 2026-08-20) — stays a toggle, not hardcoded.
     if "p4_bilingual" not in st.session_state:
@@ -3002,6 +3016,166 @@ def phase4_expression(session: LessonSession, tts_lang: str, wh_lang: str) -> bo
                     st.session_state.pop(k, None)
                 return True
 
+    return False
+
+
+def _phase4_roleplay(session: LessonSession, tts_lang: str, wh_lang: str) -> bool:
+    """
+    Voice-first roleplay mode for Phase 4 — student picks a scenario
+    (café, hotel check-in...), the tutor plays that persona for the whole
+    conversation via engine.gemini.chat_with_tutor(scenario_key=...), each
+    of its replies is read aloud with the same TTS pattern already used for
+    lesson phrases (engine.tts.get_audio_path -> base64 <audio autoplay>).
+    Grading is deferred to the end (run once, on the whole conversation)
+    rather than per turn, matching how open-ended conversation practice
+    works elsewhere (Speak-style apps) — mid-conversation correction would
+    break the flow the mode exists for.
+    """
+    native_lang = session.state.native_lang
+    target_lang = session.state.target_lang
+    level       = _lesson_level(session)
+
+    _init_errors("expression_roleplay")
+
+    if "p4rp_bilingual" not in st.session_state:
+        st.session_state["p4rp_bilingual"] = (level == "A1")
+    st.checkbox(
+        i18n.get(native_lang, "warmup_bilingual_toggle"),
+        key="p4rp_bilingual",
+        disabled="p4rp_scenario" in st.session_state,
+    )
+
+    # ── Scenario picker (before start) ──────────────────────────────────────
+    if "p4rp_scenario" not in st.session_state:
+        scenario_keys = list(_gemini.ROLEPLAY_SCENARIOS.keys())
+        labels = [_gemini.ROLEPLAY_SCENARIOS[k]["label"] for k in scenario_keys]
+        choice = st.selectbox(i18n.get(native_lang, "roleplay_scenario_label"), labels, key="p4rp_pick")
+        chosen_key = scenario_keys[labels.index(choice)]
+        if st.button(i18n.get(native_lang, "roleplay_start_btn"), type="primary", key="p4rp_start"):
+            try:
+                with st.spinner("..."):
+                    opener = _gemini.chat_with_tutor(
+                        [], _gemini._ROLEPLAY_KICKOFF, target_lang, level, native_lang,
+                        scenario_key=chosen_key,
+                    )
+                    native_opener = None
+                    if st.session_state.get("p4rp_bilingual"):
+                        try:
+                            native_opener = _gemini.translate_phrase(opener, target_lang, native_lang)
+                        except _gemini.PaidFeatureRequired:
+                            native_opener = None
+                st.session_state["p4rp_scenario"]      = chosen_key
+                st.session_state["p4rp_history"]       = [{"role": "model", "parts": [opener]}]
+                st.session_state["p4rp_native_opener"] = native_opener
+                st.session_state["p4rp_spoken_upto"]   = -1
+                st.rerun()
+            except _gemini.PaidFeatureRequired:
+                _show_upsell("p4rp_start")
+        return False
+
+    scenario = _gemini.ROLEPLAY_SCENARIOS[st.session_state["p4rp_scenario"]]
+    history  = st.session_state["p4rp_history"]
+
+    col_rp_title, col_rp_reset = st.columns([5, 1])
+    with col_rp_title:
+        st.markdown(f"### {scenario['label']}")
+    with col_rp_reset:
+        if st.button(i18n.get(native_lang, "roleplay_change_btn"), key="p4rp_reset"):
+            for _k in ("p4rp_scenario", "p4rp_history", "p4rp_native_opener", "p4rp_spoken_upto", "p4rp_ended"):
+                st.session_state.pop(_k, None)
+            st.rerun()
+
+    for i, msg in enumerate(history):
+        if msg["role"] == "model":
+            st.markdown(f"**{scenario['label'].split(' ', 1)[-1]}:** {msg['parts'][0]}")
+            if i == 0 and st.session_state.get("p4rp_native_opener"):
+                st.caption(f"🌐 {st.session_state['p4rp_native_opener']}")
+        else:
+            st.markdown(f"**{i18n.get(native_lang, 'roleplay_you_label')}:** {msg['parts'][0]}")
+
+    # Autoplay only the newest model line, once — otherwise every rerun
+    # (e.g. from an unrelated widget) would replay the whole conversation.
+    _last_model_idx = max((i for i, m in enumerate(history) if m["role"] == "model"), default=-1)
+    if _last_model_idx > st.session_state.get("p4rp_spoken_upto", -1):
+        ap = get_audio_path(history[_last_model_idx]["parts"][0], tts_lang)
+        if ap:
+            with open(ap, "rb") as f:
+                d = base64.b64encode(f.read()).decode()
+            st.markdown(
+                f'<audio controls autoplay key="rp{_last_model_idx}" '
+                f'style="width:100%;border-radius:8px;margin:4px 0">'
+                f'<source src="data:audio/mp3;base64,{d}" type="audio/mp3"></audio>',
+                unsafe_allow_html=True,
+            )
+        st.session_state["p4rp_spoken_upto"] = _last_model_idx
+
+    if not st.session_state.get("p4rp_ended"):
+        st.markdown("---")
+        _opt_text, _opt_voice = i18n.get(native_lang, "text_opt"), i18n.get(native_lang, "voice_opt")
+        reply_mode = st.radio(
+            i18n.get(native_lang, "mode_label"), [_opt_text, _opt_voice],
+            horizontal=True, key="p4rp_reply_mode",
+        )
+        user_msg: str | None = None
+        if reply_mode == _opt_text:
+            typed = st.text_input(i18n.get(native_lang, "write_answer"), key="p4rp_text")
+            if st.button(i18n.get(native_lang, "roleplay_send_btn"), type="primary", key="p4rp_text_go") and typed.strip():
+                user_msg = typed.strip()
+        else:
+            # Key varies with history length so each new turn gets a fresh
+            # recorder widget — otherwise st.audio_input would keep returning
+            # the previous turn's already-sent recording on later reruns.
+            audio = audio_input(f"p4rp_voice_{len(history)}")
+            if audio and st.button(i18n.get(native_lang, "roleplay_send_btn"), type="primary", key="p4rp_voice_go"):
+                with st.spinner("Transcribing..."):
+                    user_msg = transcribe_bytes(audio, language=wh_lang)
+                if user_msg:
+                    st.markdown(f"**{i18n.get(native_lang, 'roleplay_you_label')}:** {user_msg}")
+
+        if user_msg:
+            try:
+                with st.spinner("..."):
+                    reply = _gemini.chat_with_tutor(
+                        history, user_msg, target_lang, level, native_lang,
+                        scenario_key=st.session_state["p4rp_scenario"],
+                    )
+                st.session_state["p4rp_history"] += [
+                    {"role": "user",  "parts": [user_msg]},
+                    {"role": "model", "parts": [reply]},
+                ]
+                st.session_state.pop("p4rp_text", None)
+                st.rerun()
+            except _gemini.PaidFeatureRequired:
+                _show_upsell("p4rp_chat")
+
+        if st.button(i18n.get(native_lang, "roleplay_end_btn"), key="p4rp_end"):
+            student_turns = [m["parts"][0] for m in history if m["role"] == "user"]
+            if student_turns:
+                try:
+                    with st.spinner("..."):
+                        correction = _gemini.correct_grammar(
+                            ". ".join(student_turns), target_lang, native_lang
+                        )
+                    for err in correction.get("errors", []):
+                        _collect_error(
+                            err["original"], err["fixed"],
+                            err.get("explanation", ""), "expression_roleplay",
+                            native_prompt=err.get("native_prompt", ""),
+                        )
+                except _gemini.PaidFeatureRequired:
+                    _show_upsell("p4rp_correct")
+                    return False
+            st.session_state["p4rp_ended"] = True
+            st.rerun()
+        return False
+
+    st.markdown("---")
+    if _phase_error_review("expression_roleplay", wh_lang, target_lang, native_lang):
+        if st.button("Finish lesson", type="primary", key="p4rp_finish"):
+            for _k in ("p4rp_scenario", "p4rp_history", "p4rp_native_opener",
+                       "p4rp_spoken_upto", "p4rp_ended", "p4rp_bilingual", "p4_top_mode"):
+                st.session_state.pop(_k, None)
+            return True
     return False
 
 

@@ -223,7 +223,7 @@ def _render_topic_explanation(unit: dict, native_lang: str, target_lang: str) ->
                         topic, level, target_lang, native_lang, [], topic_key=topic,
                     )
             except _gemini.PaidFeatureRequired:
-                st.warning("⭐ This is a Premium feature — live AI generation isn't included in the free plan.")
+                st.warning("⭐ Premium feature, or you've hit today's free AI limit for it — try again tomorrow, or upgrade to Premium for unlimited.")
                 if st.button("⭐ Go to Upgrade", key="path_explain_upsell"):
                     st.session_state["_show_launcher"] = True
                     st.rerun()

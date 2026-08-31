@@ -200,6 +200,27 @@ CREATE TABLE IF NOT EXISTS daily_feature_usage (
     PRIMARY KEY (user_id, feature, usage_date)
 );
 
+-- ── weekly_signup_gate ───────────────────────────────────────────────────────
+-- Weekly cap on NEW account admissions during the free launch period
+-- (engine/signup_gate.py, 2026-08-31) — "50 spots this week" marketing hook
+-- + a cost backstop while the app is free for everyone. One row per user,
+-- written once on their first-ever login and never updated again: a user
+-- who is admitted stays admitted forever, this table only gates the FIRST
+-- login. `admitted` records the outcome permanently so the decision doesn't
+-- depend on recomputing "was this user's first_seen_at within some week
+-- that already passed" later.
+-- limit_scale (2026-08-31): weekly-review throttle -- multiplies every
+-- engine.gemini @_gated daily limit for this one user (1.0 = normal, 0.3 =
+-- 30% of normal). See engine/signup_gate.py's set_admitted()/
+-- set_limit_scale() for the weekly review ritual this supports.
+CREATE TABLE IF NOT EXISTS weekly_signup_gate (
+    user_id        TEXT PRIMARY KEY,
+    first_seen_at  TIMESTAMPTZ NOT NULL DEFAULT now(),
+    admitted       BOOLEAN NOT NULL,
+    limit_scale    REAL NOT NULL DEFAULT 1.0
+);
+CREATE INDEX IF NOT EXISTS idx_weekly_signup_gate_week ON weekly_signup_gate (first_seen_at) WHERE admitted = true;
+
 -- ── user_prefs ───────────────────────────────────────────────────────────────
 -- Native/target language choice per user (2026-08-22). Previously the
 -- launcher's language selectors only lived in st.session_state, which resets
@@ -267,3 +288,4 @@ ALTER TABLE phrase_explanations  ENABLE ROW LEVEL SECURITY;
 ALTER TABLE daily_feature_usage  ENABLE ROW LEVEL SECURITY;
 ALTER TABLE user_prefs           ENABLE ROW LEVEL SECURITY;
 ALTER TABLE custom_phrases       ENABLE ROW LEVEL SECURITY;
+ALTER TABLE weekly_signup_gate   ENABLE ROW LEVEL SECURITY;

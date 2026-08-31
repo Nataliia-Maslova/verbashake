@@ -72,7 +72,7 @@ def _show_upsell_custom(key: str) -> None:
     """Same pattern as grammar.py::_show_upsell / reading_app.py::
     _show_upsell_reading — kept local since custom_app.py otherwise never
     touches engine.gemini."""
-    st.warning("⭐ This is a Premium feature — live AI generation isn't included in the free plan.")
+    st.warning("⭐ Premium feature, or you've hit today's free AI limit for it — try again tomorrow, or upgrade to Premium for unlimited.")
     if st.button("⭐ Go to Upgrade", key=f"upsell_{key}"):
         st.session_state["_show_launcher"] = True
         st.rerun()
