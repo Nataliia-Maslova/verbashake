@@ -140,6 +140,26 @@ STRINGS = {
         "word_phrase":     "Phrase",
         "word_unit":       "Unit",
         "no_lessons_yet":  "No lessons yet",
+        # First-run onboarding (app.py::_render_onboarding, 2026-09-06) —
+        # replaces the placement quiz as the only way a student's starting
+        # level gets set: name + native/target language + self-reported
+        # level (+ literacy question for a from-scratch beginner or a
+        # non-native script), asked once before the regular launcher shows.
+        "onboarding_title":       "👋 Let's get you set up",
+        "onboarding_name_label": "What should we call you?",
+        "onboarding_name_placeholder": "Your name",
+        "onboarding_level_label": "How much {target} do you already know?",
+        "level_zero": "Zero — I don't know anything yet",
+        "level_A1": "A1 — Beginner",
+        "level_A2": "A2 — Elementary",
+        "level_B1": "B1 — Intermediate",
+        "level_B2": "B2 — Upper-Intermediate",
+        "level_C1": "C1 — Advanced",
+        "level_C2": "C2 — Proficient",
+        "onboarding_literacy_label": "Can you already read {target}'s alphabet/script?",
+        "literacy_needs_letters": "No — teach me the letters first",
+        "literacy_can_read":      "Yes — I can already read words",
+        "onboarding_submit_btn":  "Start learning →",
         # Placement-quiz / mastery recommendation banner (grammar.py::render_setup)
         "rec_reason_revisit":    "revisit {word} {lid} to shore up a weaker topic before moving on",
         "rec_reason_skip_ahead": "skip ahead to {word} {lid} — you're tracking ahead of it already",
@@ -339,6 +359,22 @@ STRINGS = {
         "word_phrase":     "Фраза",
         "word_unit":       "Юніт",
         "no_lessons_yet":  "Ще немає уроків",
+        # Перший запуск — онбординг (app.py::_render_onboarding, 2026-09-06)
+        "onboarding_title":       "👋 Давай познайомимось",
+        "onboarding_name_label": "Як до тебе звертатись?",
+        "onboarding_name_placeholder": "Твоє ім'я",
+        "onboarding_level_label": "Наскільки добре ти вже знаєш {target}?",
+        "level_zero": "З нуля — поки нічого не знаю",
+        "level_A1": "A1 — Початковий",
+        "level_A2": "A2 — Елементарний",
+        "level_B1": "B1 — Середній",
+        "level_B2": "B2 — Вище середнього",
+        "level_C1": "C1 — Просунутий",
+        "level_C2": "C2 — Досконале володіння",
+        "onboarding_literacy_label": "Ти вже вмієш читати абетку/писемність мови {target}?",
+        "literacy_needs_letters": "Ні — спочатку навчи мене літер",
+        "literacy_can_read":      "Так — я вже вмію читати слова",
+        "onboarding_submit_btn":  "Почати навчання →",
         # Банер-рекомендація вступного тесту / mastery (grammar.py::render_setup)
         "rec_reason_revisit":    "повернутися до {word} {lid}, щоб закріпити слабшу тему, перш ніж рухатись далі",
         "rec_reason_skip_ahead": "перейти одразу до {word} {lid} — ти вже випереджаєш цей рівень",

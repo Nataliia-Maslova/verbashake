@@ -94,6 +94,7 @@ from engine.gamification import on_step_complete, on_lesson_complete, sidebar_wi
 from engine import gemini as _gemini
 from engine import youtube_links
 from engine import recommender as _recommender
+from engine import user_prefs as _user_prefs
 from engine import rate_limit as _rate_limit
 from engine.picker import _render_flat_wave_nav
 from engine import i18n
@@ -1838,6 +1839,9 @@ def step8(session: LessonSession, tts_lang, wh_lang):
                                        for p in candidates]
                         st.session_state["s8_results"] = results
                         session.score(raw, raw, step=8, phrase_id=0)
+                        _s8_errors = [e for r in results for e in r["correction"].get("errors", [])]
+                        if _s8_errors:
+                            _record_mistake(session, session.state.target_lang, _s8_errors)
                     except _gemini.PaidFeatureRequired:
                         _show_upsell("s8_voice")
 
@@ -1875,6 +1879,9 @@ def step8(session: LessonSession, tts_lang, wh_lang):
                                    for p in lines]
                     st.session_state["s8_results"] = results
                     session.score(text_input, text_input, step=8, phrase_id=0)
+                    _s8_errors = [e for r in results for e in r["correction"].get("errors", [])]
+                    if _s8_errors:
+                        _record_mistake(session, session.state.target_lang, _s8_errors)
                 except _gemini.PaidFeatureRequired:
                     _show_upsell("s8_text")
 
@@ -2125,6 +2132,55 @@ audio{width:100%;border-radius:8px;margin:4px 0;}
 def _init_errors(phase_key: str) -> None:
     if f"errors_{phase_key}" not in st.session_state:
         st.session_state[f"errors_{phase_key}"] = []
+
+
+def _record_mistake(
+    session: LessonSession, target_lang: str, errors: list[dict] | None = None,
+) -> None:
+    """
+    Ding mastery/SRS after a detected grammar mistake, so the right lesson
+    resurfaces for review later via My Path/get_next() (2026-09-06, Natalia:
+    schedule a future lesson for review on every mistake). Before this,
+    Warmup/Step 8/Practice/Open Question/Roleplay errors only ever lived in
+    _collect_error's session-only dict for the immediate retry loop and were
+    discarded once reviewed -- nothing wrote to mastery/srs_state.
+
+    `errors`: the error dicts just returned by correct_grammar()/
+    evaluate_warmup() (each may carry a "topic_en" guess, e.g. "Subject-verb
+    agreement") or a single-item list like [{"topic_en": ...}] for
+    check_practice_answer's one guess. Each guess is classified against this
+    module's real lesson topics (engine.gemini.classify_mistake_topics(),
+    2026-09-06 — schedules review of the lesson the mistake is ACTUALLY
+    about, e.g. a subject-verb-agreement slip made during an unrelated
+    lesson dings the Present Simple lesson instead) rather than always
+    dinging whatever lesson the student happened to be in. Falls back to
+    dinging the CURRENT lesson (session.state.unit_id) once for the whole
+    batch when no guess classifies to a different lesson, classification is
+    unavailable (no `errors`, all guesses empty, free-tier limit hit,
+    transient failure), or the session isn't tracked at all — same
+    coarser behavior as before this parameter existed.
+    """
+    if not session.state.unit_id:
+        return
+
+    matched_units: set[str] = set()
+    guesses = [e["topic_en"] for e in (errors or []) if e.get("topic_en")]
+    if guesses:
+        try:
+            candidates = _recommender.all_topics(target_lang, module="grammar")
+            classified = _gemini.classify_mistake_topics(guesses, candidates)
+            for topic in classified.values():
+                unit = _recommender.lesson_for_topic(topic, target_lang, module="grammar")
+                if unit and unit["unit_id"] != session.state.unit_id:
+                    matched_units.add(unit["unit_id"])
+        except Exception:
+            pass
+
+    for unit_id in (matched_units or {session.state.unit_id}):
+        try:
+            _recommender.record_result(session.state.user_id, target_lang, unit_id, False)
+        except Exception:
+            pass
 
 
 def _collect_error(
@@ -2496,6 +2552,8 @@ def phase1_warmup(session: LessonSession, tts_lang: str, wh_lang: str) -> bool:
                 err.get("explanation", ""), "warmup",
                 native_prompt=err.get("native_prompt", ""),
             )
+        if result.get("errors"):
+            _record_mistake(session, target_lang, result["errors"])
         st.session_state["warmup_done"] = True
         st.rerun()
 
@@ -2780,6 +2838,14 @@ def phase3_practice(session: LessonSession, tts_lang: str, wh_lang: str) -> bool
                         res.get("feedback", ""), "practice",
                         native_prompt=item["question"],
                     )
+                    # target_grammar already gets its own, richer
+                    # record_results() batch call below (per-topic unit, not
+                    # this lesson's own unit_id) -- every other test_type
+                    # here used to be fully ephemeral (2026-09-06 fix: a
+                    # wrong Practice answer now dings THIS lesson's mastery/
+                    # SRS too, same as a wrong Phase 2 phrase already does).
+                    if test_type != "target_grammar":
+                        _record_mistake(session, target_lang, [{"topic_en": res.get("topic_en")}])
                 # target_grammar is the only Phase-3 test_type that writes to
                 # mastery/SRS (CLAUDE.md 2026-08-23) -- every other test_type
                 # here has always been ephemeral practice (session.score()
@@ -2975,6 +3041,8 @@ def phase4_expression(session: LessonSession, tts_lang: str, wh_lang: str) -> bo
                     err.get("explanation", ""), "expression",
                     native_prompt=err.get("native_prompt", ""),
                 )
+            if correction.get("errors"):
+                _record_mistake(session, target_lang, correction["errors"])
             st.caption("Grammar checked - errors saved for review.")
             st.session_state["p4_submitted"] = True
             st.rerun()
@@ -3162,6 +3230,8 @@ def _phase4_roleplay(session: LessonSession, tts_lang: str, wh_lang: str) -> boo
                             err.get("explanation", ""), "expression_roleplay",
                             native_prompt=err.get("native_prompt", ""),
                         )
+                    if correction.get("errors"):
+                        _record_mistake(session, target_lang, correction["errors"])
                 except _gemini.PaidFeatureRequired:
                     _show_upsell("p4rp_correct")
                     return False
@@ -3722,7 +3792,13 @@ def main(module: str = "grammar"):
                 _llang = _recommender.LANG_TO_CODE.get(
                     st.session_state.get("launcher_native", "English"), "en")
                 _lres = on_lesson_complete(sess.state.user_id, _llang)
-                _ltoasts.append(f"🎉 Lesson complete! +{_lres['xp_earned']} XP bonus")
+                # Name from onboarding (2026-09-06, "key moments only" —
+                # Natalia: not every toast, just whole-lesson completion) --
+                # falls back to no greeting for a user who hasn't been
+                # through onboarding yet (display_name still NULL).
+                _profile = _user_prefs.get_profile(sess.state.user_id) or {}
+                _greet = f"{_profile['display_name']}, " if _profile.get("display_name") else ""
+                _ltoasts.append(f"🎉 {_greet}Lesson complete! +{_lres['xp_earned']} XP bonus")
                 if _lres.get("leveled_up"):
                     _ltoasts.append(f"⭐ New level {_lres['level_num']}: {_lres['level_name']}!")
                 for _bid, _bem, _bname, _bdesc in _lres.get("new_badges", []):

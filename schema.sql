@@ -228,12 +228,34 @@ CREATE INDEX IF NOT EXISTS idx_weekly_signup_gate_week ON weekly_signup_gate (fi
 -- redeploy) — a returning student had to re-pick their languages every
 -- single time. This makes that choice sticky across sessions and devices,
 -- the same way progress already is (see engine/user_prefs.py).
+--
+-- display_name/self_level/literacy_required added 2026-09-06 (first-run
+-- onboarding: name + native/target language + self-reported level, replacing
+-- the optional placement quiz — see engine/placement_quiz.py's docstring and
+-- app.py::_render_onboarding). self_level is one of "zero"/"A1".."C2" — a
+-- value outside CEFR_RANK (e.g. "zero", or NULL for a user who signed up
+-- before this feature) is simply never matched by
+-- recommender.seed_mastery_from_level()'s CEFR_RANK lookup, so it's a safe
+-- no-seed default, not a special case that needs handling everywhere.
+-- literacy_required is the student's own answer to "already read this
+-- script, or need the letters first?" (asked when self_level=="zero" or the
+-- target language's script differs from the native language's) — NULL for
+-- anyone who never saw that question, which recommender.py treats the same
+-- as "no" (falls back to the language-based SCRIPT_GATE_LANGS gate only).
 CREATE TABLE IF NOT EXISTS user_prefs (
-    user_id      TEXT PRIMARY KEY,
-    native_lang  TEXT,
-    target_lang  TEXT,
-    updated_at   TIMESTAMPTZ NOT NULL DEFAULT now()
+    user_id            TEXT PRIMARY KEY,
+    native_lang        TEXT,
+    target_lang        TEXT,
+    display_name       TEXT,
+    self_level         TEXT,
+    literacy_required  BOOLEAN,
+    updated_at         TIMESTAMPTZ NOT NULL DEFAULT now()
 );
+-- Additive migration for an already-provisioned database (CREATE TABLE IF
+-- NOT EXISTS above is a no-op once the table exists) — safe to re-run.
+ALTER TABLE user_prefs ADD COLUMN IF NOT EXISTS display_name      TEXT;
+ALTER TABLE user_prefs ADD COLUMN IF NOT EXISTS self_level        TEXT;
+ALTER TABLE user_prefs ADD COLUMN IF NOT EXISTS literacy_required BOOLEAN;
 
 -- ── custom_phrases ───────────────────────────────────────────────────────────
 -- "My Phrases" user-created lessons (2026-08-28, replacing the CSV-file

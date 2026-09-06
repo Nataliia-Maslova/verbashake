@@ -407,6 +407,104 @@ def _module_progress_card(module_key: str, native: str, target: str,
     return pr
 
 
+_SELF_LEVELS = ["zero", "A1", "A2", "B1", "B2", "C1", "C2"]
+
+# Coarse script family per language — used ONLY to decide whether the
+# onboarding screen needs to ask the literacy ("already read this script, or
+# need the letters first?") question at all; the student's actual answer
+# (engine/user_prefs.py's literacy_required) is what drives the reading gate
+# in engine/recommender.py, for whatever target_lang they picked. A learner
+# whose native and target language share a script (e.g. English -> French)
+# is assumed literate in it already and isn't asked; one crossing script
+# families is asked even above "zero" self-level (2026-09-06, Natalia:
+# "также при не-латинском алфавите") — a self-rated A1 in Korean may still
+# not know Hangul yet.
+_SCRIPT_FAMILY: dict[str, str] = {
+    "English": "latin", "French": "latin", "German": "latin", "Spanish": "latin",
+    "Italian": "latin", "Portuguese": "latin", "Catalan": "latin", "Dutch": "latin",
+    "Polish": "latin",
+    "Ukrainian": "cyrillic", "Russian": "cyrillic",
+    "Korean": "hangul", "Japanese": "japanese", "Chinese": "chinese",
+}
+
+
+def _needs_literacy_question(native: str, target: str, self_level: str) -> bool:
+    if self_level == "zero":
+        return True
+    return _SCRIPT_FAMILY.get(native, "latin") != _SCRIPT_FAMILY.get(target, "latin")
+
+
+def _render_onboarding(user_id: str) -> None:
+    """
+    First-run screen (2026-09-06) — replaces the old "_prefs_is_new_user"
+    welcome banner. Every student (brand new, or an existing one who signed
+    up before this feature) goes through this exactly once: name, native
+    language, target language, self-reported level, and — for a from-scratch
+    beginner or a language whose script differs from their native one — a
+    literacy question. Saved all at once via user_prefs.save_onboarding();
+    render_launcher() below checks user_prefs.is_onboarded() and only calls
+    this while it's False, so a returning student never sees it again.
+
+    Deliberately replaces the placement quiz as the way starting mastery
+    gets seeded (CLAUDE.md item 3 -> retired 2026-09-06, Natalia: no test,
+    let the student pick their own level) — seed_mastery_from_level() is the
+    same function the quiz used to call, just driven by a self-report
+    instead of a graded answer.
+    """
+    st.markdown(f"## {i18n.get('Ukrainian', 'onboarding_title')}")
+
+    # Native language first — every label after this point renders in it,
+    # same "pick a display language before asking anything else" bootstrap
+    # the regular launcher's language selectors already rely on further down.
+    native = st.selectbox(
+        i18n.get("Ukrainian", "native_language"), LANGUAGES,
+        index=LANGUAGES.index("Ukrainian"), key="ob_native",
+    )
+    name = st.text_input(
+        i18n.get(native, "onboarding_name_label"),
+        placeholder=i18n.get(native, "onboarding_name_placeholder"),
+        key="ob_name",
+    )
+    target_options = [l for l in LANGUAGES if l != native]
+    target = st.selectbox(
+        i18n.get(native, "target_language"), target_options, key="ob_target",
+    )
+    self_level = st.selectbox(
+        i18n.get(native, "onboarding_level_label").format(target=target),
+        _SELF_LEVELS,
+        format_func=lambda lvl: i18n.get(native, f"level_{lvl}"),
+        key="ob_level",
+    )
+
+    literacy_required = None
+    if _needs_literacy_question(native, target, self_level):
+        choice = st.radio(
+            i18n.get(native, "onboarding_literacy_label").format(target=target),
+            ["can_read", "needs_letters"],
+            format_func=lambda c: i18n.get(native, f"literacy_{c}"),
+            key="ob_literacy",
+        )
+        literacy_required = (choice == "needs_letters")
+
+    if st.button(i18n.get(native, "onboarding_submit_btn"),
+                 type="primary", key="ob_submit", disabled=not name.strip()):
+        from engine import recommender as _recommender
+        user_prefs.save_onboarding(
+            user_id, name.strip(), native, target, self_level, literacy_required,
+        )
+        # "zero" isn't a CEFR level -- seed_mastery_from_level() only matches
+        # keys in CEFR_RANK, so a from-scratch beginner is correctly left
+        # unseeded (starts every topic at the true 0.0 "knows nothing").
+        if self_level in _recommender.CEFR_RANK:
+            for m in _recommender.ALL_MODULES:
+                _recommender.seed_mastery_from_level(user_id, target, m, self_level)
+        st.session_state["launcher_native"] = native
+        st.session_state["launcher_target"] = target
+        st.session_state["_prefs_saved_native"] = native
+        st.session_state["_prefs_saved_target"] = target
+        st.rerun()
+
+
 def render_launcher():
     st.markdown("""
     <style>
@@ -518,14 +616,21 @@ def render_launcher():
     # ── Account (Google, via st.login) + language preferences ───────────────
     # Defaults persist across reruns via session_state.
     user_id        = auth_gate.current_user_id()
+
+    # First-run onboarding (2026-09-06) — name + native/target language +
+    # self-reported level, once per user, replacing both the old
+    # "_prefs_is_new_user" welcome banner and the placement quiz below
+    # (_render_placement_quiz is kept, but no longer called, in case the
+    # test comes back later — Natalia: "убрать пока что"). An existing user
+    # from before this feature (has native_lang/target_lang saved, but no
+    # display_name/self_level) goes through this once too, retroactively.
+    from engine import db as _db
+    if user_id and _db.is_available() and not user_prefs.is_onboarded(user_id):
+        _render_onboarding(user_id)
+        return
+
     default_native = st.session_state.get("launcher_native", "Ukrainian")
     default_target = st.session_state.get("launcher_target", "English")
-
-    if st.session_state.get("_prefs_is_new_user"):
-        st.info(
-            "👋 Welcome! Pick your native and target language below — "
-            "we'll remember this for next time."
-        )
 
     with st.container():
         c1, c2, c3 = st.columns([2, 1.3, 1.3])
@@ -557,8 +662,7 @@ def render_launcher():
     st.session_state["launcher_target"] = target
 
     # Save to the DB only when the choice actually changed (not on every
-    # rerun) — CLAUDE.md 2026-08-22. Also clears the new-user welcome banner
-    # once a real choice has been saved.
+    # rerun) — CLAUDE.md 2026-08-22.
     if user_id and (native, target) != (
         st.session_state.get("_prefs_saved_native"),
         st.session_state.get("_prefs_saved_target"),
@@ -566,14 +670,10 @@ def render_launcher():
         user_prefs.save_prefs(user_id, native, target)
         st.session_state["_prefs_saved_native"] = native
         st.session_state["_prefs_saved_target"] = target
-        st.session_state["_prefs_is_new_user"]  = False
 
-    # ── Placement quiz — promoted right under language choice (was a hidden
-    # expander below 6 scrolling module cards on mobile; design review,
-    # 2026-08-27) so a new learner sees it before, not after, committing to
-    # a starting point. ─────────────────────────────────────────────────────
-    st.markdown("<div style='margin:18px 0 0'></div>", unsafe_allow_html=True)
-    _render_placement_quiz(native, target, user_id)
+    # Placement quiz retired 2026-09-06 (Natalia: no test — self-reported
+    # level at onboarding instead, see _render_onboarding above). Left
+    # defined below, just unreachable, in case it's wanted again later.
 
     # ── Sidebar: streak/XP + account + subscription ──────────────────────────
     with st.sidebar:
@@ -670,6 +770,11 @@ def render_launcher():
 
 def _render_placement_quiz(native: str, target: str, user_id: str) -> None:
     """
+    RETIRED 2026-09-06 (Natalia: no test — a student picks their own level
+    at onboarding instead, see render_launcher()'s call to
+    _render_onboarding()). No longer called from anywhere; left defined,
+    unreached, in case the quiz is wanted again later.
+
     Optional short placement quiz (CLAUDE.md item 3, decided 2026-08-21: a
     short quiz rather than a full adaptive test). Free for every user — it's
     graded locally (engine.scorer), zero Gemini calls — and seeds initial
@@ -868,7 +973,6 @@ def main():
     # overwriting a change the student just made in the selectors below.
     if user_id and not st.session_state.get("_prefs_loaded"):
         _saved_prefs = user_prefs.get_prefs(user_id)
-        st.session_state["_prefs_is_new_user"] = not _saved_prefs
         if _saved_prefs:
             if _saved_prefs.get("native_lang"):
                 st.session_state["launcher_native"] = _saved_prefs["native_lang"]

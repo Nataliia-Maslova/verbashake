@@ -2070,7 +2070,13 @@ def main():
             try:
                 _rllang = {"English":"en","Ukrainian":"uk","Spanish":"es","Korean":"ko"}.get(st.session_state.get("launcher_native","English"),"en")
                 _lres = on_lesson_complete(cur_user, _rllang)
-                _ltoasts = [f"🎉 {_ui('lesson_complete')} +{_lres['xp_earned']} XP"]
+                # Name from onboarding (2026-09-06, same "key moments only"
+                # scope as grammar.py's lesson-complete toast) -- falls back
+                # to no greeting pre-onboarding.
+                from engine import user_prefs as _user_prefs
+                _profile = _user_prefs.get_profile(cur_user) or {}
+                _greet = f"{_profile['display_name']}, " if _profile.get("display_name") else ""
+                _ltoasts = [f"🎉 {_greet}{_ui('lesson_complete')} +{_lres['xp_earned']} XP"]
                 if _lres.get("leveled_up"):
                     _ltoasts.append(f"⭐ Новий рівень {_lres['level_num']}: {_lres['level_name']}!")
                 for _bid, _bem, _bname, _bdesc in _lres.get("new_badges", []):

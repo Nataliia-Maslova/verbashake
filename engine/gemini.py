@@ -297,7 +297,12 @@ def evaluate_warmup(
           "feedback": str,   # one encouraging sentence in native_lang
           "errors": [
             {"original": str, "corrected": str, "explanation": str,
-             "native_prompt": str}  # phrase to use when asking student to retry
+             "native_prompt": str,   # phrase to use when asking student to retry
+             "topic_en": str}  # short English grammar-point name, e.g.
+                               # "Subject-verb agreement" (2026-09-06, used
+                               # by engine.recommender.match_topic_to_lesson
+                               # to schedule review of the SPECIFIC lesson
+                               # this error is actually about)
           ]
         }
     """
@@ -313,7 +318,9 @@ def evaluate_warmup(
         '      "original": "the incorrect phrase as the student wrote it",\n'
         '      "corrected": "the correct version in target language",\n'
         f'      "explanation": "one short line in {native_lang}",\n'
-        f'      "native_prompt": "the meaning of the phrase in {native_lang} — used to ask student to retry"\n'
+        f'      "native_prompt": "the meaning of the phrase in {native_lang} — used to ask student to retry",\n'
+        '      "topic_en": "a short English name for the grammar point this error is about, e.g. '
+        '\'Subject-verb agreement\', \'Articles\', \'Past Simple\', \'Word order\'"\n'
         "    }\n"
         "  ]\n"
         "}\n\n"
@@ -340,7 +347,12 @@ def correct_grammar(text: str, target_lang: str, native_lang: str) -> dict:
           "corrected": str,
           "errors": [
             {"original": str, "fixed": str, "explanation": str,
-             "native_prompt": str}
+             "native_prompt": str,
+             "topic_en": str}  # short English grammar-point name, e.g.
+                               # "Subject-verb agreement" (2026-09-06, used
+                               # by engine.recommender.match_topic_to_lesson
+                               # to schedule review of the SPECIFIC lesson
+                               # this error is actually about)
           ]
         }
     """
@@ -358,7 +370,9 @@ def correct_grammar(text: str, target_lang: str, native_lang: str) -> dict:
         '      "original": "the incorrect word or phrase as written",\n'
         f'      "fixed": "the corrected word or short phrase in {target_lang}",\n'
         f'      "explanation": "one short grammar tip in {native_lang}",\n'
-        f'      "native_prompt": "translation of the corrected phrase into {native_lang} — MUST be in {native_lang} only"\n'
+        f'      "native_prompt": "translation of the corrected phrase into {native_lang} — MUST be in {native_lang} only",\n'
+        '      "topic_en": "a short English name for the grammar point this error is about, e.g. '
+        '\'Subject-verb agreement\', \'Articles\', \'Past Simple\', \'Word order\'"\n'
         "    }\n"
         "  ]\n"
         "}\n\n"
@@ -369,6 +383,68 @@ def correct_grammar(text: str, target_lang: str, native_lang: str) -> dict:
         _model(_LITE).generate_content(prompt).text,
         fallback={"corrected": text, "errors": []},
     )
+
+
+@_gated("classify_mistake_topics", 20)
+def classify_mistake_topics(guesses: list[str], candidate_topics: list[str]) -> dict[str, str]:
+    """
+    Map each free-text grammar-topic guess (correct_grammar()'s/
+    evaluate_warmup()'s/check_practice_answer()'s new per-error "topic_en"
+    field) onto the single best-fitting REAL lesson topic in
+    `candidate_topics`, or drop it if nothing genuinely fits.
+
+    2026-09-06, Natalia: schedule review of the SPECIFIC lesson a mistake is
+    actually about (e.g. subject-verb agreement -> the Present Simple
+    lesson), not just whichever lesson the student happened to be doing.
+    First attempt used plain string-similarity matching (rapidfuzz, already
+    used elsewhere in this project for translation-answer grading) instead
+    of a live call here — dropped after a live test failed outright:
+    imlls_database's own topic labels are often paraphrased/colloquial
+    ("Actions happening now — he/she" instead of "Present Simple" or
+    "Subject-verb agreement"), so a textually-close guess scored far below
+    the correct lesson even when it was exactly right semantically. This
+    needs real language understanding, not text overlap, hence one Gemini
+    call per mistake BATCH (not per individual error) — kept cheap by
+    firing only when there are errors to classify (a minority of
+    interactions), not on every correction check.
+
+    Returns {guess: matched_topic} for only the guesses that matched — a
+    guess absent from the result dict means "no confident match," and the
+    caller (grammar.py::_record_mistake) falls back to its coarser default
+    (ding the current lesson) for those.
+    """
+    if not guesses or not candidate_topics:
+        return {}
+    numbered_topics = "\n".join(f"{i}. {t}" for i, t in enumerate(candidate_topics))
+    numbered_guesses = "\n".join(f"{i}. {g}" for i, g in enumerate(guesses))
+    prompt = (
+        "Below is a numbered list of language-lesson topics, and a numbered "
+        "list of short grammar-mistake descriptions. For EACH mistake "
+        "description, decide which lesson topic (if any) it is actually "
+        "about — judge by grammatical MEANING, not by shared words. For "
+        "example \"Subject-verb agreement\" IS the same underlying point as "
+        "a topic titled \"Actions happening now — he/she\" if that lesson "
+        "covers present-tense verb forms for he/she, even though the "
+        "wording is completely different.\n\n"
+        f"Lesson topics:\n{numbered_topics}\n\n"
+        f"Mistake descriptions:\n{numbered_guesses}\n\n"
+        "Return JSON only — no markdown fences: a single array of integers, "
+        "one per mistake description IN ORDER, each either the number of "
+        "the matching lesson topic, or -1 if none of the topics genuinely "
+        f"cover that mistake. Example for {len(guesses)} descriptions: "
+        + json.dumps([-1] * len(guesses))
+    )
+    result = _parse_json(
+        _model(_LITE).generate_content(prompt).text,
+        fallback=[-1] * len(guesses),
+    )
+    if not isinstance(result, list) or len(result) != len(guesses):
+        return {}
+    matched: dict[str, str] = {}
+    for guess, idx in zip(guesses, result):
+        if isinstance(idx, int) and 0 <= idx < len(candidate_topics):
+            matched[guess] = candidate_topics[idx]
+    return matched
 
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -1042,7 +1118,15 @@ def check_practice_answer(
     isolation chat_with_tutor already uses for its own untrusted user_msg.
 
     Returns:
-        {"correct": bool, "feedback": str}   # feedback in native_lang
+        {"correct": bool, "feedback": str,   # feedback in native_lang
+         "topic_en": str}  # only when correct=false: short English name for
+                           # the grammar/vocab point the wrong answer is
+                           # actually about (2026-09-06, e.g. "Prepositions
+                           # of time", "Comparative adjectives") — used by
+                           # engine.recommender.match_topic_to_lesson to
+                           # schedule review of the SPECIFIC lesson this
+                           # mistake is about, not just whichever lesson the
+                           # student happened to be practicing
     """
     model = _model(
         _LITE,
@@ -1065,7 +1149,10 @@ def check_practice_answer(
         f"Return JSON only — no markdown fences:\n"
         "{\n"
         '  "correct": true,\n'
-        f'  "feedback": "one short encouraging or explanatory sentence in {native_lang}"\n'
+        f'  "feedback": "one short encouraging or explanatory sentence in {native_lang}",\n'
+        '  "topic_en": "only if correct is false -- a short English name for the grammar/vocab '
+        'point the wrong answer is actually about, e.g. \'Comparative adjectives\'; omit or leave '
+        'empty if correct is true"\n'
         "}"
     )
     return _parse_json(

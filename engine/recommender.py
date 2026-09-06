@@ -305,6 +305,44 @@ def _is_script_lang(target_lang: str) -> bool:
     return LANG_TO_CODE.get(target_lang) in SCRIPT_GATE_LANGS
 
 
+def _reading_gate_mode(user_id: str, target_lang: str) -> str:
+    """
+    "full" | "skip" | "default" — how much of the reading catalog gates
+    grammar/vocab for this student, in target_lang.
+
+    literacy_required (engine/user_prefs.py, set at onboarding) is the
+    AUTHORITATIVE signal when the student was actually asked and gave an
+    explicit answer, for any target language, script-gated or not:
+      - True  ("no, teach me the letters first")  -> "full": every reading
+        lesson must be cleared first, same as ko/ja/zh always required.
+      - False ("yes, I can already read")         -> "skip": no reading-
+        first phase at all, straight to _normal_path's free scoring — a
+        student who just told us they're literate shouldn't be sent through
+        Reading Lesson 1 regardless of self-reported CEFR level. Confirmed
+        live 2026-09-06: a self-rated C2 English learner who answered "yes,
+        I can already read" was still recommended Reading Lesson 1 (A1)
+        first, because only the "needs letters" -> full-gate direction had
+        been wired, not this one.
+      - None  (never asked -- native/target scripts matched, so
+        app.py::_render_onboarding never showed the question, or the user
+        predates this feature) -> "default": fall back to the pre-2026-09-06
+        behavior, i.e. SCRIPT_GATE_LANGS (ko/ja/zh) forces "full", everyone
+        else gets the short READING_INTRO_COUNT intro.
+
+    literacy_required is per-user, not per-(user, target_lang) -- this only
+    reflects the answer given for whichever target_lang was picked at
+    onboarding; switching target_lang later doesn't re-ask.
+    """
+    from engine import user_prefs
+    profile = user_prefs.get_profile(user_id)
+    literacy = profile.get("literacy_required") if profile else None
+    if literacy is True:
+        return "full"
+    if literacy is False:
+        return "skip"
+    return "full" if _is_script_lang(target_lang) else "default"
+
+
 def _reading_progress(user_id: str, target_lang: str) -> tuple[int, int]:
     """(attempted, total) reading units for this (user, target_lang) — "attempted"
     means it has an srs_state row (written on the first checked answer, same
@@ -496,8 +534,11 @@ def get_path_next(user_id: str, target_lang: str, limit: int = 6) -> list[dict]:
 
       1. Reading gate — pure reading, nothing else recommended. Full reading
          catalog for script languages (ko/ja/zh — without the alphabet
-         nothing else is legible), a short fixed intro (READING_INTRO_COUNT)
-         for everyone else.
+         nothing else is legible) or anyone who told onboarding they need
+         the letters first; a short fixed intro (READING_INTRO_COUNT) for
+         everyone else; skipped entirely (straight to phase 3) for a student
+         who told onboarding they can already read this script — see
+         _reading_gate_mode().
       2. Interleave — gate cleared, reading not yet exhausted: 1 grammar +
          1 vocab + a small reading batch, repeating (_interleave_path).
       3. Normal — reading exhausted (or none exists for this language):
@@ -509,7 +550,10 @@ def get_path_next(user_id: str, target_lang: str, limit: int = 6) -> list[dict]:
     if total == 0:
         return _normal_path(user_id, target_lang, limit)
 
-    gate = total if _is_script_lang(target_lang) else min(READING_INTRO_COUNT, total)
+    mode = _reading_gate_mode(user_id, target_lang)
+    if mode == "skip":
+        return _normal_path(user_id, target_lang, limit)
+    gate = total if mode == "full" else min(READING_INTRO_COUNT, total)
     if done < gate:
         return _reading_frontier_units(user_id, target_lang, limit)
     if done < total:
@@ -728,6 +772,48 @@ def seed_mastery_from_level(
             keys={"user_id": user_id, "target_lang": target_lang, "module": module, "topic": topic},
             values={"score": prior, "n_attempts": 0},
         )
+
+
+def all_topics(target_lang: str, module: str = "grammar") -> list[str]:
+    """
+    Distinct topic strings available in this module FOR target_lang — the
+    candidate pool engine.gemini.classify_mistake_topics() picks from when
+    resolving a free-text grammar-point guess to a real lesson (2026-09-06).
+
+    Reuses _candidates()' existing per-language scoping instead of querying
+    content_units directly — a raw `SELECT DISTINCT topic` would mix in
+    topics that only exist as target-language-specific synthetic lessons
+    for some OTHER language (target_grammar-promoted grammar:1000+ rows are
+    locked to one target_lang via source_lesson, same as "reading" always
+    has been — see _candidates()' own docstring), which would let a French
+    learner's mistake get matched to a Ukrainian-only topic.
+    """
+    seen: list[str] = []
+    seen_set: set[str] = set()
+    for u in _candidates(target_lang, module):
+        topic = u.get("topic")
+        if topic and topic not in seen_set:
+            seen_set.add(topic)
+            seen.append(topic)
+    return seen
+
+
+def lesson_for_topic(topic: str, target_lang: str, module: str = "grammar") -> dict | None:
+    """
+    content_units row tagged with this EXACT topic string, scoped to
+    target_lang. Used after engine.gemini.classify_mistake_topics() has
+    already picked `topic` verbatim from this same module's all_topics()
+    candidate list, so an exact match is guaranteed to exist — no fuzzy
+    matching needed (an earlier rapidfuzz-based attempt was dropped after a
+    live test failed: imlls_database's topic labels are often paraphrased/
+    colloquial, so a semantically-right guess scored far below the correct
+    lesson on plain text similarity — see classify_mistake_topics()'s
+    docstring for the full story).
+    """
+    for u in _candidates(target_lang, module):
+        if u.get("topic") == topic:
+            return u
+    return None
 
 
 def lesson_levels(module: str) -> dict[int, str]:
