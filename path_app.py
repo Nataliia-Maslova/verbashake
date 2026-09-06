@@ -275,13 +275,16 @@ def main() -> None:
         st.markdown(f"**{native} → {target}**")
         st.markdown("")
 
+        # Percentages only, not raw "done / total" counts -- the full catalog
+        # size (1000+ lessons) read as a discouragingly huge, unreachable
+        # target (Natalia's sister's feedback, 2026-09-06).
         pct = stats["pct"]
         st.markdown(
             f'<div style="font-size:.7rem;color:#aaa;text-transform:uppercase;'
             f'letter-spacing:.06em;margin-bottom:3px">Coverage</div>'
             f'{_pct_bar(pct)}'
             f'<div style="font-size:.72rem;color:#aaa;margin-top:2px">'
-            f'{stats["done_total"]} / {stats["total_units"]} · {pct:.0f}%</div>',
+            f'{pct:.0f}%</div>',
             unsafe_allow_html=True,
         )
         st.markdown("---")
@@ -299,7 +302,7 @@ def main() -> None:
                 f'<div style="margin:6px 0">'
                 f'<div style="display:flex;justify-content:space-between;'
                 f'font-size:.75rem;color:#aaa;margin-bottom:2px">'
-                f'<span>{label}</span><span>{done}/{total}</span></div>'
+                f'<span>{label}</span><span>{_pct}%</span></div>'
                 f'{_pct_bar(_pct, color)}'
                 f'</div>',
                 unsafe_allow_html=True,
@@ -317,16 +320,23 @@ def main() -> None:
     _render_module_shortcuts(user, native, target)
 
     # ── Overall progress bar ─────────────────────────────────────────────────
+    # Shows percentages only, not raw "done / total" counts -- the full catalog
+    # size (1000+ lessons) read as a discouragingly huge, unreachable target
+    # (Natalia's sister's feedback, 2026-09-06).
     col1, col2, col3 = st.columns(3)
-    with col1:
-        st.metric("Grammar",    f"{stats['done_grammar']} / {stats['total_grammar']}")
-    with col2:
-        st.metric("Vocabulary", f"{stats['done_vocab']}  / {stats['total_vocab']}")
-    with col3:
-        st.metric("Reading",    f"{stats['done_reading']} / {stats['total_reading']}")
+    for col, key, label in [
+        (col1, "grammar", "Grammar"),
+        (col2, "vocab",   "Vocabulary"),
+        (col3, "reading", "Reading"),
+    ]:
+        total = stats[f"total_{key}"]
+        done  = stats[f"done_{key}"]
+        _pct  = round(done / total * 100) if total else 0
+        with col:
+            st.metric(label, f"{_pct}%")
 
     st.progress(stats["pct"] / 100)
-    st.caption(f"{stats['done_total']} of {stats['total_units']} lessons attempted · {stats['pct']:.0f}%")
+    st.caption(f"{stats['pct']:.0f}% overall progress")
 
     if stats["total_units"] == 0:
         st.info(

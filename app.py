@@ -738,9 +738,12 @@ def render_launcher():
             f'<div class="pb-fill pb-fill-done" style="width:100%"></div></div>'
         )
     else:
+        # Shows current position + percentage only, not the raw total (1000+
+        # lessons read as a discouragingly huge, unreachable target -- Natalia's
+        # sister's feedback, 2026-09-06).
         progress_html = (
             f'<div class="pb-info">'
-            f'<span>{word} {cur} / {tot}</span>'
+            f'<span>{word} {cur}</span>'
             f'<span>{pct:.0f}%</span></div>'
             f'<div class="pb-wrap">'
             f'<div class="pb-fill" style="width:{pct}%"></div></div>'
