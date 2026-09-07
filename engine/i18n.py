@@ -135,11 +135,73 @@ STRINGS = {
         # 8-step flow right below it (design review, 2026-08-23).
         "native_language": "🌐 Native language",
         "target_language": "🎯 Target language",
+        # Quick-switch chips (2026-09-07) — jump straight to another
+        # language you already have real progress in, without hunting
+        # through the full dropdown above.
+        "quick_switch_label": "🔁 Jump back to:",
         "start_prefix":    "Start",
         "word_lesson":     "Lesson",
         "word_phrase":     "Phrase",
         "word_unit":       "Unit",
         "no_lessons_yet":  "No lessons yet",
+        # Module names (2026-09-07) -- ONE source for what used to be 3
+        # separately hardcoded English-only lists (app.py::MODULES,
+        # grammar.py::_SIDEBAR_MODULES, path_app.py::_TYPE_LABEL /
+        # _SHORTCUT_MODULES) that could never localize together and, in
+        # practice, never localized at all -- confirmed live, 2026-09-07:
+        # a Russian-native/Catalan-target account saw "Grammar",
+        # "Vocabulary", "Phrasebook", "Reading", "My Phrases" in raw
+        # English on the sidebar, the module-entry screen, and My Path, on
+        # top of the native-language 8-step flow and the Catalan practice
+        # content itself -- three languages on one screen at once. "Search"
+        # reuses the already-existing "search_title" key instead of a
+        # fourth near-duplicate.
+        "module_grammar":    "Grammar",
+        "module_vocab":      "Vocabulary",
+        "module_phrasebook": "Phrasebook",
+        "module_reading":    "Reading",
+        "module_custom":     "My Phrases",
+        "module_path":       "My Path",
+        "record_label":      "🎙️ Record",
+        # render_setup()'s resume/continuing/completed/no-lessons messages
+        # (grammar.py) -- were raw English f-strings even though the noun
+        # inside them (word/lesson word) was already localized via
+        # word_lesson/topic_label/word_phrase.
+        "resume_mid_lesson_msg":     "⏯ Resume {word} {lesson} at Step {step}",
+        "resume_continuing_msg":     "▶ Continuing from {word} {lesson} (last completed: {prev})",
+        "all_lessons_completed_msg": "🎉 All {module} lessons completed for this language pair!",
+        "no_lessons_available_msg":  "⚠️ No {module} lessons available for {native} → {target}. The Excel file might not have data for this language pair yet.",
+        # My Path screen (path_app.py) -- added 2026-08-27, after most of
+        # the i18n pass, and never wired into it at all.
+        "path_title":            "🗺️ My Learning Path",
+        "path_shortcuts_label":  "Or open a module directly",
+        "path_coverage_label":   "Coverage",
+        "path_next_lesson_title": "▶ Next lesson",
+        "path_easier_btn":       "⬅ Easier",
+        "path_harder_btn":       "Try harder ➡",
+        "path_skip_btn":         "⏭ Skip this lesson",
+        "path_start_over_btn":   "🔄 Start over",
+        "path_all_caught_up":    "🎉 **You're all caught up!** No lessons are due for review right now.",
+        "path_overall_progress": "{pct}% overall progress",
+        # Lesson picker (engine/picker.py) -- same 2026-09-07 finding, one
+        # layer deeper: the module-entry screen's Category/Unit filters and
+        # dropdown fallback were also hardcoded English.
+        "wave_category_label":      "📚 Category",
+        "wave_unit_label":          "📚 Unit",
+        "wave_unit_block":          "Unit {n}: {short}",
+        "wave_no_lessons_category": "No lessons available in this category.",
+        "wave_browse_path_expander": "🗺️ Or browse the path",
+        "dropdown_select_label":    "Select {word}",
+        "dropdown_resume_step_btn": "▶ Resume at Step {step}",
+        "dropdown_start_btn":       "▶ Start {word}",
+        # Grammar category filter names (engine/picker.py::_GRAMMAR_CATEGORIES)
+        "grammar_cat_basics":   "Basics",
+        "grammar_cat_nouns":    "Nouns & Quantities",
+        "grammar_cat_habits":   "Habits & Commands",
+        "grammar_cat_present":  "Present & Future",
+        "grammar_cat_modals":   "Modals & Comparisons",
+        "grammar_cat_past":     "Past Tense",
+        "grammar_cat_advanced": "Advanced",
         # First-run onboarding (app.py::_render_onboarding, 2026-09-06) —
         # replaces the placement quiz as the only way a student's starting
         # level gets set: name + native/target language + self-reported
@@ -354,11 +416,48 @@ STRINGS = {
         # Launcher (app.py)
         "native_language": "🌐 Рідна мова",
         "target_language": "🎯 Мова, яку вивчаєш",
+        "quick_switch_label": "🔁 Повернутись до:",
         "start_prefix":    "Почати",
         "word_lesson":     "Урок",
         "word_phrase":     "Фраза",
         "word_unit":       "Юніт",
         "no_lessons_yet":  "Ще немає уроків",
+        "module_grammar":    "Граматика",
+        "module_vocab":      "Словник",
+        "module_phrasebook": "Розмовник",
+        "module_reading":    "Читання",
+        "module_custom":     "Мої фрази",
+        "module_path":       "Мій шлях",
+        "record_label":      "🎙️ Запис",
+        "resume_mid_lesson_msg":     "⏯ Продовжити {word} {lesson} з Кроку {step}",
+        "resume_continuing_msg":     "▶ Продовжуємо з {word} {lesson} (останній завершений: {prev})",
+        "all_lessons_completed_msg": "🎉 Усі уроки модуля «{module}» завершено для цієї мовної пари!",
+        "no_lessons_available_msg":  "⚠️ Немає уроків модуля «{module}» для пари {native} → {target}. Можливо, для цієї пари мов ще немає даних у файлі.",
+        "path_title":            "🗺️ Мій навчальний шлях",
+        "path_shortcuts_label":  "Або відкрий модуль напряму",
+        "path_coverage_label":   "Охоплення",
+        "path_next_lesson_title": "▶ Наступний урок",
+        "path_easier_btn":       "⬅ Легше",
+        "path_harder_btn":       "Складніше ➡",
+        "path_skip_btn":         "⏭ Пропустити цей урок",
+        "path_start_over_btn":   "🔄 Почати спочатку",
+        "path_all_caught_up":    "🎉 **Усе пройдено!** Зараз немає уроків, які потрібно повторити.",
+        "path_overall_progress": "{pct}% загальний прогрес",
+        "wave_category_label":      "📚 Категорія",
+        "wave_unit_label":          "📚 Юніт",
+        "wave_unit_block":          "Юніт {n}: {short}",
+        "wave_no_lessons_category": "У цій категорії немає уроків.",
+        "wave_browse_path_expander": "🗺️ Або перегляньте шлях",
+        "dropdown_select_label":    "Обрати {word}",
+        "dropdown_resume_step_btn": "▶ Продовжити з Кроку {step}",
+        "dropdown_start_btn":       "▶ Почати {word}",
+        "grammar_cat_basics":   "Основи",
+        "grammar_cat_nouns":    "Іменники й кількість",
+        "grammar_cat_habits":   "Звички й накази",
+        "grammar_cat_present":  "Теперішній і майбутній час",
+        "grammar_cat_modals":   "Модальні дієслова й порівняння",
+        "grammar_cat_past":     "Минулий час",
+        "grammar_cat_advanced": "Просунутий рівень",
         # Перший запуск — онбординг (app.py::_render_onboarding, 2026-09-06)
         "onboarding_title":       "👋 Давай познайомимось",
         "onboarding_name_label": "Як до тебе звертатись?",

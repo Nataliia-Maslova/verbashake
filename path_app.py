@@ -50,8 +50,6 @@ def _img_b64(path) -> str:
     return "data:image/png;base64," + base64.b64encode(p.read_bytes()).decode()
 
 _TYPE_ICON  = {"reading": "🔤", "grammar": "🗣️", "vocab": "📖", "phrasebook": "💬"}
-_TYPE_LABEL = {"reading": "Reading",    "grammar": "Grammar",    "vocab": "Vocabulary",
-               "phrasebook": "Phrasebook"}
 _TYPE_COLOR = {
     "reading": "var(--mova-mint)",
     "grammar": "var(--mova-indigo)",
@@ -72,13 +70,25 @@ _TYPE_COLOR = {
 # grid used to show, reused here instead of the plain emoji (design review,
 # 2026-08-27, Natalia).
 _SHORTCUT_MODULES = [
-    ("grammar",    "🗣️", "Grammar",     APP_IMG_DIR / "vocab_school.jpg"),
-    ("vocab",      "📖", "Vocabulary",  APP_IMG_DIR / "vocab_basic.jpg"),
-    ("phrasebook", "💬", "Phrasebook",  APP_IMG_DIR / "vocab_greetings.jpg"),
-    ("reading",    "🔤", "Reading",     APP_IMG_DIR / "reading_banner.jpg"),
-    ("custom",     "📝", "My Phrases",  APP_IMG_DIR / "my_phrases_banner.jpg"),
-    ("search",     "🔍", "Search",      APP_IMG_DIR / "search_banner.jpg"),
+    ("grammar",    "🗣️", APP_IMG_DIR / "vocab_school.jpg"),
+    ("vocab",      "📖", APP_IMG_DIR / "vocab_basic.jpg"),
+    ("phrasebook", "💬", APP_IMG_DIR / "vocab_greetings.jpg"),
+    ("reading",    "🔤", APP_IMG_DIR / "reading_banner.jpg"),
+    ("custom",     "📝", APP_IMG_DIR / "my_phrases_banner.jpg"),
+    ("search",     "🔍", APP_IMG_DIR / "search_banner.jpg"),
 ]
+
+# Module display names all route through this instead of a 4th hardcoded
+# English list (2026-09-07 finding: app.py::MODULES, grammar.py's
+# _SIDEBAR_MODULES, and this file's own now-removed _TYPE_LABEL/
+# _SHORTCUT_MODULES-labels each had their own copy, none of them
+# localized). "search" reuses the pre-existing "search_title" key
+# (search_app.py) instead of a near-duplicate "module_search".
+_MODULE_I18N_KEY = {
+    "grammar": "module_grammar", "vocab": "module_vocab",
+    "phrasebook": "module_phrasebook", "reading": "module_reading",
+    "custom": "module_custom", "search": "search_title", "path": "module_path",
+}
 
 
 def _switch_module(module_key: str, user: str, native: str, target: str) -> None:
@@ -96,10 +106,11 @@ def _switch_module(module_key: str, user: str, native: str, target: str) -> None
 
 
 def _render_module_shortcuts(user: str, native: str, target: str) -> None:
-    st.markdown("### Or open a module directly")
+    st.markdown(f"### {i18n.get(native, 'path_shortcuts_label')}")
     cols = st.columns(len(_SHORTCUT_MODULES))
-    for col, (key, icon, label, img_path) in zip(cols, _SHORTCUT_MODULES):
+    for col, (key, icon, img_path) in zip(cols, _SHORTCUT_MODULES):
         with col:
+            label = i18n.get(native, _MODULE_I18N_KEY[key])
             b64 = _img_b64(img_path)
             if b64:
                 # Shorter than the first pass (72px -> 44px, design review,
@@ -188,6 +199,61 @@ def _launch_unit(unit: dict, user: str, native: str, target: str,
     st.rerun()
 
 
+@st.cache_data(show_spinner=False)
+def _grammar_topic_map(native_lang: str, target_lang: str) -> dict:
+    """{lesson_id: native-language topic name} for Grammar -- reuses the
+    same topic_{lang} columns Step 1's rule explanation and the lesson
+    picker already resolve (engine.loader.get_lesson_topics), instead of
+    duplicating a fresh translation. Cached per (native, target) since it
+    loads the whole Grammar dataframe -- the same cost app.py's own
+    @st.cache_data _grammar_lesson_ids() already pays for the same data.
+    """
+    try:
+        from grammar import _load_grammar, DB_PATH
+        from engine.loader import get_lesson_topics
+        df = _load_grammar(DB_PATH, native_lang, target_lang)
+        return get_lesson_topics(df, native_lang=native_lang)
+    except Exception:
+        return {}
+
+
+def _localized_topic(unit: dict, utype: str, native_lang: str, target_lang: str) -> str:
+    """Native-language display name for a My Path unit's topic.
+
+    content_units.topic is always the English canonical form (schema.sql:
+    "topic tag, English canonical form" -- it's the recommender's matching
+    key, not display text) -- confirmed live 2026-09-07: a Russian-native/
+    Catalan-target account saw the raw English topic ("Describing things")
+    on this exact card, a third language mixed in alongside the native-
+    language chrome and the Catalan lesson content itself.
+
+    Grammar: resolved via the pre-existing topic_{lang} columns (same
+    source Step 1's rule explanation and the lesson picker already use) --
+    reusing them, not a fresh translation, keeps this card's name
+    consistent with what the student sees once they actually open the
+    lesson. Vocab/Phrasebook: topic is a CEFR-J/Word-Bank SHEET name
+    ("Greetings, Basics & Courtesy") with no pre-existing per-language
+    translation anywhere in the data -- translated on demand through the
+    same engine.gemini.translate_phrase() CEFR-J vocabulary already uses
+    (Postgres-cached forever after the first student who sees a given
+    (topic, native_lang) pair, not paid-gated -- @_gated with a 300/day
+    free allowance, not @_require_paid). Reading (no topic) and an English
+    native (topic is already in English) fall through unchanged.
+    """
+    topic = unit.get("topic") or "General"
+    if native_lang == "English":
+        return topic
+    if utype == "grammar":
+        lid = _recommender.parse_unit_id(unit["unit_id"]).get("lesson_id")
+        return _grammar_topic_map(native_lang, target_lang).get(lid) or topic
+    if utype in ("vocab", "phrasebook"):
+        try:
+            return _gemini.translate_phrase(topic, "English", native_lang)
+        except Exception:
+            return topic
+    return topic
+
+
 def _render_topic_explanation(unit: dict, native_lang: str, target_lang: str) -> None:
     """
     "Explain this topic" for the recommended Grammar unit, right on the My
@@ -266,7 +332,7 @@ def main() -> None:
 
     # ── Sidebar ──────────────────────────────────────────────────────────────
     with st.sidebar:
-        if st.button("🏠 Main menu", use_container_width=True, key="path_home"):
+        if st.button(i18n.get(native, "main_menu"), use_container_width=True, key="path_home"):
             st.session_state["_show_launcher"] = True
             st.rerun()
 
@@ -281,7 +347,7 @@ def main() -> None:
         pct = stats["pct"]
         st.markdown(
             f'<div style="font-size:.7rem;color:#aaa;text-transform:uppercase;'
-            f'letter-spacing:.06em;margin-bottom:3px">Coverage</div>'
+            f'letter-spacing:.06em;margin-bottom:3px">{i18n.get(native, "path_coverage_label")}</div>'
             f'{_pct_bar(pct)}'
             f'<div style="font-size:.72rem;color:#aaa;margin-top:2px">'
             f'{pct:.0f}%</div>',
@@ -290,11 +356,12 @@ def main() -> None:
         st.markdown("---")
 
         # Mini type breakdown
-        for key, label, color in [
-            ("grammar", "Grammar",    "var(--mova-indigo)"),
-            ("vocab",   "Vocabulary", "#f59e0b"),
-            ("reading", "Reading",    "var(--mova-mint)"),
+        for key, color in [
+            ("grammar", "var(--mova-indigo)"),
+            ("vocab",   "#f59e0b"),
+            ("reading", "var(--mova-mint)"),
         ]:
+            label = i18n.get(native, _MODULE_I18N_KEY[key])
             done  = stats[f"done_{key}"]
             total = stats[f"total_{key}"]
             _pct  = round(done / total * 100) if total else 0
@@ -309,7 +376,7 @@ def main() -> None:
             )
 
     # ── Page header ──────────────────────────────────────────────────────────
-    st.markdown("## 🗺️ My Learning Path")
+    st.markdown(f"## {i18n.get(native, 'path_title')}")
 
     # ── Single-module shortcuts ─────────────────────────────────────────────
     # Moved back up here (2026-08-27, Natalia) -- her first request was "add
@@ -324,11 +391,8 @@ def main() -> None:
     # size (1000+ lessons) read as a discouragingly huge, unreachable target
     # (Natalia's sister's feedback, 2026-09-06).
     col1, col2, col3 = st.columns(3)
-    for col, key, label in [
-        (col1, "grammar", "Grammar"),
-        (col2, "vocab",   "Vocabulary"),
-        (col3, "reading", "Reading"),
-    ]:
+    for col, key in [(col1, "grammar"), (col2, "vocab"), (col3, "reading")]:
+        label = i18n.get(native, _MODULE_I18N_KEY[key])
         total = stats[f"total_{key}"]
         done  = stats[f"done_{key}"]
         _pct  = round(done / total * 100) if total else 0
@@ -336,9 +400,12 @@ def main() -> None:
             st.metric(label, f"{_pct}%")
 
     st.progress(stats["pct"] / 100)
-    st.caption(f"{stats['pct']:.0f}% overall progress")
+    st.caption(i18n.get(native, "path_overall_progress").format(pct=f"{stats['pct']:.0f}"))
 
     if stats["total_units"] == 0:
+        # Dev/ops-facing state (an unseeded DB) -- a real production student
+        # never sees this, left in English (the same rationale as the
+        # seed-script's own console output).
         st.info(
             "No content is tagged yet — run `python scripts/seed_content_units.py` "
             "against the database to populate the learning path."
@@ -348,24 +415,24 @@ def main() -> None:
     unit = stats.get("current_unit")
 
     if unit is None:
-        st.success("🎉 **You're all caught up!** No lessons are due for review right now.")
-        if st.button("🔄 Start over", type="secondary"):
+        st.success(i18n.get(native, "path_all_caught_up"))
+        if st.button(i18n.get(native, "path_start_over_btn"), type="secondary"):
             _recommender.reset_user(user, target)
             st.rerun()
         return
 
     # ── Next lesson card ─────────────────────────────────────────────────────
-    st.markdown("### ▶ Next lesson")
+    st.markdown(f"### {i18n.get(native, 'path_next_lesson_title')}")
 
     utype  = unit["module"]
     u_icon = _TYPE_ICON.get(utype, "📚")
-    u_lbl  = _TYPE_LABEL.get(utype, utype.title())
+    u_lbl  = i18n.get(native, _MODULE_I18N_KEY.get(utype, "module_grammar"))
     u_col  = _TYPE_COLOR.get(utype, "var(--mova-indigo)")
-    topic  = unit.get("topic") or "General"
+    topic  = _localized_topic(unit, utype, native, target)
     parsed = _recommender.parse_unit_id(unit["unit_id"])
     lid    = parsed["lesson_id"]
 
-    sub = f"Lesson {lid}"
+    sub = f"{i18n.get(native, 'word_lesson')} {lid}"
     if unit.get("level"):
         sub += f" · {unit['level']}"
 
@@ -383,7 +450,8 @@ def main() -> None:
         )
     with right:
         st.markdown("<div style='height:24px'></div>", unsafe_allow_html=True)
-        if st.button("▶ Start", type="primary", use_container_width=True, key="path_start"):
+        _start_label = f"▶ {i18n.get(native, 'start_prefix')}"
+        if st.button(_start_label, type="primary", use_container_width=True, key="path_start"):
             _launch_unit(unit, user, native, target)
 
     if utype == "grammar":
@@ -391,18 +459,18 @@ def main() -> None:
         harder = _recommender.grammar_neighbor(target, lid, +1)
         ec, hc = st.columns(2)
         with ec:
-            if st.button("⬅ Easier", disabled=easier is None,
+            if st.button(i18n.get(native, "path_easier_btn"), disabled=easier is None,
                          use_container_width=True, key="path_easier"):
                 _launch_unit(easier, user, native, target)
         with hc:
-            if st.button("Try harder ➡", disabled=harder is None,
+            if st.button(i18n.get(native, "path_harder_btn"), disabled=harder is None,
                          use_container_width=True, key="path_harder"):
                 _launch_unit(harder, user, native, target)
         _render_topic_explanation(unit, native, target)
 
     # ── Skip button ──────────────────────────────────────────────────────────
     st.markdown("")
-    if st.button("⏭ Skip this lesson", type="secondary", key="path_skip"):
+    if st.button(i18n.get(native, "path_skip_btn"), type="secondary", key="path_skip"):
         # No fixed sequence to advance past — nudge this unit's SRS due date
         # forward so a different lesson surfaces next time.
         _recommender.record_result(user, target, unit["unit_id"], correct=True)

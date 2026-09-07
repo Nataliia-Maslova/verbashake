@@ -298,12 +298,21 @@ def _current_module() -> str:
 # Audio input — st.audio_input (Streamlit 1.31+) with fallback
 # ═══════════════════════════════════════════════════════════════════════════
 
-def audio_input(uid: str, label: str = "🎙️ Record") -> bytes | None:
+def audio_input(uid: str, label: str | None = None) -> bytes | None:
     """
     Uses st.audio_input (built-in mic recorder, no JS iframe needed).
     Falls back to file_uploader if st.audio_input is not available.
     Returns raw audio bytes or None.
+
+    `label` defaults to the localized "Record" (2026-09-07) -- none of the
+    11 call sites in this file ever passed one explicitly, so the old
+    hardcoded English default rendered on every recorder in the app
+    regardless of native_lang; not a parameter here (unlike most of this
+    file's UI), so it's resolved from session_state the same way other
+    module-level chrome (e.g. the sidebar nav below) already does.
     """
+    if label is None:
+        label = i18n.get(st.session_state.get("launcher_native", "English"), "record_label")
     if hasattr(st, "audio_input"):
         recorded = st.audio_input(label, key=f"mic_{uid}")
         if recorded:
@@ -1512,10 +1521,17 @@ def render_complete(session: LessonSession):
 def render_setup():
     module = _current_module()
     cfg    = _module_config(module)
+    # cfg['label'] stays the canonical English module key (comparisons,
+    # internal bookkeeping) -- every user-facing render of it goes through
+    # this instead (2026-09-07: this whole screen was hardcoded English,
+    # confirmed live against a Russian-native/Catalan-target account).
+    _module_label = i18n.get(
+        st.session_state.get("launcher_native", "English"), f"module_{module}",
+    )
 
     st.markdown(f"""
     <div style="text-align:center;padding:32px 0 16px">
-      <h1 style="color:var(--mova-ink);font-weight:700;margin:0 0 2px;font-size:2rem">{cfg['label']}</h1>
+      <h1 style="color:var(--mova-ink);font-weight:700;margin:0 0 2px;font-size:2rem">{_module_label}</h1>
     </div>""", unsafe_allow_html=True)
 
     _setup_img_name = "vocab_basic.jpg" if module == "vocab" else "vocab_school.jpg"
@@ -1595,16 +1611,31 @@ def render_setup():
 
     c1, c2 = st.columns(2)
     with c1:
+        # Reuses the same "native_language"/"target_language" keys the
+        # launcher's own selectors already use (app.py) -- this screen had
+        # its own separate, hardcoded-English copy of the same two
+        # selectors (2026-09-07 finding).
         native = st.selectbox(
-            "🌐 Native language", LANGUAGES,
+            i18n.get(default_native, "native_language"), LANGUAGES,
             index=LANGUAGES.index(default_native),
         )
     with c2:
         target_options = [l for l in LANGUAGES if l != native]
         target_idx     = (target_options.index(default_target)
                           if default_target in target_options else 0)
-        target = st.selectbox("🎯 Target language", target_options,
+        target = st.selectbox(i18n.get(native, "target_language"), target_options,
                               index=target_idx)
+
+    # cfg['lesson_word'] is always the English canonical value
+    # ("Lesson"/"Topic"/"Phrase") -- map it to the matching engine.i18n key
+    # (added for the launcher, 2026-08-23). Moved up here (2026-09-07, was
+    # only computed further down for the recommendation banner) so the
+    # resume/continuing/completed messages below can share it too instead
+    # of staying raw English.
+    _WORD_I18N_KEY = {
+        "Lesson": "word_lesson", "Topic": "topic_label", "Phrase": "word_phrase",
+    }
+    _word = i18n.get(native, _WORD_I18N_KEY.get(cfg["lesson_word"], "word_lesson"))
 
     # ── Load lessons ──────────────────────────────────────────────────────────
     # Eager path for every module, including vocab: CEFR-J (CLAUDE.md
@@ -1623,8 +1654,9 @@ def render_setup():
     user_id = st.session_state.get("launcher_user", "student1")
 
     if not lessons:
-        st.warning(f"⚠️ No {cfg['label'].lower()} lessons available for {native} → {target}. "
-                   "The Excel file might not have data for this language pair yet.")
+        st.warning(i18n.get(native, "no_lessons_available_msg").format(
+            module=_module_label, native=native, target=target,
+        ))
         st.stop()
 
     # Auto-select lesson based on saved progress.
@@ -1655,15 +1687,19 @@ def render_setup():
             if next_lesson is not None:
                 default_idx = lessons.index(next_lesson)
                 resume_step = 1
-                resume_msg  = f"▶ Continuing from {cfg['lesson_word']} {next_lesson} (last completed: {saved_lesson})"
+                resume_msg  = i18n.get(native, "resume_continuing_msg").format(
+                    word=_word, lesson=next_lesson, prev=saved_lesson,
+                )
             else:
-                st.success(f"🎉 All {cfg['label'].lower()} lessons completed for this language pair!")
+                st.success(i18n.get(native, "all_lessons_completed_msg").format(module=_module_label))
         else:
             # Mid-lesson -> resume at the same lesson + step
             if saved_lesson in lessons:
                 default_idx = lessons.index(saved_lesson)
                 resume_step = max(1, min(8, saved_step))
-                resume_msg  = f"⏯ Resume {cfg['lesson_word']} {saved_lesson} at Step {resume_step}"
+                resume_msg  = i18n.get(native, "resume_mid_lesson_msg").format(
+                    word=_word, lesson=saved_lesson, step=resume_step,
+                )
     # Apply a pending "jump to recommended lesson" click from the banner below
     # (one-shot: popped so it doesn't stick past this render).
     _jump_lid = st.session_state.pop("_jump_recommended_lid", None)
@@ -1692,14 +1728,9 @@ def render_setup():
             if rec_lid in lessons and rec_lid != lessons[default_idx]:
                 lvl = top[0].get("level") or ""
                 cur_lid = lessons[default_idx]
-                # cfg['lesson_word'] is always the English canonical value
-                # ("Lesson"/"Topic"/"Phrase") -- map it to the matching
-                # engine.i18n key added for the launcher (2026-08-23) instead
-                # of duplicating a second English-only word list here.
-                _WORD_I18N_KEY = {
-                    "Lesson": "word_lesson", "Topic": "topic_label", "Phrase": "word_phrase",
-                }
-                _word = i18n.get(native, _WORD_I18N_KEY.get(cfg["lesson_word"], "word_lesson"))
+                # _word (localized "Lesson"/"Topic"/"Phrase") is computed
+                # once, above, right after native/target are known -- shared
+                # with the resume/continuing messages now too.
                 # Ukrainian/Russian/Polish decline nouns by case -- a bare
                 # nominative "word" reads slightly foreign after "до"/"к"/"do"
                 # (needs oblique case) or "на"/"na" (needs locative), e.g.
@@ -3520,18 +3551,25 @@ def main(module: str = "grammar"):
         sidebar_widget(_gami_user)
 
         # ── Module navigator ─────────────────────────────────────────────────
+        # Native-language label resolved once here (2026-09-07) -- this whole
+        # list, the "Module" header below, and the module summary line
+        # further down were hardcoded English regardless of native_lang,
+        # confirmed live against a Russian-native/Catalan-target account
+        # (sidebar showed "Grammar/Vocabulary/..." while the lesson itself
+        # was in Russian).
+        _sb_native = st.session_state.get("launcher_native", "English")
         _SIDEBAR_MODULES = [
-            ("grammar",    "🗣️", "Grammar"),
-            ("vocab",      "📖", "Vocabulary"),
-            ("phrasebook", "💬", "Phrasebook"),
-            ("reading",    "🔤", "Reading"),
-            ("custom",     "📝", "My Phrases"),
-            ("search",     "🔍", "Search"),
+            ("grammar",    "🗣️", i18n.get(_sb_native, "module_grammar")),
+            ("vocab",      "📖", i18n.get(_sb_native, "module_vocab")),
+            ("phrasebook", "💬", i18n.get(_sb_native, "module_phrasebook")),
+            ("reading",    "🔤", i18n.get(_sb_native, "module_reading")),
+            ("custom",     "📝", i18n.get(_sb_native, "module_custom")),
+            ("search",     "🔍", i18n.get(_sb_native, "search_title")),
         ]
         st.markdown(
             '<div style="font-size:.7rem;color:var(--mova-ink-3);'
             'text-transform:uppercase;letter-spacing:.07em;margin-bottom:6px">'
-            'Module</div>',
+            f'{i18n.get(_sb_native, "pq_module_label")}</div>',
             unsafe_allow_html=True,
         )
         for _mod_key, _mod_icon, _mod_name in _SIDEBAR_MODULES:
@@ -3562,14 +3600,13 @@ def main(module: str = "grammar"):
         # not asked to remove, just no longer sits between module choice and
         # this button. Step navigation specifically moved into the lesson
         # content itself (_render_step_nav_inline below), not just reordered.
-        _sb_native_top = st.session_state.get("launcher_native", "English")
-        if st.button(i18n.get(_sb_native_top, "main_menu"), use_container_width=True,
+        if st.button(i18n.get(_sb_native, "main_menu"), use_container_width=True,
                      key="sb_home_top"):
             _clear_all()
             st.rerun()
 
         st.markdown("---")
-        st.markdown(f"**{cfg['icon']} {cfg['label']}**")
+        st.markdown(f"**{cfg['icon']} {i18n.get(_sb_native, f'module_{module}')}**")
         if "lesson_step" in st.session_state and "session" in st.session_state:
             sess  = st.session_state["session"]
             state = sess.state

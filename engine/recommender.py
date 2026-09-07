@@ -752,6 +752,21 @@ def seed_mastery_from_level(
     result, and cross-module My Path kept recommending it over every other,
     now-deprioritized module (reported 2026-08-23: "My Path sent me back to
     lesson 1" right after a quiz that estimated A2).
+
+    Batched (2026-09-07): a high self-report (B2/C1/C2) can qualify most or
+    all of a module's topics, and app.py's onboarding calls this once per
+    module in ALL_MODULES — the original per-topic db.upsert() loop meant
+    up to ~530 sequential round-trips (one per distinct topic/level across
+    all 5 modules) on a single "Start learning" click, on the same flaky
+    Supabase pooler connection documented elsewhere in this file/CLAUDE.md
+    to drop mid-batch at scale. That's both a multi-minute hang and a real
+    crash risk (db._with_retry re-raises after 3 failed attempts, unlike
+    most callers in this module none of which wrapped this loop in
+    try/except) — see app.py's onboarding submit handler for the other half
+    of this fix (session_state populated before, not after, seeding).
+    Chunked like scripts/seed_content_units.py's bulk upsert for the same
+    reason (a single execute_many() over everything still risked a
+    mid-statement drop at this table's scale).
     """
     if estimated_level not in CEFR_RANK:
         return
@@ -761,17 +776,33 @@ def seed_mastery_from_level(
         {"m": module},
     )
     existing = _mastery_map(user_id, target_lang)
+    seen_topics: set[str] = set()
+    rows = []
     for u in units:
         if CEFR_RANK.get(u["level"], 99) > max_rank:
             continue
         topic = _mastery_topic(u["topic"])
-        if (module, topic) in existing:
+        if (module, topic) in existing or topic in seen_topics:
             continue
-        db.upsert(
-            "mastery",
-            keys={"user_id": user_id, "target_lang": target_lang, "module": module, "topic": topic},
-            values={"score": prior, "n_attempts": 0},
-        )
+        seen_topics.add(topic)
+        rows.append({
+            "user_id": user_id, "target_lang": target_lang, "module": module,
+            "topic": topic, "score": prior, "n_attempts": 0,
+        })
+    if not rows:
+        return
+    sql = (
+        "INSERT INTO mastery (user_id, target_lang, module, topic, score, n_attempts) "
+        "VALUES (:user_id, :target_lang, :module, :topic, :score, :n_attempts) "
+        "ON CONFLICT (user_id, target_lang, module, topic) DO UPDATE SET "
+        "score = EXCLUDED.score, n_attempts = EXCLUDED.n_attempts, updated_at = now()"
+    )
+    _CHUNK = 100
+    for i in range(0, len(rows), _CHUNK):
+        try:
+            db.execute_many(sql, rows[i:i + _CHUNK])
+        except Exception:
+            pass
 
 
 def all_topics(target_lang: str, module: str = "grammar") -> list[str]:
@@ -874,6 +905,29 @@ def has_signal(user_id: str, target_lang: str, module: str) -> bool:
         {"uid": user_id, "lang": target_lang, "mod": module},
     )
     return row is not None
+
+
+def languages_with_progress(user_id: str) -> list[str]:
+    """Every target_lang this user has any real progress in (a mastery or
+    lesson_pointer row) — mastery/srs_state/lesson_pointer are all keyed by
+    (user_id, target_lang, ...), so switching the launcher's target-language
+    selector never loses anything, it just changes which language's rows the
+    rest of the app reads. Used by app.py's quick-switch chips (Natalia,
+    2026-09-07: "быстрый переключатель") so a student juggling more than one
+    language doesn't have to hunt through the full 14-language dropdown to
+    jump back to one they already started."""
+    if not user_id:
+        return []
+    try:
+        rows = db.fetch_all(
+            "SELECT DISTINCT target_lang FROM mastery WHERE user_id = :uid "
+            "UNION "
+            "SELECT DISTINCT target_lang FROM lesson_pointer WHERE user_id = :uid",
+            {"uid": user_id},
+        )
+    except Exception:
+        return []
+    return sorted(r["target_lang"] for r in rows if r["target_lang"])
 
 
 # ── Stats (for path_app.py) ─────────────────────────────────────────────────

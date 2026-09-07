@@ -492,16 +492,34 @@ def _render_onboarding(user_id: str) -> None:
         user_prefs.save_onboarding(
             user_id, name.strip(), native, target, self_level, literacy_required,
         )
+        # Set session_state right after the profile save, BEFORE mastery
+        # seeding below -- not after, like it used to be. Seeding used to
+        # walk every module's topics one db.upsert() at a time (up to ~530
+        # sequential round-trips for a high self-report -- see
+        # recommender.seed_mastery_from_level()'s docstring), and on this
+        # project's flaky Supabase pooler that could raise partway through
+        # (db._with_retry re-raises after 3 failed attempts). An exception
+        # there used to abort the handler before these lines ever ran, so
+        # this session's own render_launcher() default_native/target fell
+        # back to the hardcoded "Ukrainian"/"English" for the rest of the
+        # session even though the profile the user actually picked (e.g.
+        # native=Russian) was already safely saved to the DB by
+        # save_onboarding() above -- reported 2026-09-07: onboarding hung a
+        # long time, then the launcher showed native=Ukrainian/target=
+        # English regardless of what was picked. Seeding is now itself
+        # batched + failure-tolerant (see recommender.py), but keeping this
+        # ordering too means even a future failure there can't strand the
+        # session on the wrong language pair.
+        st.session_state["launcher_native"] = native
+        st.session_state["launcher_target"] = target
+        st.session_state["_prefs_saved_native"] = native
+        st.session_state["_prefs_saved_target"] = target
         # "zero" isn't a CEFR level -- seed_mastery_from_level() only matches
         # keys in CEFR_RANK, so a from-scratch beginner is correctly left
         # unseeded (starts every topic at the true 0.0 "knows nothing").
         if self_level in _recommender.CEFR_RANK:
             for m in _recommender.ALL_MODULES:
                 _recommender.seed_mastery_from_level(user_id, target, m, self_level)
-        st.session_state["launcher_native"] = native
-        st.session_state["launcher_target"] = target
-        st.session_state["_prefs_saved_native"] = native
-        st.session_state["_prefs_saved_target"] = target
         st.rerun()
 
 
@@ -652,9 +670,23 @@ def render_launcher():
             target_options = [l for l in LANGUAGES if l != native]
             target_default_idx = (target_options.index(default_target)
                                   if default_target in target_options else 0)
-            target = st.selectbox(i18n.get(native, "target_language"), target_options,
-                                  index=target_default_idx,
-                                  key="launcher_target_input")
+            # Keyed with a generation counter (bumped by the quick-switch
+            # pills below), not a fixed "launcher_target_input" -- deleting
+            # that fixed key and relying on `index=` to reseed it on rerun
+            # looked right in the SAME script run (the `target` variable and
+            # everything downstream of it — DB save, the pills list itself —
+            # did pick up the new language) but the rendered dropdown kept
+            # showing the OLD language until a full page reload (caught live
+            # 2026-09-07: clicked "German", pills/DB correctly switched, but
+            # the box still read "Catalan" onscreen). A `key=` change forces
+            # Streamlit's frontend to remount this select as a new component
+            # instead of trying to patch an existing one in place, which is
+            # what actually clears the stale display.
+            target = st.selectbox(
+                i18n.get(native, "target_language"), target_options,
+                index=target_default_idx,
+                key=f"launcher_target_input_{st.session_state.get('_target_widget_gen', 0)}",
+            )
 
     # Persist for next render and for sub-apps to read
     st.session_state["launcher_user"]   = user_id
@@ -670,6 +702,41 @@ def render_launcher():
         user_prefs.save_prefs(user_id, native, target)
         st.session_state["_prefs_saved_native"] = native
         st.session_state["_prefs_saved_target"] = target
+
+    # Quick-switch chips (2026-09-06, Natalia: "быстрый переключатель") —
+    # every OTHER target_lang this user has real progress in, one click to
+    # jump back without hunting through the full 14-language dropdown above.
+    # Never loses anything: mastery/srs_state/lesson_pointer are all keyed
+    # by target_lang, so an earlier language's progress just sits there
+    # untouched until switched back to (confirmed live 2026-09-07: her own
+    # profile already had English progress sitting untouched after she'd
+    # switched target_lang to Catalan through the plain selectors above).
+    # st.pills (not st.columns of buttons) -- wraps onto multiple lines on
+    # its own on a narrow screen, so this doesn't recreate the "N equal-width
+    # columns squeeze the whole row on mobile, unfixable via CSS on
+    # individual columns" problem the 2026-08-27 launcher redesign moved
+    # away from for the same reason.
+    from engine import recommender as _recommender
+    _other_langs = [l for l in _recommender.languages_with_progress(user_id) if l != target]
+    if _other_langs:
+        _qs_choice = st.pills(
+            i18n.get(native, "quick_switch_label"), _other_langs,
+            selection_mode="single", default=None, key="quickswitch_pill",
+        )
+        if _qs_choice:
+            st.session_state["launcher_target"] = _qs_choice
+            user_prefs.save_prefs(user_id, native, _qs_choice)
+            st.session_state["_prefs_saved_native"] = native
+            st.session_state["_prefs_saved_target"] = _qs_choice
+            # Bump the target selectbox's key generation so it remounts
+            # fresh next run instead of patching in place -- see the
+            # widget's own comment above for why a plain
+            # `del session_state["launcher_target_input"]` wasn't enough on
+            # its own (target/DB/pills all updated correctly, but the box
+            # itself kept showing the old language until a full reload).
+            st.session_state["_target_widget_gen"] = st.session_state.get("_target_widget_gen", 0) + 1
+            del st.session_state["quickswitch_pill"]
+            st.rerun()
 
     # Placement quiz retired 2026-09-06 (Natalia: no test — self-reported
     # level at onboarding instead, see _render_onboarding above). Left
@@ -756,17 +823,18 @@ def render_launcher():
         if _b64 else
         f'<div class="mode-icon">{info["icon"]}</div>'
     )
+    _path_label = i18n.get(native, "module_path")
     with st.container():
         st.markdown(f"""
         <div class="mode-card" style="max-width:420px;margin:0 auto">
           {_img_html}
-          <div class="mode-title" style="font-size:1.1rem;white-space:normal">{info['label']}</div>
+          <div class="mode-title" style="font-size:1.1rem;white-space:normal">{_path_label}</div>
           {progress_html}
         </div>
         """, unsafe_allow_html=True)
         _cta_col1, _cta_col2, _cta_col3 = st.columns([1, 2, 1])
         with _cta_col2:
-            if st.button(f"▶ {i18n.get(native, 'start_prefix')} My Path",
+            if st.button(f"▶ {i18n.get(native, 'start_prefix')} {_path_label}",
                          use_container_width=True, type="primary", key="pick_path"):
                 _switch_to("path")
 
@@ -787,7 +855,7 @@ def _render_placement_quiz(native: str, target: str, user_id: str) -> None:
     with st.expander(i18n.get(native, "pq_expander_title")):
         quiz_module = st.selectbox(
             i18n.get(native, "pq_module_label"), ["grammar", "vocab"],
-            format_func=lambda m: MODULES[m]["label"], key="pq_module",
+            format_func=lambda m: i18n.get(native, f"module_{m}"), key="pq_module",
         )
         if st.button(i18n.get(native, "pq_generate_btn"), key="pq_generate"):
             cfg = grammar_app._module_config(quiz_module)

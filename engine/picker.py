@@ -22,6 +22,7 @@ from engine.loader import TTS_LANG, WHISPER_LANG
 from engine.session import LessonSession
 from engine import recommender as _recommender
 from engine import target_grammar_paths as _target_grammar_paths
+from engine import i18n
 
 # ═══════════════════════════════════════════════════════════════════════════
 # Hierarchical vocabulary navigator (Category -> Topic -> Lesson)
@@ -531,10 +532,18 @@ def _render_lesson_dropdown_fallback(
     if not lessons:
         return
     lw   = cfg.get("lesson_word", "Lesson")
+    # Localized word for display (2026-09-07) -- same word_lesson/topic_label/
+    # word_phrase keys grammar.py::render_setup already maps cfg['lesson_word']
+    # to, duplicated here (not imported) to avoid picker.py <-> grammar.py
+    # circularity, same rationale path_app.py already uses for its own
+    # small duplicated helpers.
+    _word = i18n.get(native, {
+        "Lesson": "word_lesson", "Topic": "topic_label", "Phrase": "word_phrase",
+    }.get(lw, "word_lesson"))
     opts = [lesson_names.get(lid, f"{lw} {lid}") for lid in lessons]
     defi = lessons.index(default_lid) if default_lid in lessons else 0
-    sel  = st.selectbox(f"Select {lw}", opts, index=defi,
-                        key=f"dd_{lang_pair}")
+    sel  = st.selectbox(i18n.get(native, "dropdown_select_label").format(word=_word),
+                        opts, index=defi, key=f"dd_{lang_pair}")
     sel_lid    = lessons[opts.index(sel)]
 
     # Preview the lesson's own phrases right here, before committing to
@@ -570,7 +579,7 @@ def _render_lesson_dropdown_fallback(
                 from engine import target_grammar_loader
                 preview_df = target_grammar_loader.translate_rows_native(
                     preview_df, target, native)
-            with st.expander(f"👀 {lesson_names.get(sel_lid, f'{lw} {sel_lid}')}", expanded=True):
+            with st.expander(f"👀 {lesson_names.get(sel_lid, f'{_word} {sel_lid}')}", expanded=True):
                 st.dataframe(
                     preview_df[["native", "target"]].rename(
                         columns={"native": native, "target": target}
@@ -579,8 +588,8 @@ def _render_lesson_dropdown_fallback(
                 )
 
     is_resume  = (sel_lid == default_lid and resume_step > 1)
-    btn_label  = (f"▶ Resume at Step {resume_step}" if is_resume
-                  else f"▶ Start {lw}")
+    btn_label  = (i18n.get(native, "dropdown_resume_step_btn").format(step=resume_step) if is_resume
+                  else i18n.get(native, "dropdown_start_btn").format(word=_word))
     if st.button(btn_label, type="primary", use_container_width=True,
                  key=f"dd_btn_{lang_pair}"):
         _start_grammar_lesson(sel_lid, cfg, native, target, user_id, lang_pair)
@@ -630,13 +639,15 @@ def _render_flat_wave_nav(
         cats = [c for c in _GRAMMAR_CATEGORIES
                 if any(v == c["id"] for v in lid_cats.values())]
         if cats:
-            cat_labels = [f'{c["icon"]} {c["name"]}' for c in cats]
+            cat_labels = [
+                f'{c["icon"]} ' + i18n.get(native, "grammar_cat_" + c["id"]) for c in cats
+            ]
             def_cat_idx = next(
                 (i for i, c in enumerate(cats) if lid_cats.get(default_gid) == c["id"]),
                 0,
             )
             sel_cat_lbl = st.selectbox(
-                "📚 Category", cat_labels, index=def_cat_idx,
+                i18n.get(native, "wave_category_label"), cat_labels, index=def_cat_idx,
                 key=f"gram_cat_{lang_pair}",
             )
             sel_cat = cats[cat_labels.index(sel_cat_lbl)]
@@ -648,12 +659,15 @@ def _render_flat_wave_nav(
         blocks = []
         for i in range(0, len(lessons), BLOCK):
             blk = lessons[i:i + BLOCK]
-            first = lesson_names.get(blk[0], f"Lesson {blk[0]}")
+            first = lesson_names.get(blk[0], f"{i18n.get(native, 'word_lesson')} {blk[0]}")
             short = (first[:22] + "…") if len(first) > 22 else first
-            blocks.append({"label": f"Unit {i // BLOCK + 1}: {short}", "lids": blk})
+            blocks.append({
+                "label": i18n.get(native, "wave_unit_block").format(n=i // BLOCK + 1, short=short),
+                "lids": blk,
+            })
         def_blk = next((i for i, b in enumerate(blocks) if default_gid in b["lids"]), 0)
         sel_blk_lbl = st.selectbox(
-            "📚 Unit", [b["label"] for b in blocks], index=def_blk,
+            i18n.get(native, "wave_unit_label"), [b["label"] for b in blocks], index=def_blk,
             key=f"gram_unit_{lang_pair}",
         )
         sel_blk  = blocks[[b["label"] for b in blocks].index(sel_blk_lbl)]
@@ -663,7 +677,7 @@ def _render_flat_wave_nav(
         default_gid = filtered[0] if filtered else default_gid
 
     if not filtered:
-        st.warning("No lessons available in this category.")
+        st.warning(i18n.get(native, "wave_no_lessons_category"))
         return
 
     # Primary, always-reliable picker: dropdown + Start button, right here --
@@ -693,7 +707,7 @@ def _render_flat_wave_nav(
         done_lids = {}
 
     _key = f"{lang_pair}_{cfg.get('lang_suffix', 'g')}"
-    with st.expander("🗺️ Or browse the path"):
+    with st.expander(i18n.get(native, "wave_browse_path_expander")):
         clicked = _render_wave_plotly(
             lessons=filtered,
             lesson_names=lesson_names,
