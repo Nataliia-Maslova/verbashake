@@ -25,6 +25,7 @@ Flow:
 from __future__ import annotations
 
 import base64
+import datetime as _dt
 from pathlib import Path
 from urllib.parse import quote as _quote
 
@@ -32,6 +33,8 @@ import streamlit as st
 
 from engine import recommender as _recommender
 from engine import gemini as _gemini
+from engine import gamification as _gamification
+from engine import schedule as _schedule
 from engine import i18n
 
 ROOT        = Path(__file__).parent
@@ -135,6 +138,89 @@ def _render_module_shortcuts(user: str, native: str, target: str) -> None:
             if st.button(btn_label, key=f"path_shortcut_{key}",
                          use_container_width=True):
                 _switch_module(key, user, native, target)
+
+
+def _render_schedule_prompt(user: str, native: str) -> None:
+    """Delayed "want a routine?" banner (engine/schedule.py::
+    should_show_setup_prompt — no schedule yet, not dismissed, account is at
+    least ~1 day old). Deliberately not shown on first-run onboarding."""
+    if not _schedule.should_show_setup_prompt(user):
+        return
+    with st.container(border=True):
+        st.markdown(f"**{i18n.get(native, 'schedule_prompt_title')}**")
+        st.caption(i18n.get(native, "schedule_prompt_body"))
+        c1, c2 = st.columns([1, 1])
+        with c1:
+            if st.button(i18n.get(native, "schedule_prompt_cta"),
+                         key="schedule_prompt_cta", use_container_width=True):
+                st.session_state["schedule_expander"] = True
+                st.rerun()
+        with c2:
+            if st.button(i18n.get(native, "schedule_prompt_dismiss"),
+                         key="schedule_prompt_dismiss", use_container_width=True):
+                _schedule.dismiss_setup_prompt(user)
+                st.rerun()
+
+
+def _render_schedule_section(user: str, native: str) -> None:
+    """Settings for the 1-3 day/time routine — engine/schedule.py.
+    key="schedule_expander" makes this a STATEFUL widget (Streamlit >=1.61):
+    the user's own open/close toggle persists in
+    st.session_state["schedule_expander"] across reruns (e.g. the
+    multiselect below triggering its own rerun on every day picked) instead
+    of snapping shut — passing a plain `expanded=` bool with no key would
+    re-force that value on every single rerun and fight the user's own
+    click. The setup-prompt banner's CTA (see _render_schedule_prompt above)
+    forces it open by setting the same session_state key directly, before
+    this widget is instantiated in the same script run."""
+    with st.expander(i18n.get(native, "schedule_section_title"),
+                      expanded=False, key="schedule_expander"):
+        st.caption(i18n.get(native, "schedule_section_intro"))
+
+        existing = {e["day_of_week"]: e["time_of_day"] for e in _schedule.get_schedule(user)}
+        day_labels = [i18n.get(native, f"schedule_day_{k}") for k in _schedule.DAY_KEYS]
+
+        selected_days = st.multiselect(
+            i18n.get(native, "schedule_add_day_label"),
+            options=list(range(7)),
+            default=sorted(existing.keys())[:_schedule.MAX_DAYS],
+            format_func=lambda d: day_labels[d],
+            max_selections=_schedule.MAX_DAYS,
+            key="schedule_days_select",
+        )
+        st.caption(i18n.get(native, "schedule_max_days_note"))
+
+        new_entries = []
+        for d in sorted(selected_days):
+            default_time = _dt.time(19, 0)
+            if d in existing:
+                hh, mm = (int(p) for p in existing[d].split(":"))
+                default_time = _dt.time(hh, mm)
+            t = st.time_input(
+                f"{day_labels[d]} — {i18n.get(native, 'schedule_time_label')}",
+                value=default_time, key=f"schedule_time_{d}",
+            )
+            new_entries.append({"day_of_week": d, "time_of_day": t.strftime("%H:%M")})
+
+        if st.button(i18n.get(native, "schedule_save_btn"), key="schedule_save"):
+            _schedule.save_schedule(user, new_entries)
+            st.success(i18n.get(native, "schedule_saved_msg"))
+
+
+def _render_schedule_badge(user: str, native: str) -> None:
+    """Soft status for today's slot, shown just above the "Next lesson" card
+    — silent (renders nothing) for no_schedule/not_scheduled_today/not_yet,
+    since the concept explicitly rejected nagging outside an actual slot."""
+    stats = _gamification.load_stats(user)
+    done_today = stats.get("streak_last_date") == _dt.date.today().isoformat()
+    state = _schedule.today_status(user, done_today)["state"]
+
+    if state == "in_window":
+        st.info(i18n.get(native, "schedule_badge_in_window"))
+    elif state == "missed_window":
+        st.warning(i18n.get(native, "schedule_badge_missed"))
+    elif state == "done":
+        st.success(i18n.get(native, "schedule_badge_done"))
 
 
 # ── Internal helpers ─────────────────────────────────────────────────────────
@@ -378,6 +464,10 @@ def main() -> None:
     # ── Page header ──────────────────────────────────────────────────────────
     st.markdown(f"## {i18n.get(native, 'path_title')}")
 
+    # ── Routine: delayed setup prompt + settings (engine/schedule.py) ───────
+    _render_schedule_prompt(user, native)
+    _render_schedule_section(user, native)
+
     # ── Single-module shortcuts ─────────────────────────────────────────────
     # Moved back up here (2026-08-27, Natalia) -- her first request was "add
     # them after My Path", read at the time as after all of My Path's OWN
@@ -422,6 +512,7 @@ def main() -> None:
         return
 
     # ── Next lesson card ─────────────────────────────────────────────────────
+    _render_schedule_badge(user, native)
     st.markdown(f"### {i18n.get(native, 'path_next_lesson_title')}")
 
     utype  = unit["module"]

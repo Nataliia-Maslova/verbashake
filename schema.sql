@@ -289,6 +289,38 @@ CREATE TABLE IF NOT EXISTS custom_phrases (
 );
 CREATE INDEX IF NOT EXISTS idx_custom_phrases_user ON custom_phrases (user_id);
 
+-- ── lesson_schedule ──────────────────────────────────────────────────────────
+-- Optional lesson-day/time routine (CLAUDE.md, concept discussion 2026-09-07:
+-- "soft status, not a gate" — this table only drives a visual badge on My
+-- Path, never blocks access to the app outside a scheduled slot, and never
+-- triggers a push notification). Deliberately capped at 1-3 rows per user
+-- (enforced in engine/schedule.py, not a DB constraint — matches this
+-- project's general pattern of keeping business rules like this in app code,
+-- e.g. weekly_signup_gate's WEEKLY_CAP) — the idea is a small, realistic
+-- core routine; extra practice beyond these days is unlimited and just
+-- doesn't carry its own scheduled time slot.
+-- day_of_week uses Python's date.weekday() convention: 0=Monday..6=Sunday.
+-- time_of_day is the target time; ±30 min around it is "on time" (see
+-- engine/schedule.py::TOLERANCE_MINUTES) — missing the window never breaks
+-- the existing single gamification streak (engine/gamification.py), it only
+-- withholds the "🎯 on time" badge for that day.
+CREATE TABLE IF NOT EXISTS lesson_schedule (
+    user_id      TEXT NOT NULL,
+    day_of_week  INT  NOT NULL CHECK (day_of_week BETWEEN 0 AND 6),
+    time_of_day  TIME NOT NULL,
+    updated_at   TIMESTAMPTZ NOT NULL DEFAULT now(),
+    PRIMARY KEY (user_id, day_of_week)
+);
+
+-- Additive migration for an already-provisioned database (CREATE TABLE IF
+-- NOT EXISTS above is a no-op once the table exists) — safe to re-run.
+-- schedule_prompt_dismissed: student clicked "Not now" on the delayed
+-- "set up your routine?" banner (app.py/path_app.py, shown starting ~1 day
+-- after signup per weekly_signup_gate.first_seen_at) — stops it from
+-- re-nagging every session once dismissed, independent of whether they ever
+-- actually set up a schedule.
+ALTER TABLE user_prefs ADD COLUMN IF NOT EXISTS schedule_prompt_dismissed BOOLEAN NOT NULL DEFAULT false;
+
 -- ── Row-Level Security ──────────────────────────────────────────────────────
 -- Supabase auto-publishes every table in `public` over its PostgREST API
 -- under the (non-secret) anon key -- without RLS, anyone with the project URL
@@ -311,3 +343,4 @@ ALTER TABLE daily_feature_usage  ENABLE ROW LEVEL SECURITY;
 ALTER TABLE user_prefs           ENABLE ROW LEVEL SECURITY;
 ALTER TABLE custom_phrases       ENABLE ROW LEVEL SECURITY;
 ALTER TABLE weekly_signup_gate   ENABLE ROW LEVEL SECURITY;
+ALTER TABLE lesson_schedule      ENABLE ROW LEVEL SECURITY;
