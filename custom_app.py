@@ -132,7 +132,7 @@ def render_setup():
     """, unsafe_allow_html=True)
 
     _my_phrases_banner = APP_IMG_DIR / "my_phrases_banner.jpg"
-    if _my_phrases_banner.exists():
+    if _my_phrases_banner.exists() and not st.session_state.get("_dark_mode"):
         _, _mid, _ = st.columns([1, 2, 1])
         with _mid:
             st.image(str(_my_phrases_banner), use_container_width=True)

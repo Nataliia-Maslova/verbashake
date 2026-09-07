@@ -114,7 +114,7 @@ def _render_module_shortcuts(user: str, native: str, target: str) -> None:
     for col, (key, icon, img_path) in zip(cols, _SHORTCUT_MODULES):
         with col:
             label = i18n.get(native, _MODULE_I18N_KEY[key])
-            b64 = _img_b64(img_path)
+            b64 = _img_b64(img_path) if not st.session_state.get("_dark_mode") else ""
             if b64:
                 # Shorter than the first pass (72px -> 44px, design review,
                 # 2026-08-27): on a real phone st.columns(5) stacks into 5

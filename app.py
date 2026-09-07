@@ -816,7 +816,7 @@ def render_launcher():
             f'<div class="pb-fill" style="width:{pct}%"></div></div>'
         )
 
-    _b64 = _img_b64(info.get("img", ""))
+    _b64 = _img_b64(info.get("img", "")) if not st.session_state.get("_dark_mode") else ""
     _img_html = (
         f'<img src="{_b64}" style="width:100%;height:150px;'
         f'object-fit:cover;border-radius:10px;margin-bottom:10px"/>'

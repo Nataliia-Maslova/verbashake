@@ -1113,7 +1113,7 @@ def shdr(step: int, hint_override: str = None):
         unsafe_allow_html=True,
     )
     _banner = APP_IMG_DIR / "reading_banner.jpg"
-    if _banner.exists():
+    if _banner.exists() and not st.session_state.get("_dark_mode"):
         _, _mid, _ = st.columns([1, 2, 1])
         with _mid:
             st.image(str(_banner), use_container_width=True)
@@ -1611,7 +1611,7 @@ def render_setup():
     </div>""", unsafe_allow_html=True)
 
     _reading_banner = APP_IMG_DIR / "reading_banner.jpg"
-    if _reading_banner.exists():
+    if _reading_banner.exists() and not st.session_state.get("_dark_mode"):
         _, _mid, _ = st.columns([1, 2, 1])
         with _mid:
             st.image(str(_reading_banner), use_container_width=True)

@@ -56,7 +56,14 @@ _TOPIC_SLUG: dict[str, str] = {
 
 
 def _show_vocab_image(topic: str):
-    """Show centered vocab topic illustration if the file exists."""
+    """Show centered vocab topic illustration if the file exists.
+
+    Skipped in dark mode: the illustrations are flat cream-background
+    JPGs with no dark variant, so they render as a jarring light
+    rectangle against the dark theme (Наталья, 2026-09-07).
+    """
+    if st.session_state.get("_dark_mode"):
+        return
     slug = _TOPIC_SLUG.get(topic)
     if not slug:
         return
@@ -69,7 +76,12 @@ def _show_vocab_image(topic: str):
 
 
 def _show_lesson_image(lesson_id: int, max_width_px: int = 340):
-    """Show centered lesson illustration if the file exists."""
+    """Show centered lesson illustration if the file exists.
+
+    Skipped in dark mode -- same reason as _show_vocab_image above.
+    """
+    if st.session_state.get("_dark_mode"):
+        return
     p = LESSON_IMG_DIR / f"lesson_{lesson_id:03d}.jpg"
     if not p.exists():
         return
@@ -775,7 +787,7 @@ def step_hdr(step, title=None, desc=None, total=8, show_image=False):
             _show_vocab_image(topic)
         elif _mod == "grammar":
             _show_lesson_image(sess.state.lesson_id)
-        elif _mod == "custom":
+        elif _mod == "custom" and not st.session_state.get("_dark_mode"):
             _p = APP_IMG_DIR / "my_phrases_banner.jpg"
             if _p.exists():
                 _, _mid, _ = st.columns([1, 2, 1])
@@ -1536,7 +1548,7 @@ def render_setup():
 
     _setup_img_name = "vocab_basic.jpg" if module == "vocab" else "vocab_school.jpg"
     _setup_img = APP_IMG_DIR / _setup_img_name
-    if _setup_img.exists():
+    if _setup_img.exists() and not st.session_state.get("_dark_mode"):
         # Capped height (was a full st.image() column that scaled to ~500px
         # tall, pushing the lesson picker below the fold on every module
         # entry) -- same base64<img> pattern already used for module cards
@@ -2694,10 +2706,12 @@ def phase3_practice(session: LessonSession, tts_lang: str, wh_lang: str) -> bool
                 return True
         return False
 
-    # ── Test type picker ──────────────────────────────────────────────────
-    # Order (and therefore the selectbox's default): multiple choice first,
-    # then fill-in-the-blank, then translation (CLAUDE.md, 2026-08-23 —
-    # Наталья's requested order).
+    # ── Test type picker — every variant shown as its own card with its own
+    # Generate button (Наталья, 2026-09-07: не выпадающим списком, а кнопки
+    # под каждым вариантом), instead of a single dropdown + one shared
+    # Generate button. Order (multiple choice, fill-in-the-blank,
+    # translation first) preserved from the old selectbox default
+    # (CLAUDE.md, 2026-08-23 — Наталья's requested order).
     _test_types = ["multiple_choice", "fill_in_blank", "translation"]
     # Grammar-book sentence transformation (active/passive, statement/
     # question, reported speech...) only makes sense as a GRAMMAR drill —
@@ -2709,43 +2723,57 @@ def phase3_practice(session: LessonSession, tts_lang: str, wh_lang: str) -> bool
         _test_types.append("construction_drill")
     if _target_grammar_topics:
         _test_types.append("target_grammar")
-    test_type = st.selectbox(
-        i18n.get(native_lang, "test_type_label"),
-        _test_types,
-        format_func={
-            "fill_in_blank":           i18n.get(native_lang, "fill_in_blank"),
-            "multiple_choice":         i18n.get(native_lang, "multiple_choice"),
-            "translation":             i18n.get(native_lang, "translation_type"),
-            "sentence_transformation": i18n.get(native_lang, "sentence_transformation"),
-            "construction_drill":      i18n.get(native_lang, "construction_drill"),
-            "target_grammar":          i18n.get(native_lang, "target_grammar"),
-        }.get,
-        key="p3_type",
-    )
+
+    _type_labels = {
+        "fill_in_blank":           i18n.get(native_lang, "fill_in_blank"),
+        "multiple_choice":         i18n.get(native_lang, "multiple_choice"),
+        "translation":             i18n.get(native_lang, "translation_type"),
+        "sentence_transformation": i18n.get(native_lang, "sentence_transformation"),
+        "construction_drill":      i18n.get(native_lang, "construction_drill"),
+        "target_grammar":          i18n.get(native_lang, "target_grammar"),
+    }
+
+    st.markdown(f"**{i18n.get(native_lang, 'test_type_label')}**")
 
     # target_grammar needs a second picker: WHICH topic from target_lang's
     # roadmap (engine.target_grammar_paths) -- these aren't tied to the
     # current lesson, so there's no single implicit choice like
-    # construction_drill has via the lesson's own topic.
+    # construction_drill has via the lesson's own topic. Rendered inside
+    # its own card, above its own Generate button.
     _target_grammar_choice = None
-    if test_type == "target_grammar":
-        _tg_idx = st.selectbox(
-            i18n.get(native_lang, "target_grammar_topic_label"),
-            range(len(_target_grammar_topics)),
-            format_func=lambda i: (
-                f"[{_target_grammar_topics[i]['level']}] {_target_grammar_topics[i]['title']} "
-                f"({_target_grammar_topics[i]['gloss_en']})"
-            ),
-            key="p3_tg_topic",
-        )
-        _target_grammar_choice = _target_grammar_topics[_tg_idx]
+    _clicked_type = None
+    _cols = st.columns(3)
+    for _i, _tt in enumerate(_test_types):
+        with _cols[_i % 3]:
+            with st.container(border=True):
+                st.markdown(f"**{_type_labels[_tt]}**")
+                if _tt == "target_grammar":
+                    _tg_idx = st.selectbox(
+                        i18n.get(native_lang, "target_grammar_topic_label"),
+                        range(len(_target_grammar_topics)),
+                        format_func=lambda i: (
+                            f"[{_target_grammar_topics[i]['level']}] {_target_grammar_topics[i]['title']} "
+                            f"({_target_grammar_topics[i]['gloss_en']})"
+                        ),
+                        key="p3_tg_topic",
+                        label_visibility="collapsed",
+                    )
+                    _target_grammar_choice = _target_grammar_topics[_tg_idx]
+                if st.button(
+                    i18n.get(native_lang, "generate_exercise"),
+                    key=f"p3_gen_{_tt}", use_container_width=True,
+                ):
+                    _clicked_type = _tt
 
-    col1, col2 = st.columns([3, 1])
-    with col1:
-        generate_clicked = st.button(i18n.get(native_lang, "generate_exercise"), type="primary", key="p3_gen")
-    with col2:
-        regen_clicked = st.button(i18n.get(native_lang, "new_exercise"), key="p3_regen",
-                                  disabled="p3_test" not in st.session_state)
+    if _clicked_type:
+        st.session_state["p3_type"] = _clicked_type
+    test_type = st.session_state.get("p3_type")
+
+    generate_clicked = _clicked_type is not None
+    regen_clicked = st.button(
+        i18n.get(native_lang, "new_exercise"), key="p3_regen",
+        disabled=test_type is None or "p3_test" not in st.session_state,
+    )
 
     if generate_clicked or regen_clicked:
         try:
