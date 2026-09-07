@@ -20,6 +20,7 @@ from __future__ import annotations
 
 import csv
 import json
+import threading
 import time as _time
 from datetime import date, datetime
 from pathlib import Path
@@ -555,6 +556,27 @@ def _row_to_stats(row: dict) -> dict:
     }
 
 
+# Per-user lock around the load_stats()->mutate->save_stats() cycle
+# (2026-09-07) -- same fix already applied to engine.recommender.py's
+# record_result() for the identical race: two concurrent calls for the same
+# user (double-click before rerun settles, or two open tabs) could each
+# read the same old XP/streak/badges and each write back independently, the
+# second write silently clobbering the first. See recommender.py's own
+# _record_locks for the fuller rationale (per-process only, not
+# cross-process -- fine, this app runs as one Streamlit process).
+_stats_locks: dict[str, threading.Lock] = {}
+_stats_locks_guard = threading.Lock()
+
+
+def _lock_for(user_id: str) -> threading.Lock:
+    with _stats_locks_guard:
+        lock = _stats_locks.get(user_id)
+        if lock is None:
+            lock = threading.Lock()
+            _stats_locks[user_id] = lock
+        return lock
+
+
 # ═══════════════════════════════════════════════════════════════════════════
 # Public: load / save
 # ═══════════════════════════════════════════════════════════════════════════
@@ -766,9 +788,10 @@ def tick_time(user_id: str) -> float:
         if elapsed_minutes < 0.01:
             return 0.0
 
-        stats = load_stats(user_id)
-        stats["total_time_minutes"] = float(stats.get("total_time_minutes", 0)) + elapsed_minutes
-        save_stats(user_id, stats)
+        with _lock_for(user_id):
+            stats = load_stats(user_id)
+            stats["total_time_minutes"] = float(stats.get("total_time_minutes", 0)) + elapsed_minutes
+            save_stats(user_id, stats)
         return elapsed_minutes
     except Exception:
         return 0.0
@@ -787,24 +810,25 @@ def on_step_complete(user_id: str, step: int, similarity: float = 0.0, lang: str
     }
     """
     tick_time(user_id)   # record elapsed time for this activity interval
-    stats    = load_stats(user_id)
-    old_xp   = int(stats.get("xp_total", 0))
-    old_lvl, *_ = get_level(old_xp)
+    with _lock_for(user_id):
+        stats    = load_stats(user_id)
+        old_xp   = int(stats.get("xp_total", 0))
+        old_lvl, *_ = get_level(old_xp)
 
-    xp_earned = STEP_XP.get(step, 5)
-    if similarity > 0.80:
-        xp_earned += HIGH_ACCURACY_XP
+        xp_earned = STEP_XP.get(step, 5)
+        if similarity > 0.80:
+            xp_earned += HIGH_ACCURACY_XP
 
-    # Daily XP tracking
-    today = date.today().isoformat()
-    if stats.get("daily_xp_date") != today:
-        stats["daily_xp_date"] = today
-        stats["daily_xp"]      = 0
-    stats["daily_xp"] = int(stats.get("daily_xp", 0)) + xp_earned
-    stats["xp_total"] = old_xp + xp_earned
+        # Daily XP tracking
+        today = date.today().isoformat()
+        if stats.get("daily_xp_date") != today:
+            stats["daily_xp_date"] = today
+            stats["daily_xp"]      = 0
+        stats["daily_xp"] = int(stats.get("daily_xp", 0)) + xp_earned
+        stats["xp_total"] = old_xp + xp_earned
 
-    new_badges = _check_badges(stats, lang)
-    save_stats(user_id, stats)
+        new_badges = _check_badges(stats, lang)
+        save_stats(user_id, stats)
 
     new_xp  = int(stats["xp_total"])
     new_lvl, new_name, *_ = get_level(new_xp, lang)
@@ -825,24 +849,25 @@ def on_lesson_complete(user_id: str, lang: str = "en") -> dict:
     Returns same shape as on_step_complete plus streak info.
     """
     tick_time(user_id)   # record elapsed time for this activity interval
-    stats    = load_stats(user_id)
-    old_xp   = int(stats.get("xp_total", 0))
-    old_lvl, *_ = get_level(old_xp)
+    with _lock_for(user_id):
+        stats    = load_stats(user_id)
+        old_xp   = int(stats.get("xp_total", 0))
+        old_lvl, *_ = get_level(old_xp)
 
-    # Bonus XP
-    today = date.today().isoformat()
-    if stats.get("daily_xp_date") != today:
-        stats["daily_xp_date"] = today
-        stats["daily_xp"]      = 0
-    stats["daily_xp"]          = int(stats.get("daily_xp", 0)) + LESSON_BONUS_XP
-    stats["xp_total"]          = old_xp + LESSON_BONUS_XP
-    stats["lessons_completed"] = int(stats.get("lessons_completed", 0)) + 1
+        # Bonus XP
+        today = date.today().isoformat()
+        if stats.get("daily_xp_date") != today:
+            stats["daily_xp_date"] = today
+            stats["daily_xp"]      = 0
+        stats["daily_xp"]          = int(stats.get("daily_xp", 0)) + LESSON_BONUS_XP
+        stats["xp_total"]          = old_xp + LESSON_BONUS_XP
+        stats["lessons_completed"] = int(stats.get("lessons_completed", 0)) + 1
 
-    # Streak
-    _update_streak(stats)
+        # Streak
+        _update_streak(stats)
 
-    new_badges = _check_badges(stats, lang)
-    save_stats(user_id, stats)
+        new_badges = _check_badges(stats, lang)
+        save_stats(user_id, stats)
 
     new_xp  = int(stats["xp_total"])
     new_lvl, new_name, *_ = get_level(new_xp, lang)

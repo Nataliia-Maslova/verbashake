@@ -371,7 +371,11 @@ def render_setup():
             except ValueError as e:
                 st.error(str(e))
             except Exception as e:
-                st.error(f"{e}")
+                # Never echo a raw exception into the UI (same policy as
+                # app.py's Stripe checkout handler) -- a DB error here could
+                # leak schema/constraint details, not just be ugly.
+                print(f"[custom_app] add_lesson failed: {e}")
+                st.error(_t("save_error"))
 
 
 # ─── Start a lesson — push state and let grammar.main() run the 8 steps ──

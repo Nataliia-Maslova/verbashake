@@ -771,11 +771,21 @@ def seed_mastery_from_level(
     if estimated_level not in CEFR_RANK:
         return
     max_rank = CEFR_RANK[estimated_level]
-    units = db.fetch_all(
-        "SELECT DISTINCT topic, level FROM content_units WHERE module=:m",
-        {"m": module},
-    )
-    existing = _mastery_map(user_id, target_lang)
+    try:
+        # _candidates() (not a raw "WHERE module=:m" query) so this respects
+        # the same target_lang scoping every real recommendation already
+        # goes through -- the raw query used to pool topics across all 13
+        # languages' locked-language-path content (grammar/target_grammar),
+        # seeding permanent dead mastery rows for languages the student
+        # wasn't even onboarding into (2026-09-07 finding).
+        units = _candidates(target_lang, module)
+        existing = _mastery_map(user_id, target_lang)
+    except Exception:
+        # Same best-effort, failure-tolerant contract as the write loop
+        # below -- a dropped connection here used to propagate uncaught
+        # straight through app.py's onboarding "Start learning" handler,
+        # crashing it before the already-saved profile's st.rerun() ran.
+        return
     seen_topics: set[str] = set()
     rows = []
     for u in units:

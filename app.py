@@ -46,6 +46,7 @@ import search_app                   # noqa: E402
 from engine import auth_gate        # noqa: E402
 from engine import billing          # noqa: E402
 from engine import user_prefs       # noqa: E402
+from engine import client_tz        # noqa: E402
 from engine.gamification import sidebar_widget  # noqa: E402
 
 # Used for fetching progress on the launcher
@@ -902,6 +903,7 @@ def _switch_to(module_key: str):
     user   = st.session_state.get("launcher_user", "student1")
     native = st.session_state.get("launcher_native", "Ukrainian")
     target = st.session_state.get("launcher_target", "English")
+    dark   = st.session_state.get("_dark_mode", False)
 
     # Wipe everything so previous-module state can't bleed through
     for k in list(st.session_state):
@@ -910,6 +912,7 @@ def _switch_to(module_key: str):
     st.session_state["launcher_user"]   = user
     st.session_state["launcher_native"] = native
     st.session_state["launcher_target"] = target
+    st.session_state["_dark_mode"]      = dark
     st.query_params["module"] = module_key
     st.rerun()
 
@@ -1037,6 +1040,12 @@ def main():
     user_id = auth_gate.current_user_id()
     st.session_state["launcher_user"] = user_id
 
+    # Capture the student's own browser timezone (once per account) --
+    # engine.schedule.today_status() reads session_state["_client_tz"] to
+    # judge the "on time" badge against the STUDENT's clock, not the
+    # server's. Cheap no-op once resolved; see engine/client_tz.py.
+    client_tz.ensure_client_tz(user_id)
+
     # Load the student's saved native/target language once per session
     # (CLAUDE.md 2026-08-22) — a returning login shouldn't reset the choice
     # back to the hardcoded Ukrainian/English default. Guarded so it only
@@ -1057,11 +1066,13 @@ def main():
         user   = st.session_state.get("launcher_user", "student1")
         native = st.session_state.get("launcher_native", "Ukrainian")
         target = st.session_state.get("launcher_target", "English")
+        dark   = st.session_state.get("_dark_mode", False)
         for k in list(st.session_state):
             del st.session_state[k]
         st.session_state["launcher_user"]   = user
         st.session_state["launcher_native"] = native
         st.session_state["launcher_target"] = target
+        st.session_state["_dark_mode"]      = dark
         st.query_params.clear()
         render_launcher()
         return
@@ -1106,8 +1117,10 @@ def main():
         search_app.main()
     else:
         # Unknown module - reset
+        dark = st.session_state.get("_dark_mode", False)
         for k in list(st.session_state):
             del st.session_state[k]
+        st.session_state["_dark_mode"] = dark
         st.query_params.clear()
         render_launcher()
 

@@ -256,6 +256,11 @@ CREATE TABLE IF NOT EXISTS user_prefs (
 ALTER TABLE user_prefs ADD COLUMN IF NOT EXISTS display_name      TEXT;
 ALTER TABLE user_prefs ADD COLUMN IF NOT EXISTS self_level        TEXT;
 ALTER TABLE user_prefs ADD COLUMN IF NOT EXISTS literacy_required BOOLEAN;
+-- IANA zone name (e.g. "Europe/Kyiv"), captured client-side once per
+-- browser via engine.client_tz -- see engine/schedule.py::today_status()
+-- (2026-09-07: was comparing the schedule badge against the SERVER's own
+-- clock, wrong whenever server and student aren't in the same timezone).
+ALTER TABLE user_prefs ADD COLUMN IF NOT EXISTS timezone           TEXT;
 
 -- ── custom_phrases ───────────────────────────────────────────────────────────
 -- "My Phrases" user-created lessons (2026-08-28, replacing the CSV-file

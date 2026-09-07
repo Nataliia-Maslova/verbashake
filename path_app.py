@@ -98,12 +98,14 @@ def _switch_module(module_key: str, user: str, native: str, target: str) -> None
     """Same wipe-and-reset app.py::_switch_to() does -- duplicated locally
     (not imported) because app.py already imports path_app for its router,
     so the reverse import would be circular."""
+    dark = st.session_state.get("_dark_mode", False)
     for k in list(st.session_state):
         del st.session_state[k]
     st.session_state["active_module"]   = module_key
     st.session_state["launcher_user"]   = user
     st.session_state["launcher_native"] = native
     st.session_state["launcher_target"] = target
+    st.session_state["_dark_mode"]      = dark
     st.query_params["module"] = module_key
     st.rerun()
 
@@ -203,8 +205,10 @@ def _render_schedule_section(user: str, native: str) -> None:
             new_entries.append({"day_of_week": d, "time_of_day": t.strftime("%H:%M")})
 
         if st.button(i18n.get(native, "schedule_save_btn"), key="schedule_save"):
-            _schedule.save_schedule(user, new_entries)
-            st.success(i18n.get(native, "schedule_saved_msg"))
+            if _schedule.save_schedule(user, new_entries):
+                st.success(i18n.get(native, "schedule_saved_msg"))
+            else:
+                st.error(i18n.get(native, "schedule_save_error"))
 
 
 def _render_schedule_badge(user: str, native: str) -> None:
@@ -213,7 +217,8 @@ def _render_schedule_badge(user: str, native: str) -> None:
     since the concept explicitly rejected nagging outside an actual slot."""
     stats = _gamification.load_stats(user)
     done_today = stats.get("streak_last_date") == _dt.date.today().isoformat()
-    state = _schedule.today_status(user, done_today)["state"]
+    tz_name = st.session_state.get("_client_tz")
+    state = _schedule.today_status(user, done_today, tz_name)["state"]
 
     if state == "in_window":
         st.info(i18n.get(native, "schedule_badge_in_window"))

@@ -24,12 +24,13 @@ import yaml
 _YAML_PATH = Path(__file__).parent.parent / "assets" / "characters" / "phrases.yaml"
 _cache = None
 
-LANG_NAME_TO_CODE = {
-    "English":   "en",
-    "Ukrainian": "uk",
-    "Spanish":   "es",
-    "Korean":    "ko",
-}
+from engine.loader import LANG_COLUMNS as LANG_NAME_TO_CODE
+# Was its own 4-entry dict (en/uk/es/ko only) -- every other supported
+# language silently fell back to English for every character bubble
+# throughout Phase 1-5 (2026-09-07 finding). engine.loader.LANG_COLUMNS is
+# the same canonical name->code map every other module uses, now that
+# scripts/generate_character_phrases.py has filled in the other 10
+# languages' names/phrases in phrases.yaml.
 
 
 def load_characters():

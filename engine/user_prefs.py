@@ -63,6 +63,31 @@ def get_profile(user_id: str) -> dict | None:
         return None
 
 
+def get_timezone(user_id: str) -> str | None:
+    """Saved IANA zone name (e.g. "Europe/Kyiv"), or None if never captured
+    yet / DB unavailable. See engine/client_tz.py for how it gets here."""
+    if not user_id:
+        return None
+    try:
+        row = db.fetch_one(
+            "SELECT timezone FROM user_prefs WHERE user_id = :uid", {"uid": user_id},
+        )
+        return row["timezone"] if row else None
+    except Exception:
+        return None
+
+
+def save_timezone(user_id: str, tz_name: str) -> None:
+    """Best-effort save, same fail-silent convention as save_prefs() —
+    only touches the timezone column."""
+    if not user_id or not tz_name:
+        return
+    try:
+        db.upsert("user_prefs", keys={"user_id": user_id}, values={"timezone": tz_name})
+    except Exception:
+        pass
+
+
 def is_onboarded(user_id: str) -> bool:
     """True once the student has been through the first-run onboarding
     screen (app.py::_render_onboarding) — name + self-reported level saved,

@@ -6,6 +6,7 @@ from __future__ import annotations
 
 import hashlib
 import os
+import uuid
 from pathlib import Path
 
 # pygame is NOT used on Streamlit Cloud — audio plays via base64 HTML in the browser
@@ -33,11 +34,23 @@ def get_audio_path(text: str, lang: str) -> str | None:
     path = CACHE_DIR / f"{key}.mp3"
 
     if not path.exists():
+        # Write to a per-call temp file then atomically rename into place
+        # (2026-09-07) -- the exists-check above and the write used to be
+        # two separate steps, so two students requesting audio for the same
+        # not-yet-cached (text, lang) pair for the first time (e.g. a common
+        # roleplay opener) could both see it missing and both call
+        # tts.save() on the same final path concurrently, risking a reader
+        # picking up a partially-written file mid-write. os.replace() is
+        # atomic on POSIX, so any concurrent writer's rename either fully
+        # lands or doesn't -- never a partial file at `path`.
+        tmp_path = CACHE_DIR / f"{key}.{uuid.uuid4().hex}.tmp"
         try:
             tts = gTTS(text=text, lang=lang, slow=False)
-            tts.save(str(path))
+            tts.save(str(tmp_path))
+            os.replace(tmp_path, path)
         except Exception as e:
             print(f"[TTS] Error generating audio: {e}")
+            tmp_path.unlink(missing_ok=True)
             return None
 
     return str(path)

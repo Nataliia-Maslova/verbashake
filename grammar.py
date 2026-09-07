@@ -1026,6 +1026,7 @@ def _render_confusing_part_helper(session: LessonSession, phrases: list[dict]) -
 def step1(session: LessonSession, tts_lang, wh_lang):
     session.start_step(1)
     step_hdr(1, show_image=True)
+    native_lang = session.state.native_lang
     phrases = session.phrases()
     scores  = st.session_state.get("s1_scores", {})
 
@@ -1039,7 +1040,7 @@ def step1(session: LessonSession, tts_lang, wh_lang):
     # Mic at the top so mobile users don't need to scroll past the phrase list
     audio = audio_input("s1")
 
-    if audio and st.button("Submit & Check", type="primary",
+    if audio and st.button(i18n.get(native_lang, "submit_check_btn"), type="primary",
                            use_container_width=True, key="s1_submit"):
         full = ". ".join(p["target"] for p in phrases)
         r    = do_score(session, audio, full, wh_lang, step=1, phrase_id=0)
@@ -1061,7 +1062,7 @@ def step1(session: LessonSession, tts_lang, wh_lang):
 
     # Next button — active only after the user has recorded at least once
     attempted = bool(audio) or bool(st.session_state.get("s1_scores"))
-    if st.button("Next →", use_container_width=True, key="s1_next",
+    if st.button(i18n.get(native_lang, "next_btn"), use_container_width=True, key="s1_next",
                  disabled=not attempted,
                  help=None if attempted else _try_first_msg(session)):
         st.session_state.pop("s1_char_shown", None)
@@ -1093,7 +1094,8 @@ def step2(session: LessonSession, tts_lang, wh_lang):
     # Mark attempted as soon as the playlist renders (audio autoplays)
     st.session_state["s2_attempted"] = True
     attempted = st.session_state.get("s2_attempted", False)
-    if st.button("Continue to Step 3 →", type="primary", use_container_width=True,
+    if st.button(i18n.get(session.state.native_lang, "continue_step3_btn"), type="primary",
+                 use_container_width=True,
                  disabled=not attempted,
                  help=None if attempted else _try_first_msg(session)):
         st.session_state.pop("s2_active", None)
@@ -1110,6 +1112,7 @@ def step2(session: LessonSession, tts_lang, wh_lang):
 def step3(session: LessonSession, tts_lang, wh_lang):
     session.start_step(3)
     step_hdr(3, show_image=True)
+    native_lang = session.state.native_lang
     phrases = session.phrases()
 
     if "s3_idx" not in st.session_state:
@@ -1137,7 +1140,7 @@ def step3(session: LessonSession, tts_lang, wh_lang):
     if idx < len(phrases):
         p  = phrases[idx]
         ap = get_audio_path(p["target"], tts_lang)
-        st.markdown(f"---\n**Phrase {idx+1} — listen and choose:**")
+        st.markdown(f"---\n**{i18n.get(native_lang, 'step3_listen_prompt').format(n=idx+1)}**")
         if ap:
             # Use a unique key per phrase index so audio reloads on each new phrase
             with open(ap, "rb") as f: d = base64.b64encode(f.read()).decode()
@@ -1147,7 +1150,7 @@ def step3(session: LessonSession, tts_lang, wh_lang):
                 unsafe_allow_html=True,
             )
 
-        st.markdown("**Select the correct translation:**")
+        st.markdown(f"**{i18n.get(native_lang, 'step3_select_prompt')}**")
         for ci, choice in enumerate(st.session_state[f"s3_opts_{idx}"]):
             if st.button(choice, key=f"s3_{idx}_{ci}", use_container_width=True):
                 correct = (choice == p["native"])
@@ -1161,17 +1164,17 @@ def step3(session: LessonSession, tts_lang, wh_lang):
                     phrase_id=int(p.get("phrase_id", idx)),
                 )
                 if correct:
-                    st.success("✓ Correct!")
+                    st.success(i18n.get(native_lang, "correct_exclaim"))
                 else:
-                    st.error(f"✗ Wrong — answer: **{p['native']}**")
+                    st.error(i18n.get(native_lang, "wrong_answer_msg").format(answer=p["native"]))
                 time.sleep(0.4)
                 st.rerun()
 
     if idx >= len(phrases):
         ok = sum(1 for v in scores.values() if v)
-        st.success(f"Done! {ok}/{len(phrases)} correct.")
+        st.success(i18n.get(native_lang, "step3_done_msg").format(ok=ok, total=len(phrases)))
         show_character("sophie", "on_lesson_complete")
-        if st.button("Continue to Step 4 →", type="primary"):
+        if st.button(i18n.get(native_lang, "continue_step4_btn"), type="primary"):
             for k in ["s3_idx","s3_scores"] + [f"s3_opts_{i}" for i in range(len(phrases))]:
                 st.session_state.pop(k, None)
             return True
@@ -1184,13 +1187,14 @@ def step3(session: LessonSession, tts_lang, wh_lang):
 def step4(session: LessonSession, tts_lang, wh_lang):
     session.start_step(4)
     step_hdr(4, show_image=True)
+    native_lang = session.state.native_lang
     phrases = session.phrases()
 
     # Mic at the top so mobile users don't need to scroll past the phrase list
     audio = audio_input("s4")
 
     # Submit button appears only after the user records audio
-    if audio and st.button("Submit & Score", type="primary",
+    if audio and st.button(i18n.get(native_lang, "submit_score_btn"), type="primary",
                            use_container_width=True, key="s4_submit"):
         duration_s = max(1, round(_audio_duration_ms(audio) / 1000))
         full = ". ".join(p["target"] for p in phrases)
@@ -1204,15 +1208,16 @@ def step4(session: LessonSession, tts_lang, wh_lang):
 
     if "s4_result" in st.session_state:
         res = st.session_state["s4_result"]
-        st.success(f"🏁 Reading speed: **{res['time']}s** · **{int(res['score']*100)}%** match")
-        st.caption(f"Transcribed: {res['text']}")
+        st.success(i18n.get(native_lang, "step4_result_msg").format(
+            time=res["time"], pct=int(res["score"]*100)))
+        st.caption(i18n.get(native_lang, "transcribed_caption").format(text=res["text"]))
 
     # Phrase list
     phrase_table(phrases, show_native=False, show_target=True)
 
     # Done button — active only after the user has recorded at least once
     attempted = bool(audio) or "s4_result" in st.session_state
-    if st.button("Done →", use_container_width=True, key="s4_done",
+    if st.button(i18n.get(native_lang, "done_btn"), use_container_width=True, key="s4_done",
                  disabled=not attempted,
                  help=None if attempted else _try_first_msg(session)):
         st.session_state.pop("s4_result", None)
@@ -1244,7 +1249,8 @@ def step5(session: LessonSession, tts_lang, wh_lang):
     # Mark attempted as soon as the playlist renders (audio autoplays)
     st.session_state["s5_attempted"] = True
     attempted = st.session_state.get("s5_attempted", False)
-    if st.button("Continue to Step 6 →", type="primary", use_container_width=True,
+    if st.button(i18n.get(session.state.native_lang, "continue_step6_btn"), type="primary",
+                 use_container_width=True,
                  disabled=not attempted,
                  help=None if attempted else _try_first_msg(session)):
         st.session_state.pop("s5_active", None)
@@ -1261,13 +1267,14 @@ def step5(session: LessonSession, tts_lang, wh_lang):
 def step6(session: LessonSession, tts_lang, wh_lang):
     session.start_step(6)
     step_hdr(6, show_image=True)
+    native_lang = session.state.native_lang
     phrases = session.phrases()
     scores  = st.session_state.get("s6_scores", {})
 
     # Mic at the top so mobile users don't need to scroll past the phrase list
     audio = audio_input("s6")
 
-    if audio and st.button("Submit & Score", type="primary", use_container_width=True, key="s6_submit"):
+    if audio and st.button(i18n.get(native_lang, "submit_score_btn"), type="primary", use_container_width=True, key="s6_submit"):
         full = ". ".join(p["target"] for p in phrases)
         r = do_score(session, audio, full, wh_lang, step=6, phrase_id=0)
         if r:
@@ -1286,7 +1293,7 @@ def step6(session: LessonSession, tts_lang, wh_lang):
 
     # Next button — active only after the user has recorded at least once
     attempted = bool(audio) or bool(st.session_state.get("s6_scores"))
-    if st.button("Next →", use_container_width=True, key="s6_next",
+    if st.button(i18n.get(native_lang, "next_btn"), use_container_width=True, key="s6_next",
                  disabled=not attempted,
                  help=None if attempted else _try_first_msg(session)):
         st.session_state["s6_idx"] = 0
@@ -1308,24 +1315,23 @@ _S7_MIN_SIMILARITY        = 0.80  # ≥ 80% similarity
 def step7(session: LessonSession, tts_lang, wh_lang):
     session.start_step(7)
     step_hdr(7, show_image=True)
+    native_lang = session.state.native_lang
     phrases = session.phrases()
 
     # ── Pass criteria for this lesson ──
     # Speed target: 1 second per 2 target-language words across all phrases
     total_words = sum(len(p["target"].split()) for p in phrases)
     max_seconds = max(1, round(total_words / 2 * _S7_SECONDS_PER_TWO_WORDS))
-    st.caption(
-        f"Time: **≤ {max_seconds}s** "
-        f"and **≥ {int(_S7_MIN_SIMILARITY*100)}%** accuracy."
-    )
+    st.caption(i18n.get(native_lang, "step7_criteria_caption").format(
+        max_s=max_seconds, min_pct=int(_S7_MIN_SIMILARITY*100)))
 
     # ── Record & Submit ──
     # No live timer: speed = actual audio recording length.
-    st.markdown("#### 🎙️ Translate all phrases and record")
+    st.markdown(f"#### {i18n.get(native_lang, 'step7_record_prompt')}")
     audio = audio_input("s7")
 
     # Submit button appears only after the user records audio
-    if audio and st.button("Submit & Score", type="primary",
+    if audio and st.button(i18n.get(native_lang, "submit_score_btn"), type="primary",
                            use_container_width=True, key="s7_submit"):
         duration_s = max(1, round(_audio_duration_ms(audio) / 1000))
         full = ". ".join(p["target"] for p in phrases)
@@ -1343,24 +1349,19 @@ def step7(session: LessonSession, tts_lang, wh_lang):
         passed   = time_ok and score_ok
 
         if passed:
-            st.success(
-                f"🎉 Passed! Translation speed: **{res['time']}s** · "
-                f"**{int(res['score']*100)}%** accuracy."
-            )
+            st.success(i18n.get(native_lang, "step7_passed_msg").format(
+                time=res["time"], pct=int(res["score"]*100)))
         else:
             problems = []
             if not time_ok:
-                problems.append(
-                    f"speed {res['time']}s > target {max_seconds}s"
-                )
+                problems.append(i18n.get(native_lang, "step7_speed_problem").format(
+                    time=res["time"], max_s=max_seconds))
             if not score_ok:
-                problems.append(
-                    f"accuracy {int(res['score']*100)}% < "
-                    f"{int(_S7_MIN_SIMILARITY*100)}% required"
-                )
+                problems.append(i18n.get(native_lang, "step7_accuracy_problem").format(
+                    pct=int(res["score"]*100), required=int(_S7_MIN_SIMILARITY*100)))
             st.warning(
-                "Not quite there yet — " + " · ".join(problems) +
-                ". You can still continue to Step 8."
+                i18n.get(native_lang, "step7_not_passed_prefix") + " · ".join(problems) +
+                i18n.get(native_lang, "step7_not_passed_suffix")
             )
 
     # Character above phrases — shown once per step entry, not on button-click rerun
@@ -1373,7 +1374,7 @@ def step7(session: LessonSession, tts_lang, wh_lang):
 
     # Navigation at the bottom — only after a recording was scored
     if "s7_result" in st.session_state:
-        if st.button("Continue to Step 8 →", type="primary",
+        if st.button(i18n.get(native_lang, "continue_step8_btn"), type="primary",
                      use_container_width=True, key="s7_continue"):
             st.session_state.pop("s7_result", None)
             st.session_state.pop("s7_char_shown", None)
@@ -1825,17 +1826,19 @@ def step8(session: LessonSession, tts_lang, wh_lang):
     session.start_step(8)
     native_lang = session.state.native_lang
 
-    # Step 8 description depends on practice module
+    # Step 8 description depends on practice module. Was computed and then
+    # discarded (never passed into step_hdr) -- vocab-module users saw the
+    # generic grammar-module copy regardless (2026-09-07 finding, fixed
+    # here alongside the rest of Step 8's i18n migration).
     module = _current_module()
     if module == "vocab":
-        title = "Compose Your Own Examples"
-        desc  = ("Create your own sentences using the new words and phrases "
-                 "from this lesson. The system will check grammar.")
+        title = i18n.get(native_lang, "step8_vocab_title")
+        desc  = i18n.get(native_lang, "step8_vocab_desc")
     else:
-        title = "Grammar Check — Create Your Own Phrases"
-        desc  = "Say or type phrases in the target language. The system will correct grammar errors."
+        title = i18n.get(native_lang, "step8_grammar_title")
+        desc  = i18n.get(native_lang, "step8_grammar_desc")
 
-    step_hdr(8, total=8, show_image=True)
+    step_hdr(8, title=title, desc=desc, total=8, show_image=True)
 
     phrases = session.phrases()
 
@@ -1843,40 +1846,42 @@ def step8(session: LessonSession, tts_lang, wh_lang):
     gec_lang = wh_lang or "en"
 
     # Reference table
-    with st.expander("📚 Lesson phrases for reference", expanded=False):
+    with st.expander(i18n.get(native_lang, "step8_reference_expander"), expanded=False):
         phrase_table(phrases, show_native=True, show_target=True)
 
     st.markdown("---")
-    n_phrases = st.slider("How many phrases to create?", 1, 5, 3, key="s8_n")
+    n_phrases = st.slider(i18n.get(native_lang, "step8_n_phrases_label"), 1, 5, 3, key="s8_n")
 
-    input_mode = st.radio("Input method", ["🎙️ Voice", "⌨️ Text"],
+    _voice_opt = i18n.get(native_lang, "step8_voice_option")
+    _text_opt  = i18n.get(native_lang, "step8_text_option")
+    input_mode = st.radio(i18n.get(native_lang, "step8_input_mode_label"), [_voice_opt, _text_opt],
                           horizontal=True, key="s8_mode")
 
     results = st.session_state.get("s8_results", [])
 
     # ── Voice input ───────────────────────────────────────────────────────
-    if input_mode == "🎙️ Voice":
-        st.markdown(f"Record yourself saying **{n_phrases} original phrase(s)**.")
+    if input_mode == _voice_opt:
+        st.markdown(f"{i18n.get(native_lang, 'step8_record_prompt').format(n=n_phrases)}")
         audio = audio_input("s8_voice")
 
-        if st.button("Submit & Check Grammar", type="primary",
+        if st.button(i18n.get(native_lang, "submit_check_grammar_btn"), type="primary",
                      use_container_width=True, key="s8_submit_voice"):
             if not audio:
-                st.warning("Please record audio first.")
+                st.warning(i18n.get(native_lang, "please_record_first"))
             elif not whisper_available():
-                st.warning("Whisper not installed.")
+                st.warning(i18n.get(native_lang, "whisper_not_installed"))
             else:
-                with st.spinner("Transcribing…"):
+                with st.spinner(i18n.get(native_lang, "transcribing_spinner")):
                     import re
                     raw        = transcribe_bytes(audio, language=wh_lang)
                     candidates = [s.strip() for s in re.split(r"[.!?]", raw)
                                   if len(s.strip()) > 3][:n_phrases]
 
                 if not candidates:
-                    st.warning(f"Could not detect phrases. Transcribed: `{raw}`")
+                    st.warning(i18n.get(native_lang, "step8_no_phrases_detected").format(raw=raw))
                 else:
                     try:
-                        with st.spinner("Checking grammar…"):
+                        with st.spinner(i18n.get(native_lang, "checking_grammar_spinner")):
                             results = [{"original": p, "correction": _gemini.correct_grammar(
                                            p, _gemini.lang_name(gec_lang), native_lang)}
                                        for p in candidates]
@@ -1904,19 +1909,19 @@ def step8(session: LessonSession, tts_lang, wh_lang):
             "ko": "나는 학교에 가요.\n그는 책을 읽어요.\n우리는 친구예요.",
         }
         text_input = st.text_area(
-            "Type your phrases (one per line):",
+            i18n.get(native_lang, "step8_text_input_label"),
             placeholder=PLACEHOLDERS.get(gec_lang, ""),
             height=120, key="s8_text_input",
         )
-        if st.button("Submit & Check Grammar", type="primary",
+        if st.button(i18n.get(native_lang, "submit_check_grammar_btn"), type="primary",
                      use_container_width=True, key="s8_submit_text"):
             lines = [l.strip() for l in text_input.strip().splitlines()
                      if l.strip()][:n_phrases]
             if not lines:
-                st.warning("Please enter at least one phrase.")
+                st.warning(i18n.get(native_lang, "please_enter_phrase"))
             else:
                 try:
-                    with st.spinner("Checking grammar…"):
+                    with st.spinner(i18n.get(native_lang, "checking_grammar_spinner")):
                         results = [{"original": p, "correction": _gemini.correct_grammar(
                                            p, _gemini.lang_name(gec_lang), native_lang)}
                                    for p in lines]
@@ -1986,7 +1991,7 @@ def step8(session: LessonSession, tts_lang, wh_lang):
     attempted = bool(st.session_state.get("s8_results"))
     c1, c2 = st.columns(2)
     with c1:
-        if st.button("🔄 Try again", use_container_width=True, key="s8_retry"):
+        if st.button(i18n.get(native_lang, "try_again_btn"), use_container_width=True, key="s8_retry"):
             for k in list(st.session_state):
                 if k.startswith("s8_sel_"):
                     del st.session_state[k]
@@ -1994,7 +1999,7 @@ def step8(session: LessonSession, tts_lang, wh_lang):
             _clear_phase_errors("step8")
             st.rerun()
     with c2:
-        if st.button("Complete Lesson ✓", type="primary",
+        if st.button(i18n.get(native_lang, "complete_lesson_btn"), type="primary",
                      use_container_width=True, key="s8_complete",
                      disabled=not attempted,
                      help=None if attempted else _try_first_msg(session)):
@@ -2015,12 +2020,14 @@ def _clear_lesson():
 
 def _clear_all():
     _keep = {k: st.session_state[k] for k in
-             ("launcher_user", "launcher_native", "launcher_target")
+             ("launcher_user", "launcher_native", "launcher_target", "_dark_mode")
              if k in st.session_state}
     # Set by path_app.py::_launch_unit() when the lesson was opened from My
     # Path (default) or from Search (return_module="search") -- routes back
     # to whichever screen the student actually came from instead of always
-    # landing on My Path.
+    # landing on My Path. Left unset by callers that explicitly want the
+    # top-level launcher (e.g. the sidebar's "Main menu" button) -- those
+    # rely on the else branch below, so don't default this to "path".
     _return_module = st.session_state.get("_return_module")
     for k in list(st.session_state):
         del st.session_state[k]
@@ -2210,10 +2217,11 @@ def _record_mistake(
     guesses = [e["topic_en"] for e in (errors or []) if e.get("topic_en")]
     if guesses:
         try:
-            candidates = _recommender.all_topics(target_lang, module="grammar")
+            module = _current_module()
+            candidates = _recommender.all_topics(target_lang, module=module)
             classified = _gemini.classify_mistake_topics(guesses, candidates)
             for topic in classified.values():
-                unit = _recommender.lesson_for_topic(topic, target_lang, module="grammar")
+                unit = _recommender.lesson_for_topic(topic, target_lang, module=module)
                 if unit and unit["unit_id"] != session.state.unit_id:
                     matched_units.add(unit["unit_id"])
         except Exception:
@@ -3468,6 +3476,8 @@ def _render_step_nav_inline(cur_step: int) -> None:
     block used (_adaptive_steps/_adaptive_idx from _init_adaptive_session,
     REQUIRED_STEPS lock icons) -- only where it renders changed.
     """
+    _sess_nav  = st.session_state.get("session")
+    native_lang = _sess_nav.state.native_lang if _sess_nav else "English"
     _adp_steps = st.session_state.get("_adaptive_steps", list(range(1, 9)))
     _adp_idx   = st.session_state.get("_adaptive_idx", cur_step - 1)
     _adp_total = len(_adp_steps)
@@ -3480,23 +3490,25 @@ def _render_step_nav_inline(cur_step: int) -> None:
         'vertical-align:middle">adaptive</span>'
         if _adp_mode == "adaptive" else ""
     )
+    _step_progress_text = i18n.get(native_lang, "step_progress_label").format(
+        n=_adp_pos, total=_adp_total)
     st.markdown(
         f'<div class="progress-info">'
-        f'<span>Step {_adp_pos} / {_adp_total}{_adp_badge}</span>'
+        f'<span>{_step_progress_text}{_adp_badge}</span>'
         f'<span>{"🔒" if cur_step in REQUIRED_STEPS else ""}</span></div>'
         f'<div class="progress-bar-wrap">'
         f'<div class="progress-bar-fill" style="width:{step_pct}%;background:linear-gradient(90deg, var(--mova-mint), #34D0A0)"></div></div>',
         unsafe_allow_html=True
     )
 
-    with st.expander("Step navigation", expanded=False):
+    with st.expander(i18n.get(native_lang, "step_navigation_expander"), expanded=False):
         nav_c1, nav_c2 = st.columns(2)
         with nav_c1:
             _adp_idx_nav  = st.session_state.get("_adaptive_idx", 0)
             back_disabled = _adp_idx_nav <= 0
-            if st.button("← Previous", disabled=back_disabled,
+            if st.button(i18n.get(native_lang, "nav_previous_btn"), disabled=back_disabled,
                          use_container_width=True, key="nav_back",
-                         help="Go to the previous step"):
+                         help=i18n.get(native_lang, "nav_previous_help")):
                 _clear_lesson()
                 _prev_idx = max(0, _adp_idx_nav - 1)
                 _prev_seq = st.session_state.get("_adaptive_steps", list(range(1, 9)))
@@ -3504,9 +3516,9 @@ def _render_step_nav_inline(cur_step: int) -> None:
                 st.session_state["lesson_step"]   = _prev_seq[_prev_idx]
                 st.rerun()
         with nav_c2:
-            if st.button("🔄 Repeat", use_container_width=True,
+            if st.button(i18n.get(native_lang, "nav_repeat_btn"), use_container_width=True,
                          key="nav_repeat",
-                         help="Restart the current step"):
+                         help=i18n.get(native_lang, "nav_repeat_help")):
                 _clear_lesson()
                 # lesson_step stays the same, but per-step state is wiped
                 st.rerun()
@@ -3525,23 +3537,23 @@ def _render_step_nav_inline(cur_step: int) -> None:
         _full_options = _adp_unique + _optional_steps
 
         def _step_label(s):
-            base = f"Step {s}"
+            base = i18n.get(native_lang, "step_word_n").format(n=s)
             if s in REQUIRED_STEPS:
                 base += " \U0001f512"
             if s in _optional_steps:
-                base += "  (+ optional)"
+                base += "  " + i18n.get(native_lang, "step_optional_suffix")
             return base
 
         jump_default = min(_adp_idx_jump, len(_full_options) - 1)
         jump_to = st.selectbox(
-            "Jump to step",
+            i18n.get(native_lang, "jump_to_step_label"),
             options=_full_options,
             index=jump_default,
             format_func=_step_label,
             key="nav_jump",
         )
         if jump_to != cur_step:
-            if st.button(f"Go to Step {jump_to}",
+            if st.button(i18n.get(native_lang, "go_to_step_btn").format(n=jump_to),
                          use_container_width=True,
                          key="nav_go"):
                 _clear_lesson()
@@ -3612,12 +3624,14 @@ def main(module: str = "grammar"):
                 _u = st.session_state.get("launcher_user", "student1")
                 _n = st.session_state.get("launcher_native", "Ukrainian")
                 _t = st.session_state.get("launcher_target", "English")
+                _d = st.session_state.get("_dark_mode", False)
                 for _k in list(st.session_state):
                     del st.session_state[_k]
                 st.session_state["active_module"]   = _mod_key
                 st.session_state["launcher_user"]   = _u
                 st.session_state["launcher_native"] = _n
                 st.session_state["launcher_target"] = _t
+                st.session_state["_dark_mode"]      = _d
                 st.query_params["module"] = _mod_key
                 st.rerun()
 
@@ -3877,6 +3891,13 @@ def main(module: str = "grammar"):
             st.session_state.pop("lesson_phase", None)
             st.session_state.pop("p5_topic", None)
             st.session_state.pop("p5_topic_display", None)
+            # A lesson started directly from this module's own picker (e.g.
+            # via the sidebar module switcher) never went through
+            # path_app.py::_launch_unit(), so _return_module was never set --
+            # without this, _clear_all() would land on the top-level launcher
+            # instead of back in the module the student was actually using.
+            if not st.session_state.get("_return_module"):
+                st.session_state["_return_module"] = _current_module()
             _clear_all()
             # _clear_all() wipes session_state -- queue toasts AFTER it so
             # they survive to be shown next time Phase 2's step loop runs

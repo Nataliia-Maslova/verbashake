@@ -125,7 +125,7 @@ def _clear_and_home() -> None:
     convention (each module file keeps its own copy rather than importing
     one another, since app.py already imports every module for its router)."""
     _keep = {k: st.session_state[k] for k in
-             ("launcher_user", "launcher_native", "launcher_target")
+             ("launcher_user", "launcher_native", "launcher_target", "_dark_mode")
              if k in st.session_state}
     for k in list(st.session_state):
         del st.session_state[k]
@@ -265,18 +265,22 @@ def main() -> None:
     with st.sidebar:
         _gami_sidebar(user)
 
+        # Localized + dark mode preserved (2026-09-07) -- was hardcoded
+        # English labels and silently dropped _dark_mode on switch, same
+        # gap already fixed in grammar.py's/reading_app.py's copies of this
+        # sidebar earlier the same day.
         _SIDEBAR_MODULES = [
-            ("grammar",    "🗣️", "Grammar"),
-            ("vocab",      "📖", "Vocabulary"),
-            ("phrasebook", "💬", "Phrasebook"),
-            ("reading",    "🔤", "Reading"),
-            ("custom",     "📝", "My Phrases"),
-            ("search",     "🔍", "Search"),
+            ("grammar",    "🗣️", i18n.get(native, "module_grammar")),
+            ("vocab",      "📖", i18n.get(native, "module_vocab")),
+            ("phrasebook", "💬", i18n.get(native, "module_phrasebook")),
+            ("reading",    "🔤", i18n.get(native, "module_reading")),
+            ("custom",     "📝", i18n.get(native, "module_custom")),
+            ("search",     "🔍", i18n.get(native, "search_title")),
         ]
         st.markdown(
             '<div style="font-size:.7rem;color:var(--mova-ink-3);'
             'text-transform:uppercase;letter-spacing:.07em;margin-bottom:6px">'
-            'Module</div>',
+            f'{i18n.get(native, "pq_module_label")}</div>',
             unsafe_allow_html=True,
         )
         for _mk, _mi, _mn in _SIDEBAR_MODULES:
@@ -285,12 +289,14 @@ def main() -> None:
                          use_container_width=True,
                          type="primary" if _is_current else "secondary",
                          disabled=_is_current):
+                _dark = st.session_state.get("_dark_mode", False)
                 for _k in list(st.session_state):
                     del st.session_state[_k]
                 st.session_state["active_module"]   = _mk
                 st.session_state["launcher_user"]   = user
                 st.session_state["launcher_native"] = native
                 st.session_state["launcher_target"] = target
+                st.session_state["_dark_mode"]      = _dark
                 st.query_params["module"] = _mk
                 st.rerun()
 

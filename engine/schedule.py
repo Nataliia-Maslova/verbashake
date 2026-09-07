@@ -20,6 +20,7 @@ Design, agreed with Natalia before any code was written:
 from __future__ import annotations
 
 import datetime as _dt
+from zoneinfo import ZoneInfo
 
 from engine import db
 
@@ -49,18 +50,22 @@ def get_schedule(user_id: str) -> list[dict]:
         return []
 
 
-def save_schedule(user_id: str, entries: list[dict]) -> None:
+def save_schedule(user_id: str, entries: list[dict]) -> bool:
     """
     Replaces the whole schedule with `entries` ({"day_of_week": int,
     "time_of_day": "HH:MM"}), capped at MAX_DAYS. Delete-then-insert rather
     than per-row upsert — the set of days itself can shrink between saves
     (e.g. going from 3 days to 2), not just the time on an existing day, so
-    a plain upsert would leave orphaned rows behind. Best-effort, same
-    fail-silently convention as engine.user_prefs.save_prefs() — a failed
-    save just means the routine stays session-only for this run.
+    a plain upsert would leave orphaned rows behind.
+
+    Returns True on success, False if the write failed (e.g. a dropped
+    Supabase pooler connection between the DELETE and the INSERT — this
+    connection has documented history of that). The caller must check this
+    instead of assuming success, since DELETE and INSERT are two separate
+    transactions and a failure between them can leave the schedule empty.
     """
     if not user_id:
-        return
+        return False
     entries = entries[:MAX_DAYS]
     try:
         db.execute("DELETE FROM lesson_schedule WHERE user_id = :uid", {"uid": user_id})
@@ -73,11 +78,12 @@ def save_schedule(user_id: str, entries: list[dict]) -> None:
                     for e in entries
                 ],
             )
+        return True
     except Exception:
-        pass
+        return False
 
 
-def today_status(user_id: str, done_today: bool) -> dict:
+def today_status(user_id: str, done_today: bool, tz_name: str | None = None) -> dict:
     """
     Soft, non-blocking status for today's scheduled slot (if any):
       {"state": "no_schedule" | "not_scheduled_today" | "not_yet"
@@ -98,12 +104,24 @@ def today_status(user_id: str, done_today: bool) -> dict:
     gamification.load_stats(user_id)["streak_last_date"] == date.today().isoformat().
     A "missed_window" state never implies anything broke — the regular
     streak this module doesn't touch is unaffected either way.
+
+    `tz_name` is the student's own IANA timezone (e.g. "Europe/Kyiv"),
+    captured client-side via engine.client_tz and passed in by the caller
+    (2026-09-07 fix -- this function used to compare against the SERVER's
+    local clock, which is only correct when server and student share a
+    timezone; wrong for the normal case of a student not colocated with
+    wherever the app happens to be deployed). Falls back to the server's
+    own local time, same as before, when the timezone isn't known yet
+    (first visit, before the browser has reported it) or is invalid.
     """
     entries = get_schedule(user_id)
     if not entries:
         return {"state": "no_schedule", "time_of_day": None}
 
-    now = _dt.datetime.now()
+    try:
+        now = _dt.datetime.now(ZoneInfo(tz_name)) if tz_name else _dt.datetime.now()
+    except Exception:
+        now = _dt.datetime.now()
     today_entry = next((e for e in entries if e["day_of_week"] == now.weekday()), None)
     if today_entry is None:
         return {"state": "not_scheduled_today", "time_of_day": None}

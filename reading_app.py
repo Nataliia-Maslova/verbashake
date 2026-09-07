@@ -35,6 +35,8 @@ import pandas as pd
 import streamlit as st
 import streamlit.components.v1 as components
 
+from engine import i18n
+
 ROOT        = Path(__file__).parent
 sys.path.insert(0, str(ROOT))
 APP_IMG_DIR = ROOT / "static" / "app_images"
@@ -830,263 +832,28 @@ header [data-testid="stDecoration"]{display:none;}
 
 REQUIRED = {1, 2, 3}
 
-# ── UI strings per native language ────────────────────────────────────────
-READING_UI = {
-    "Ukrainian": {
-        "setup_title": "Читання",
-        "step1": "Слухай і повторюй",
-        "step1_icon": "🎧",
-        "step1_hint": "🎧 Слухай → ⏸ пауза → 🎤 повтори кожну фразу.",
-        "step2": "Прочитай слова",
-        "step2_icon": "👁️",
-        "step2_hint": "🎤 Запиши себе вголос і перевір вимову.",
-        "phonics_note": "🔤 Тут ми лише практикуємо звучання — оцінка вимови на окремих буквах/складах ненадійна, тож не рахуємо бали.",
-        "step3": "Послухай і знайди переклад",
-        "step3_icon": "🎯",
-        "step3_hint": "🎧 Слухай → 👆 натисни правильний переклад.",
-        "step4": "Повтори вголос",
-        "step4_icon": "🎤",
-        "step4_hint": "🎧 Слухай → 🎤 повтори → перевір результат.",
-        "step5": "Прочитай на час",
-        "step5_icon": "⏱️",
-        "step5_hint": "📖 Прочитай всі слова вголос якомога швидше.",
-        "step_label":      "КРОК",
-        "required":        "обов'язковий",
-        "continue":        "Продовжити →",
-        "next":            "Далі →",
-        "skip":            "Пропустити",
-        "skip_icon":       "⏭ Пропустити",
-        "check_pron":      "✓ Перевірити вимову",
-        "submit_check":    "✓ Завершити та перевірити",
-        "complete_lesson": "Завершити урок ✓",
-        "prev":            "◀ Попередній",
-        "next_icon":       "Наступний ▶",
-        "nav_prev":        "← Попередній",
-        "nav_repeat":      "🔄 Повторити",
-        "nav_prev_help":   "Повернутися до попереднього кроку",
-        "nav_repeat_help": "Перезапустити поточний крок",
-        "go_to_step":      "Перейти до кроку",
-        "step_word":       "Крок",
-        "jump_lesson":     "Перейти до уроку",
-        "nav_title":       "Навігація між кроками",
-        "record_first":    "Спочатку запиши аудіо!",
-        "transcribing":    "Розпізнаємо мовлення...",
-        "checking":        "Перевіряємо вимову...",
-        "seconds":         "секунд",
-        "accuracy":        "точність",
-        "your_path":       "Твій шлях · Reading",
-        "done":            "пройдено",
-        "ahead":           "попереду",
-        "lesson_complete": "Урок завершено!",
-        "step5_record":    "🎙️ Запиши себе, поки читаєш вголос всі слова",
-        "subtitle": 'Фонетика · IPA озвучка · 4 мови',
-        "lang_label": '🌐 Мова для вивчення',
-        "name_label": "👤 Ім'я",
-        "unit_label": '📚 Розділ',
-        "select_prefix": 'Обери',
-        "start_prefix":  'Почати',
-        "resume_next": '▶ Продовжуєш з уроку {next_lesson} (останній пройдений: {saved_lesson})',
-        "resume_step": '⏯ Повернешся до уроку {saved_lesson} на крок {resume_step}',
-        "try_first":       "Спочатку виконай завдання",
-        "main_menu":       "🏠 Головне меню",
-        "ai_reading_title":       "AI-текст для читання",
-        "ai_reading_intro":       "Читання за цим уроком закінчилось — генеруй нові тексти під свій рівень.",
-        "ai_reading_level_label": "Рівень",
-        "ai_reading_generate":    "Згенерувати новий текст",
-    },
-    "English": {
-        "setup_title": "Reading Practice",
-        "step1": "Listen & Repeat",
-        "step1_icon": "🎧",
-        "step1_hint": "🎧 Listen → ⏸ pause → 🎤 repeat each phrase.",
-        "step2": "Read the Words",
-        "step2_icon": "👁️",
-        "step2_hint": "🎤 Record yourself and check your pronunciation.",
-        "phonics_note": "🔤 Just practicing the sound here — pronunciation scoring on single letters/syllables isn't reliable, so we skip it.",
-        "step3": "Listen & Find",
-        "step3_icon": "🎯",
-        "step3_hint": "🎧 Listen → 👆 tap the correct translation.",
-        "step4": "Repeat Aloud",
-        "step4_icon": "🎤",
-        "step4_hint": "🎧 Listen → 🎤 repeat → check your result.",
-        "step5": "Speed Reading",
-        "step5_icon": "⏱️",
-        "step5_hint": "📖 Read all words aloud as fast as you can.",
-        "step_label":      "STEP",
-        "required":        "required",
-        "continue":        "Continue →",
-        "next":            "Next →",
-        "skip":            "Skip",
-        "skip_icon":       "⏭ Skip",
-        "check_pron":      "✓ Check Pronunciation",
-        "submit_check":    "✓ Submit & Check",
-        "complete_lesson": "Complete Lesson ✓",
-        "prev":            "◀ Previous",
-        "next_icon":       "Next ▶",
-        "nav_prev":        "← Previous",
-        "nav_repeat":      "🔄 Repeat",
-        "nav_prev_help":   "Go back to the previous step",
-        "nav_repeat_help": "Restart the current step",
-        "go_to_step":      "Go to step",
-        "step_word":       "Step",
-        "jump_lesson":     "Jump to lesson",
-        "nav_title":       "Step navigation",
-        "record_first":    "Record audio first!",
-        "transcribing":    "Transcribing...",
-        "checking":        "Checking pronunciation...",
-        "seconds":         "seconds",
-        "accuracy":        "accuracy",
-        "your_path":       "Your path · Reading",
-        "done":            "done",
-        "ahead":           "ahead",
-        "lesson_complete": "Lesson complete!",
-        "step5_record":    "🎙️ Record yourself reading all words out loud",
-        "subtitle": 'Phonetics · IPA audio · 4 languages',
-        "lang_label": '🌐 Language to learn',
-        "name_label": '👤 Name',
-        "unit_label": '📚 Unit',
-        "select_prefix": 'Select',
-        "start_prefix":  'Start',
-        "resume_next": '▶ Continue from Lesson {next_lesson} (last completed: {saved_lesson})',
-        "resume_step": '⏯ Resume Lesson {saved_lesson} at Step {resume_step}',
-        "try_first":       "Complete the exercise first",
-        "main_menu":       "🏠 Main menu",
-        "ai_reading_title":       "AI reading practice",
-        "ai_reading_intro":       "You've finished this language's reading track — generate new passages at your level.",
-        "ai_reading_level_label": "Level",
-        "ai_reading_generate":    "Generate a new passage",
-    },
-    "Spanish": {
-        "setup_title": "Práctica de lectura",
-        "step1": "Escucha y repite",
-        "step1_icon": "🎧",
-        "step1_hint": "🎧 Escucha → ⏸ pausa → 🎤 repite cada frase.",
-        "step2": "Lee las palabras",
-        "step2_icon": "👁️",
-        "step2_hint": "🎤 Grábate y verifica tu pronunciación.",
-        "phonics_note": "🔤 Aquí solo practicamos el sonido — la evaluación de pronunciación en letras/sílabas sueltas no es fiable, así que no la usamos.",
-        "step3": "Escucha y encuentra",
-        "step3_icon": "🎯",
-        "step3_hint": "🎧 Escucha → 👆 toca la traducción correcta.",
-        "step4": "Repite en voz alta",
-        "step4_icon": "🎤",
-        "step4_hint": "🎧 Escucha → 🎤 repite → verifica tu resultado.",
-        "step5": "Lectura veloz",
-        "step5_icon": "⏱️",
-        "step5_hint": "📖 Lee todas las palabras en voz alta lo más rápido posible.",
-        "step_label":      "PASO",
-        "required":        "obligatorio",
-        "continue":        "Continuar →",
-        "next":            "Siguiente →",
-        "skip":            "Omitir",
-        "skip_icon":       "⏭ Omitir",
-        "check_pron":      "✓ Verificar pronunciación",
-        "submit_check":    "✓ Enviar y verificar",
-        "complete_lesson": "Completar lección ✓",
-        "prev":            "◀ Anterior",
-        "next_icon":       "Siguiente ▶",
-        "nav_prev":        "← Anterior",
-        "nav_repeat":      "🔄 Repetir",
-        "nav_prev_help":   "Volver al paso anterior",
-        "nav_repeat_help": "Reiniciar el paso actual",
-        "go_to_step":      "Ir al paso",
-        "step_word":       "Paso",
-        "jump_lesson":     "Saltar a lección",
-        "nav_title":       "Navegación de pasos",
-        "record_first":    "¡Graba audio primero!",
-        "transcribing":    "Transcribiendo...",
-        "checking":        "Verificando pronunciación...",
-        "seconds":         "segundos",
-        "accuracy":        "precisión",
-        "your_path":       "Tu camino · Lectura",
-        "done":            "completado",
-        "ahead":           "por delante",
-        "lesson_complete": "¡Lección completada!",
-        "step5_record":    "🎙️ Grábate leyendo todas las palabras en voz alta",
-        "subtitle": 'Fonética · Audio IPA · 4 idiomas',
-        "lang_label": '🌐 Idioma a aprender',
-        "name_label": '👤 Nombre',
-        "unit_label": '📚 Unidad',
-        "select_prefix": 'Selecciona',
-        "start_prefix":  'Empezar',
-        "resume_next": '▶ Continuar desde Lección {next_lesson} (última completada: {saved_lesson})',
-        "resume_step": '⏯ Retomar Lección {saved_lesson} en el Paso {resume_step}',
-        "try_first":       "Primero completa el ejercicio",
-        "main_menu":       "🏠 Menú principal",
-        "ai_reading_title":       "Lectura con IA",
-        "ai_reading_intro":       "Has terminado la pista de lectura de este idioma — genera nuevos textos a tu nivel.",
-        "ai_reading_level_label": "Nivel",
-        "ai_reading_generate":    "Generar un nuevo texto",
-    },
-    "Korean": {
-        "setup_title": "읽기 연습",
-        "step1": "듣고 따라 말하기",
-        "step1_icon": "🎧",
-        "step1_hint": "🎧 듣기 → ⏸ 일시정지 → 🎤 각 문장 따라 말하기.",
-        "step2": "단어 읽기",
-        "step2_icon": "👁️",
-        "step2_hint": "🎤 녹음하여 발음을 확인하세요.",
-        "phonics_note": "🔤 여기서는 소리 연습만 해요 — 낱자/음절 단위 발음 채점은 정확하지 않아서 점수를 매기지 않아요.",
-        "step3": "듣고 찾기",
-        "step3_icon": "🎯",
-        "step3_hint": "🎧 듣기 → 👆 올바른 번역 누르기.",
-        "step4": "소리 내어 반복",
-        "step4_icon": "🎤",
-        "step4_hint": "🎧 듣기 → 🎤 반복 → 결과 확인.",
-        "step5": "빠른 읽기",
-        "step5_icon": "⏱️",
-        "step5_hint": "📖 최대한 빠르게 모든 단어를 소리 내어 읽으세요.",
-        "step_label":      "단계",
-        "required":        "필수",
-        "continue":        "계속 →",
-        "next":            "다음 →",
-        "skip":            "건너뛰기",
-        "skip_icon":       "⏭ 건너뛰기",
-        "check_pron":      "✓ 발음 확인",
-        "submit_check":    "✓ 제출 및 확인",
-        "complete_lesson": "수업 완료 ✓",
-        "prev":            "◀ 이전",
-        "next_icon":       "다음 ▶",
-        "nav_prev":        "← 이전",
-        "nav_repeat":      "🔄 반복",
-        "nav_prev_help":   "이전 단계로 돌아가기",
-        "nav_repeat_help": "현재 단계 다시 시작",
-        "go_to_step":      "단계로 이동",
-        "step_word":       "단계",
-        "jump_lesson":     "수업으로 이동",
-        "nav_title":       "단계 탐색",
-        "record_first":    "먼저 오디오를 녹음하세요!",
-        "transcribing":    "전사 중...",
-        "checking":        "발음 확인 중...",
-        "seconds":         "초",
-        "accuracy":        "정확도",
-        "your_path":       "학습 경로 · 읽기",
-        "done":            "완료",
-        "ahead":           "남음",
-        "lesson_complete": "수업 완료!",
-        "step5_record":    "🎙️ 모든 단어를 소리 내어 읽으며 녹음하세요",
-        "subtitle": '음성학 · IPA 오디오 · 4개 언어',
-        "lang_label": '🌐 학습할 언어',
-        "name_label": '👤 이름',
-        "unit_label": '📚 단원',
-        "select_prefix": '선택',
-        "start_prefix":  '시작',
-        "resume_next": '▶ 수업 {next_lesson}에서 계속 (마지막 완료: {saved_lesson})',
-        "resume_step": '⏯ 수업 {saved_lesson} 단계 {resume_step}에서 재개',
-        "try_first":       "먼저 연습을 완료하세요",
-        "main_menu":       "🏠 메인 메뉴",
-        "ai_reading_title":       "AI 읽기 연습",
-        "ai_reading_intro":       "이 언어의 읽기 과정을 모두 마쳤습니다 — 본인 수준에 맞는 새 지문을 생성하세요.",
-        "ai_reading_level_label": "레벨",
-        "ai_reading_generate":    "새 지문 생성",
-    },
+_READING_ICONS = {
+    "step1_icon": "\U0001F3A7", "step2_icon": "\U0001F441\uFE0F",
+    "step3_icon": "\U0001F3AF", "step4_icon": "\U0001F3A4",
+    "step5_icon": "\u23F1\uFE0F",
 }
+_READING_SHARED_KEYS = {"step_label", "required", "try_first", "main_menu"}
 
 
 def _ui(key: str) -> str:
-    """Return a UI string in the user's native language (falls back to English)."""
+    """Return a UI string in the user's native language (falls back to
+    English via engine.i18n.get()). Migrated off this file's own
+    4-language READING_UI dict (2026-09-07) onto engine.i18n's shared
+    14-language STRINGS, same "reading_" prefix pattern custom_app.py
+    already uses for "custom_" -- except the 5 step icons (identical
+    across every language, not real translations) and the 4 keys that
+    reuse the app-wide unprefixed key verbatim, same as custom_app.py's
+    _t()."""
+    if key in _READING_ICONS:
+        return _READING_ICONS[key]
     native = st.session_state.get("launcher_native", "English")
-    return READING_UI.get(native, READING_UI["English"]).get(key, READING_UI["English"].get(key, key))
+    ikey = key if key in _READING_SHARED_KEYS else f"reading_{key}"
+    return i18n.get(native, ikey)
 
 
 def _r_steps() -> dict:
@@ -1469,7 +1236,7 @@ def clear_step_state():
 
 def clear_all():
     _keep = {k: st.session_state[k] for k in
-             ("launcher_user", "launcher_native", "launcher_target")
+             ("launcher_user", "launcher_native", "launcher_target", "_dark_mode")
              if k in st.session_state}
     # Set by path_app.py::_launch_unit() when the lesson was opened from My
     # Path (default) or from Search (return_module="search") -- routes back
@@ -1493,18 +1260,25 @@ def clear_all():
 # ═══════════════════════════════════════════════════════════════════════════
 
 def _render_module_nav_sidebar(current_module: str) -> None:
-    """Render the module-switcher sidebar (shared by setup and active-lesson views)."""
+    """Render the module-switcher sidebar (shared by setup and active-lesson
+    views). Localized + Phrasebook added (2026-09-07) -- was hardcoded
+    English with no Phrasebook entry, the same gap grammar.py's own copy of
+    this sidebar was already fixed for earlier the same day. Also now
+    preserves dark mode across the switch, same fix as every other
+    session_state-wiping mode switch in the app."""
+    _sb_native = st.session_state.get("launcher_native", "English")
     _MODS = [
-        ("grammar", "🗣️", "Grammar"),
-        ("vocab",   "📖", "Vocabulary"),
-        ("reading", "🔤", "Reading"),
-        ("custom",  "📝", "My Phrases"),
-        ("search",  "🔍", "Search"),
+        ("grammar",    "🗣️", i18n.get(_sb_native, "module_grammar")),
+        ("vocab",      "📖", i18n.get(_sb_native, "module_vocab")),
+        ("phrasebook", "💬", i18n.get(_sb_native, "module_phrasebook")),
+        ("reading",    "🔤", i18n.get(_sb_native, "module_reading")),
+        ("custom",     "📝", i18n.get(_sb_native, "module_custom")),
+        ("search",     "🔍", i18n.get(_sb_native, "search_title")),
     ]
     st.markdown(
         '<div style="font-size:.7rem;color:var(--mova-ink-3);'
         'text-transform:uppercase;letter-spacing:.07em;margin-bottom:6px">'
-        'Module</div>',
+        f'{i18n.get(_sb_native, "pq_module_label")}</div>',
         unsafe_allow_html=True,
     )
     for _mk, _mi, _mn in _MODS:
@@ -1519,6 +1293,7 @@ def _render_module_nav_sidebar(current_module: str) -> None:
             _u = st.session_state.get("launcher_user", "student1")
             _n = st.session_state.get("launcher_native", "Ukrainian")
             _t = st.session_state.get("launcher_target", "English")
+            _d = st.session_state.get("_dark_mode", False)
             for _k in list(st.session_state):
                 del st.session_state[_k]
             st.session_state.update({
@@ -1526,6 +1301,7 @@ def _render_module_nav_sidebar(current_module: str) -> None:
                 "launcher_user":   _u,
                 "launcher_native": _n,
                 "launcher_target": _t,
+                "_dark_mode":      _d,
             })
             st.query_params["module"] = _mk
             st.rerun()
@@ -1663,6 +1439,17 @@ def render_setup():
                 default_idx = lessons.index(next_lesson)
                 resume_step = 1
                 resume_msg  = _ui("resume_next").format(next_lesson=next_lesson, saved_lesson=saved_lesson)
+            else:
+                # next_lesson isn't in the track -- either it's finished, or
+                # (arithmetic +1, not lookup-by-position) there's a gap in
+                # lesson ids; either way silently resetting to Lesson 1 with
+                # no acknowledgment (2026-09-07 finding) was confusing, esp.
+                # since this exact state is what gates the AI reading
+                # practice feature below. Same message grammar.py's
+                # render_setup() already shows for this state.
+                native = st.session_state.get("launcher_native", "English")
+                _module_label = i18n.get(native, "module_reading")
+                st.success(i18n.get(native, "all_lessons_completed_msg").format(module=_module_label))
         else:
             if saved_lesson in lessons:
                 default_idx = lessons.index(saved_lesson)
@@ -2068,7 +1855,11 @@ def main():
                 print(f"[reading_app] save_progress failed: {e}")
         if GAMI_OK and not st.session_state.get("_r_gami_lesson_saved"):
             try:
-                _rllang = {"English":"en","Ukrainian":"uk","Spanish":"es","Korean":"ko"}.get(st.session_state.get("launcher_native","English"),"en")
+                # launcher_native holds a language *name* -- LANG_TO_CODE is
+                # the canonical name->code map for all 14 supported languages
+                # (previously a local 4-entry dict, same bug already fixed in
+                # grammar.py's equivalent toast, missed here).
+                _rllang = _recommender.LANG_TO_CODE.get(st.session_state.get("launcher_native","English"),"en")
                 _lres = on_lesson_complete(cur_user, _rllang)
                 # Name from onboarding (2026-09-06, same "key moments only"
                 # scope as grammar.py's lesson-complete toast) -- falls back
