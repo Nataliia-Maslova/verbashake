@@ -2699,21 +2699,6 @@ def phase3_practice(session: LessonSession, tts_lang: str, wh_lang: str) -> bool
 
     st.markdown(f"## {i18n.get(native_lang, 'practice_title')}")
 
-    # ── Error review (shown after test is checked) ────────────────────────
-    if st.session_state.get("p3_checked"):
-        for i, res in enumerate(st.session_state.get("p3_results", [])):
-            icon = "✅" if res["correct"] else "❌"
-            st.markdown(f"{icon} **{i + 1}.** {res.get('feedback', '')}")
-
-        if _phase_error_review("practice", wh_lang, target_lang, native_lang):
-            if st.button(
-                i18n.get(native_lang, "next"), type="primary", key="p3_next"
-            ):
-                for k in ("p3_test", "p3_answers", "p3_results", "p3_checked"):
-                    st.session_state.pop(k, None)
-                return True
-        return False
-
     # ── Test type picker — every variant shown as its own card with its own
     # Generate button (Наталья, 2026-09-07: не выпадающим списком, а кнопки
     # под каждым вариантом), instead of a single dropdown + one shared
@@ -2780,12 +2765,20 @@ def phase3_practice(session: LessonSession, tts_lang: str, wh_lang: str) -> bool
     generate_clicked = _clicked_type is not None
     regen_clicked = st.button(
         i18n.get(native_lang, "new_exercise"), key="p3_regen",
-        disabled=test_type is None or "p3_test" not in st.session_state,
+        disabled=test_type is None,
     )
 
+    # 2026-09-09, Наталья: generating a new exercise used to REPLACE the one
+    # on screen (single st.session_state["p3_test"]) — she wants to be able
+    # to try several exercises in a row and see them stack, each as its own
+    # row below the previous one, instead of losing what she just did.
+    # p3_exercises is now a growing list; each entry carries its own
+    # answers/checked/results so every block is independently answerable —
+    # generating a new one never touches the ones already on screen.
     if generate_clicked or regen_clicked:
         try:
             with st.spinner(i18n.get(native_lang, "generating_ex")):
+                tg_unit_id = None
                 if test_type == "construction_drill":
                     # Fresh sentences built from the lesson's own construction +
                     # level-appropriate vocabulary (engine.cefr_wordlist for
@@ -2800,7 +2793,7 @@ def phase3_practice(session: LessonSession, tts_lang: str, wh_lang: str) -> bool
                         [p["target"] for p in session.phrases()],
                         level, native_lang, target_lang,
                     )
-                    st.session_state["p3_test"] = {
+                    new_test = {
                         "instructions": i18n.get(native_lang, "translation_type"),
                         "items": [
                             {"question": it["native"], "answer": it["target"], "options": []}
@@ -2832,10 +2825,10 @@ def phase3_practice(session: LessonSession, tts_lang: str, wh_lang: str) -> bool
                             native_lang, target_lang,
                         )
                         items = drill.get("items", [])
-                    st.session_state["p3_tg_unit_id"] = _recommender.target_grammar_unit_id(
+                    tg_unit_id = _recommender.target_grammar_unit_id(
                         target_lang, _target_grammar_choice["key"],
                     )
-                    st.session_state["p3_test"] = {
+                    new_test = {
                         "instructions": f"{_target_grammar_choice['title']} "
                                         f"({_target_grammar_choice['gloss_en']}) — "
                                         f"{i18n.get(native_lang, 'translation_type')}",
@@ -2848,98 +2841,129 @@ def phase3_practice(session: LessonSession, tts_lang: str, wh_lang: str) -> bool
                     combined_phrases = session.phrases() + _extra_practice_phrases(
                         session, module, target_lang, native_lang,
                     )
-                    st.session_state["p3_test"] = _gemini.generate_practice_test(
+                    new_test = _gemini.generate_practice_test(
                         level, topic, target_lang, native_lang, test_type,
                         phrases=combined_phrases, module=module,
                     )
-                st.session_state["p3_answers"] = {}
-                st.session_state["p3_checked"] = False
-                st.session_state.pop("p3_results", None)
+            st.session_state.setdefault("p3_exercises", []).append({
+                "type":       test_type,
+                "test":       new_test,
+                "answers":    {},
+                "checked":    False,
+                "results":    [],
+                "tg_unit_id": tg_unit_id,
+            })
         except _gemini.PaidFeatureRequired:
             _show_upsell("p3_gen")
             return False
 
-    if "p3_test" not in st.session_state:
-        return False
+    exercises = st.session_state.get("p3_exercises", [])
 
-    test = st.session_state["p3_test"]
-    if test.get("instructions"):
-        st.markdown(f"**{test['instructions']}**")
-
-    # ── Render items ──────────────────────────────────────────────────────
-    for i, item in enumerate(test.get("items", [])):
-        st.markdown(f"**{i + 1}.** {item['question']}")
-        if test_type == "multiple_choice" and item.get("options"):
-            choice = st.radio(
-                "", item["options"],
-                key=f"p3_q{i}", label_visibility="collapsed",
+    # ── Render every generated exercise, oldest first — each one its own
+    # card with its own inputs and its own Check button, so earlier ones
+    # stay visible (and answerable) while later ones are added below.
+    for ex_idx, ex in enumerate(exercises):
+        with st.container(border=True):
+            _ex_type = ex["type"]
+            st.markdown(
+                f"**{i18n.get(native_lang, 'exercise_label')} {ex_idx + 1} "
+                f"— {_type_labels.get(_ex_type, _ex_type)}**"
             )
-            st.session_state["p3_answers"][i] = choice
-        else:
-            ans = st.text_input(i18n.get(native_lang, "answer_label"), key=f"p3_q{i}")
-            st.session_state["p3_answers"][i] = ans
+            _test = ex["test"]
+            if _test.get("instructions"):
+                st.markdown(f"*{_test['instructions']}*")
 
-    # ── Check button ──────────────────────────────────────────────────────
-    if st.button(i18n.get(native_lang, "check_btn"), type="primary", key="p3_check"):
-        results = []
-        _tg_correct_seq: list[bool] = []
-        try:
-            for i, item in enumerate(test.get("items", [])):
-                student_ans = st.session_state["p3_answers"].get(i, "")
-                if test_type == "multiple_choice":
-                    passed = evaluate(student_ans, item["answer"])["passed"]
-                    res = {
-                        "correct": passed,
-                        "feedback": i18n.get(native_lang, "correct") if passed
-                                    else f"{i18n.get(native_lang, 'try_again')} {item['answer']}",
-                    }
-                else:
-                    res = _gemini.check_practice_answer(
-                        item["question"], student_ans, item["answer"],
-                        target_lang, native_lang,
-                    )
-                results.append(res)
-                if not res["correct"]:
-                    _collect_error(
-                        student_ans, item["answer"],
-                        res.get("feedback", ""), "practice",
-                        native_prompt=item["question"],
-                    )
-                    # target_grammar already gets its own, richer
-                    # record_results() batch call below (per-topic unit, not
-                    # this lesson's own unit_id) -- every other test_type
-                    # here used to be fully ephemeral (2026-09-06 fix: a
-                    # wrong Practice answer now dings THIS lesson's mastery/
-                    # SRS too, same as a wrong Phase 2 phrase already does).
-                    if test_type != "target_grammar":
-                        _record_mistake(session, target_lang, [{"topic_en": res.get("topic_en")}])
-                # target_grammar is the only Phase-3 test_type that writes to
-                # mastery/SRS (CLAUDE.md 2026-08-23) -- every other test_type
-                # here has always been ephemeral practice (session.score()
-                # already covers the underlying lesson's own phrases in
-                # Phase 2), but target_grammar topics have no Phase-2
-                # equivalent at all, so without this they'd never
-                # accumulate any progress anywhere. Collected here and
-                # written once after the loop via record_results() instead
-                # of once per item -- record_result() per item meant up to
-                # 5 items x 5 DB round-trips each = up to 25 sequential
-                # round-trips for one click.
-                if test_type == "target_grammar" and st.session_state.get("p3_tg_unit_id"):
-                    _tg_correct_seq.append(res["correct"])
-            if test_type == "target_grammar" and st.session_state.get("p3_tg_unit_id") and _tg_correct_seq:
-                try:
-                    _recommender.record_results(
-                        session.state.user_id, target_lang,
-                        st.session_state["p3_tg_unit_id"], _tg_correct_seq,
-                    )
-                except Exception:
-                    pass
-        except _gemini.PaidFeatureRequired:
-            _show_upsell("p3_check")
-            return False
-        st.session_state["p3_results"] = results
-        st.session_state["p3_checked"] = True
-        st.rerun()
+            if not ex["checked"]:
+                for i, item in enumerate(_test.get("items", [])):
+                    st.markdown(f"**{i + 1}.** {item['question']}")
+                    if _ex_type == "multiple_choice" and item.get("options"):
+                        choice = st.radio(
+                            "", item["options"],
+                            key=f"p3_ex{ex_idx}_q{i}", label_visibility="collapsed",
+                        )
+                        ex["answers"][i] = choice
+                    else:
+                        ans = st.text_input(
+                            i18n.get(native_lang, "answer_label"), key=f"p3_ex{ex_idx}_q{i}"
+                        )
+                        ex["answers"][i] = ans
+
+                if st.button(
+                    i18n.get(native_lang, "check_btn"), type="primary", key=f"p3_check_{ex_idx}"
+                ):
+                    results = []
+                    _tg_correct_seq: list[bool] = []
+                    try:
+                        for i, item in enumerate(_test.get("items", [])):
+                            student_ans = ex["answers"].get(i, "")
+                            if _ex_type == "multiple_choice":
+                                passed = evaluate(student_ans, item["answer"])["passed"]
+                                res = {
+                                    "correct": passed,
+                                    "feedback": i18n.get(native_lang, "correct") if passed
+                                                else f"{i18n.get(native_lang, 'try_again')} {item['answer']}",
+                                }
+                            else:
+                                res = _gemini.check_practice_answer(
+                                    item["question"], student_ans, item["answer"],
+                                    target_lang, native_lang,
+                                )
+                            results.append(res)
+                            if not res["correct"]:
+                                _collect_error(
+                                    student_ans, item["answer"],
+                                    res.get("feedback", ""), "practice",
+                                    native_prompt=item["question"],
+                                )
+                                # target_grammar already gets its own, richer
+                                # record_results() batch call below (per-topic
+                                # unit, not this lesson's own unit_id) -- every
+                                # other test_type here used to be fully
+                                # ephemeral (2026-09-06 fix: a wrong Practice
+                                # answer now dings THIS lesson's mastery/SRS
+                                # too, same as a wrong Phase 2 phrase already
+                                # does).
+                                if _ex_type != "target_grammar":
+                                    _record_mistake(session, target_lang, [{"topic_en": res.get("topic_en")}])
+                            # target_grammar is the only Phase-3 test_type
+                            # that writes to mastery/SRS (CLAUDE.md
+                            # 2026-08-23) -- collected here and written once
+                            # after the loop via record_results() instead of
+                            # once per item (up to 5 items x 5 DB round-trips
+                            # each = up to 25 sequential round-trips for one
+                            # click otherwise).
+                            if _ex_type == "target_grammar" and ex.get("tg_unit_id"):
+                                _tg_correct_seq.append(res["correct"])
+                        if _ex_type == "target_grammar" and ex.get("tg_unit_id") and _tg_correct_seq:
+                            try:
+                                _recommender.record_results(
+                                    session.state.user_id, target_lang,
+                                    ex["tg_unit_id"], _tg_correct_seq,
+                                )
+                            except Exception:
+                                pass
+                    except _gemini.PaidFeatureRequired:
+                        _show_upsell(f"p3_check_{ex_idx}")
+                        return False
+                    ex["results"] = results
+                    ex["checked"] = True
+                    st.rerun()
+            else:
+                for i, res in enumerate(ex.get("results", [])):
+                    icon = "✅" if res["correct"] else "❌"
+                    st.markdown(f"{icon} **{i + 1}.** {res.get('feedback', '')}")
+
+    # ── Error review + phase completion, once at least one exercise has
+    # been checked — same _phase_error_review used everywhere else, just no
+    # longer gated on a single global "checked" flag now that several
+    # exercises can be in flight/checked at once.
+    if any(ex["checked"] for ex in exercises):
+        if _phase_error_review("practice", wh_lang, target_lang, native_lang):
+            if st.button(
+                i18n.get(native_lang, "next"), type="primary", key="p3_next"
+            ):
+                st.session_state.pop("p3_exercises", None)
+                return True
 
     return False
 
@@ -3345,7 +3369,7 @@ def _video_ai_search_prompt(target_lang: str, native_lang: str, level: str, inte
     )
 
 
-def phase5_video(session: LessonSession) -> bool:
+def phase5_video(session: LessonSession) -> str | None:
     """
     Phase 5: curated YouTube channels for the student's target language and
     CEFR level. Reads data/youtube_channels.csv — no live API calls.
@@ -3356,8 +3380,12 @@ def phase5_video(session: LessonSession) -> bool:
     exactly this lesson's level. Наталья live-tested it and the same one
     video kept reappearing across every lesson at that level, which read as
     stale -- a channel LIST lets the student actually explore instead of
-    hitting the same single clip every time. Returns True when the user
-    clicks "До головного меню →".
+    hitting the same single clip every time.
+
+    Returns "next" when the user clicks "Next lesson", "menu" when they
+    click "Back to main menu", None while still on this screen -- 2026-09-09,
+    Наталья: the only exit from this screen used to be back-to-menu, forcing
+    a trip through the lesson picker to keep studying.
     """
     state       = session.state
     level       = _lesson_level(session)
@@ -3401,9 +3429,16 @@ def phase5_video(session: LessonSession) -> bool:
         st.code(_video_ai_search_prompt(target_lang, native_lang, level, interest), language=None)
 
     st.markdown("---")
-    if st.button(i18n.get(native_lang, "to_main_menu"), type="primary", key="p5_done"):
-        return True
-    return False
+    col1, col2 = st.columns(2)
+    with col1:
+        if st.button(i18n.get(native_lang, "path_next_lesson_title"),
+                     type="primary", use_container_width=True, key="p5_next"):
+            return "next"
+    with col2:
+        if st.button(i18n.get(native_lang, "to_main_menu"),
+                     use_container_width=True, key="p5_done"):
+            return "menu"
+    return None
 
 
 def phase5_summary(session: LessonSession) -> bool:
@@ -3852,7 +3887,8 @@ def main(module: str = "grammar"):
 
     # ── Phase 5: YouTube Video ────────────────────────────────────────────────
     if _phase == 5:
-        if phase5_video(sess):
+        _p5_action = phase5_video(sess)
+        if _p5_action:
             # Whole-lesson gamification (bonus XP, streak, lessons_completed,
             # badges) — CLAUDE.md 2026-08-23: on_lesson_complete() existed
             # and worked (engine/gamification.py, same call reading_app.py
@@ -3891,6 +3927,55 @@ def main(module: str = "grammar"):
             st.session_state.pop("lesson_phase", None)
             st.session_state.pop("p5_topic", None)
             st.session_state.pop("p5_topic_display", None)
+
+            if _p5_action == "next":
+                # Straight into the next lesson, no trip through the picker
+                # -- 2026-09-09, Наталья: "Video" screen used to dead-end at
+                # only "back to main menu". Position-based, not lesson_id+1
+                # -- same fix as render_setup()'s resume banner and the
+                # (dead-code, but already-correct) render_complete()'s own
+                # "Next lesson" button: lesson_id isn't dense once
+                # target-grammar-path lessons (1000+) are spliced in.
+                _next_ok = False
+                _pstate  = sess.state
+                try:
+                    _df_all  = cfg["load"](str(cfg["db_path"]), _pstate.native_lang, _pstate.target_lang)
+                    _lessons = cfg["get_lessons"](_df_all)
+                    _next_id = (_lessons[_lessons.index(_pstate.lesson_id) + 1]
+                                if _pstate.lesson_id in _lessons and _lessons.index(_pstate.lesson_id) + 1 < len(_lessons)
+                                else None)
+                    if _next_id is not None:
+                        from engine.recommender import unit_id_for
+                        _lesson_df = cfg["get_lesson"](_df_all, _next_id)
+                        _next_topic = None
+                        if cfg.get("lang_suffix") in ("vocab", "phrasebook"):
+                            _next_topic = _recommender.vocab_topic_for_lesson(
+                                _next_id, _pstate.target_lang, cfg["db_path"])
+                        st.session_state.update({
+                            "session": LessonSession(
+                                _pstate.user_id, _lesson_df, _next_id,
+                                _pstate.native_lang, _pstate.target_lang,
+                                language_pair=_pstate.language_pair,
+                                unit_id=unit_id_for(cfg.get("lang_suffix"), _next_id, _next_topic),
+                            ),
+                            "lesson_step":  1,
+                            "lesson_phase": 1,
+                        })
+                        if _ltoasts:
+                            st.session_state["_pending_toasts"] = _ltoasts
+                        _next_ok = True
+                        st.rerun()
+                    else:
+                        _ltoasts.append(i18n.get(_pstate.native_lang, "all_lessons_completed_msg")
+                                         .format(module=i18n.get(_pstate.native_lang, f"module_{module}")))
+                except Exception as e:
+                    print(f"[app] Phase 5 next-lesson error: {e}")
+                if _next_ok:
+                    return
+                # No next lesson (end of the module) or the lookup failed --
+                # fall through to the ordinary "back to main menu" path below
+                # instead of leaving the student stuck on a blank screen.
+
             # A lesson started directly from this module's own picker (e.g.
             # via the sidebar module switcher) never went through
             # path_app.py::_launch_unit(), so _return_module was never set --
