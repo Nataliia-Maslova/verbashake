@@ -13,9 +13,31 @@ for the exact keys and how to get them from Google Cloud Console.
 """
 from __future__ import annotations
 
+from pathlib import Path
+
 import streamlit as st
 
 from engine import signup_gate
+
+_PRIVACY_HTML_PATH = Path(__file__).parent.parent / "static" / "legal" / "privacy.html"
+
+
+def render_privacy_policy(height: int = 400) -> None:
+    """
+    Renders static/legal/privacy.html inline via components.html (an
+    iframe) instead of linking/navigating to it directly -- see the
+    docstring next to show()'s call site for why a direct link is broken on
+    Streamlit Community Cloud. Shared by show() (login-gate consent) and
+    engine.gamification's sidebar footer link, so the fix lives in one place.
+    """
+    try:
+        import streamlit.components.v1 as _components
+        _components.html(
+            _PRIVACY_HTML_PATH.read_text(encoding="utf-8"),
+            height=height, scrolling=True,
+        )
+    except Exception:
+        st.caption("Privacy Policy is temporarily unavailable — please try again shortly.")
 
 _GATE_CSS = """
 <style>
@@ -58,12 +80,23 @@ def show() -> None:
         # Consent gate: the login button stays disabled until this is
         # checked, so nobody's account/progress data is created before they
         # could see the Privacy Policy — not just a link next to the button.
-        st.markdown(
-            '<div style="text-align:center;margin-bottom:6px;font-size:.9rem">'
-            '📄 <a href="app/static/legal/privacy.html" target="_blank">Privacy Policy</a>'
-            '</div>',
-            unsafe_allow_html=True,
-        )
+        #
+        # Was a plain <a href="app/static/legal/privacy.html" target="_blank">
+        # -- looked right, but a direct top-level navigation to a static path
+        # under a *.streamlit.app domain gets wrapped in Streamlit Community
+        # Cloud's own app-loading shell (confirmed live 2026-09-16: the file
+        # itself 200s at the platform's internal proxy path, but the tab just
+        # spins forever instead of rendering it -- that shell doesn't know
+        # what to do with a raw static file, only with an actual Streamlit
+        # script). Fetching the same file from WITHIN an already-loaded
+        # Streamlit page works fine (confirmed separately for the PWA
+        # manifest) -- the difference is navigation vs. same-page fetch, not
+        # the static-serving config itself. Rendering the policy inline via
+        # components.html (an iframe, same mechanism already used for dark
+        # mode/PWA head injection elsewhere in this app) sidesteps the whole
+        # navigation path.
+        with st.expander("📄 Privacy Policy"):
+            render_privacy_policy()
         agreed = st.checkbox("I have read and agree to the Privacy Policy", key="_consent_privacy")
         if st.button("Continue with Google", type="primary", use_container_width=True, disabled=not agreed):
             st.login()

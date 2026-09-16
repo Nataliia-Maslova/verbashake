@@ -47,6 +47,7 @@ from engine import auth_gate        # noqa: E402
 from engine import billing          # noqa: E402
 from engine import user_prefs       # noqa: E402
 from engine import client_tz        # noqa: E402
+from engine import feedback         # noqa: E402
 from engine.gamification import sidebar_widget  # noqa: E402
 
 # Used for fetching progress on the launcher
@@ -917,6 +918,28 @@ def _switch_to(module_key: str):
     st.rerun()
 
 
+def _render_feedback_widget(user_id: str | None, module: str | None) -> None:
+    """
+    "🐛 Report a problem" — one shared widget, added to the bottom of the
+    sidebar in main()'s dispatch (below) so it appears under every module's
+    own sidebar content without touching grammar.py/reading_app.py/
+    path_app.py/search_app.py individually. context is whatever this call
+    site already knows about where the student is (just `module` for now —
+    engine.feedback.submit_feedback's context is a free dict, callers can
+    pass more later without a schema change).
+    """
+    native = st.session_state.get("launcher_native", "English")
+    with st.expander(i18n.get(native, "feedback_title")):
+        msg = st.text_area(
+            i18n.get(native, "feedback_placeholder"),
+            key="_feedback_msg", label_visibility="collapsed",
+        )
+        if st.button(i18n.get(native, "feedback_send_btn"), key="_feedback_send"):
+            if feedback.submit_feedback(user_id or "anonymous", msg, {"module": module}):
+                st.session_state.pop("_feedback_msg", None)
+                st.success(i18n.get(native, "feedback_sent_msg"))
+
+
 # ═══════════════════════════════════════════════════════════════════════════
 # Main router
 # ═══════════════════════════════════════════════════════════════════════════
@@ -1091,38 +1114,53 @@ def main():
         render_launcher()
         return
 
-    if active == "grammar":
-        grammar_app.main(module="grammar")
-    elif active == "vocab":
-        grammar_app.main(module="vocab")
-    elif active == "phrasebook":
-        grammar_app.main(module="phrasebook")
-    elif active == "reading":
-        # Sync launcher target language -> reading language code (only if not yet set)
-        _TARGET_TO_RLANG = {
-            "English":   "en",
-            "Ukrainian": "uk",
-            "Spanish":   "es",
-            "Korean":    "ko",
-        }
-        _target = st.session_state.get("launcher_target", "English")
-        if "r_lang" not in st.session_state:
-            st.session_state["r_lang"] = _TARGET_TO_RLANG.get(_target, "en")
-        reading_app.main()
-    elif active == "custom":
-        custom_app.main()
-    elif active == "path":
-        path_app.main()
-    elif active == "search":
-        search_app.main()
-    else:
-        # Unknown module - reset
-        dark = st.session_state.get("_dark_mode", False)
-        for k in list(st.session_state):
-            del st.session_state[k]
-        st.session_state["_dark_mode"] = dark
-        st.query_params.clear()
-        render_launcher()
+    # Wrapped so a bug anywhere downstream (any module, any Gemini call that
+    # isn't already its own try/except) gets logged server-side instead of
+    # only ever showing up in Streamlit Cloud's own log viewer, which nobody
+    # watches live (2026-09-16, before the first test-user launch). Doesn't
+    # catch st.rerun()/st.stop() -- those raise ScriptControlException, a
+    # BaseException subclass, not Exception, so this never interferes with
+    # normal Streamlit control flow.
+    try:
+        if active == "grammar":
+            grammar_app.main(module="grammar")
+        elif active == "vocab":
+            grammar_app.main(module="vocab")
+        elif active == "phrasebook":
+            grammar_app.main(module="phrasebook")
+        elif active == "reading":
+            # Sync launcher target language -> reading language code (only if not yet set)
+            _TARGET_TO_RLANG = {
+                "English":   "en",
+                "Ukrainian": "uk",
+                "Spanish":   "es",
+                "Korean":    "ko",
+            }
+            _target = st.session_state.get("launcher_target", "English")
+            if "r_lang" not in st.session_state:
+                st.session_state["r_lang"] = _TARGET_TO_RLANG.get(_target, "en")
+            reading_app.main()
+        elif active == "custom":
+            custom_app.main()
+        elif active == "path":
+            path_app.main()
+        elif active == "search":
+            search_app.main()
+        else:
+            # Unknown module - reset
+            dark = st.session_state.get("_dark_mode", False)
+            for k in list(st.session_state):
+                del st.session_state[k]
+            st.session_state["_dark_mode"] = dark
+            st.query_params.clear()
+            render_launcher()
+    except Exception as e:
+        feedback.log_error(user_id, active, e)
+        native = st.session_state.get("launcher_native", "English")
+        st.error(i18n.get(native, "unexpected_error_msg"))
+
+    with st.sidebar:
+        _render_feedback_widget(user_id, active)
 
 
 if __name__ == "__main__":

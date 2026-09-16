@@ -965,15 +965,14 @@ def sidebar_widget(user_id: str) -> None:
 
     # Own try/except (own import too) — independent of the stats block
     # above, so the Privacy Policy link still shows even if gamification
-    # stats fail to load.
+    # stats fail to load. A collapsed expander, not a raw <a target="_blank">
+    # link -- see engine.auth_gate.render_privacy_policy()'s docstring for
+    # why a direct link to the static file is broken on Streamlit Community
+    # Cloud (2026-09-16).
     try:
         import streamlit as st
-        st.markdown(
-            '<div style="text-align:center;margin-top:2px">'
-            '<a href="app/static/legal/privacy.html" target="_blank" '
-            'style="font-size:.68rem;color:var(--mova-ink-3);text-decoration:none">'
-            '🔒 Privacy Policy</a></div>',
-            unsafe_allow_html=True,
-        )
+        from engine import auth_gate
+        with st.expander("🔒 Privacy Policy"):
+            auth_gate.render_privacy_policy(height=300)
     except Exception:
         pass

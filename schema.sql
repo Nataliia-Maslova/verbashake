@@ -326,6 +326,40 @@ CREATE TABLE IF NOT EXISTS lesson_schedule (
 -- actually set up a schedule.
 ALTER TABLE user_prefs ADD COLUMN IF NOT EXISTS schedule_prompt_dismissed BOOLEAN NOT NULL DEFAULT false;
 
+-- ── user_feedback ────────────────────────────────────────────────────────────
+-- "🐛 Report a problem" widget (engine/feedback.py, 2026-09-16) -- added
+-- before the first test-user launch, since there was previously no in-app
+-- way for a student to tell Наталя something's wrong; they'd have to message
+-- her directly, with no context about which screen/module/lesson they were
+-- on. context is whatever the calling screen knows about itself (module,
+-- lesson_id, target_lang...) as a plain dict -- schema-free by design, since
+-- the set of useful context differs per screen and will grow over time.
+CREATE TABLE IF NOT EXISTS user_feedback (
+    id          SERIAL PRIMARY KEY,
+    user_id     TEXT NOT NULL,
+    message     TEXT NOT NULL,
+    context     JSONB,
+    created_at  TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
+-- ── app_errors ───────────────────────────────────────────────────────────────
+-- Server-side log of uncaught exceptions (app.py's top-level dispatch,
+-- 2026-09-16) -- before this, an unhandled exception only ever showed up in
+-- Streamlit Cloud's own log viewer, which nobody watches live; a test user
+-- hitting a real bug had no way to surface it unless they happened to
+-- describe it well enough over chat. Logged in addition to (not instead of)
+-- showing the student a friendly error message -- see app.py's top-level
+-- try/except around the module dispatch.
+CREATE TABLE IF NOT EXISTS app_errors (
+    id          SERIAL PRIMARY KEY,
+    user_id     TEXT,
+    module      TEXT,
+    error_type  TEXT NOT NULL,
+    message     TEXT,
+    traceback   TEXT,
+    created_at  TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
 -- ── Row-Level Security ──────────────────────────────────────────────────────
 -- Supabase auto-publishes every table in `public` over its PostgREST API
 -- under the (non-secret) anon key -- without RLS, anyone with the project URL
@@ -349,3 +383,5 @@ ALTER TABLE user_prefs           ENABLE ROW LEVEL SECURITY;
 ALTER TABLE custom_phrases       ENABLE ROW LEVEL SECURITY;
 ALTER TABLE weekly_signup_gate   ENABLE ROW LEVEL SECURITY;
 ALTER TABLE lesson_schedule      ENABLE ROW LEVEL SECURITY;
+ALTER TABLE user_feedback        ENABLE ROW LEVEL SECURITY;
+ALTER TABLE app_errors           ENABLE ROW LEVEL SECURITY;
