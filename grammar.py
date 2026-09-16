@@ -3369,6 +3369,28 @@ def _video_ai_search_prompt(target_lang: str, native_lang: str, level: str, inte
     )
 
 
+def _text_ai_search_prompt(target_lang: str, native_lang: str, level: str, interest: str) -> str:
+    """
+    Copy-paste prompt for the student's OWN AI chat -- reading-focused
+    sibling of _video_ai_search_prompt() (same "no fabricated links"
+    principle: articles and Instagram accounts are even easier for an AI
+    to hallucinate than YouTube channels, since it can't verify either
+    exists). Zero Gemini calls of our own, same as the video version.
+    """
+    topic = interest.strip() or "[describe your interests here, e.g. football, cooking, video games, true crime...]"
+    return (
+        f"I'm learning {target_lang} at CEFR level {level}. Please answer in {native_lang}.\n\n"
+        f"Suggest 4-5 articles/texts and 2-3 Instagram accounts in {target_lang} that would suit "
+        f"my level and match this interest: {topic}\n\n"
+        f"For each suggestion, give:\n"
+        f"- the publication/account name (or a specific article only if you're confident it's real)\n"
+        f"- why it fits a {level} learner (vocabulary, sentence length, how much context it gives)\n"
+        f"- 2-3 search terms I can type myself to find similar content\n\n"
+        f"Don't invent URLs or handles -- only mention accounts/articles you're actually confident exist, "
+        f"and remind me to verify by searching, since you may not have live access to Instagram or the web."
+    )
+
+
 def phase5_video(session: LessonSession) -> str | None:
     """
     Phase 5: curated YouTube channels for the student's target language and
@@ -3428,6 +3450,12 @@ def phase5_video(session: LessonSession) -> str | None:
         )
         st.code(_video_ai_search_prompt(target_lang, native_lang, level, interest), language=None)
 
+        st.markdown(f"##### {i18n.get(native_lang, 'text_ai_search_subtitle')}")
+        st.markdown(i18n.get(native_lang, "text_ai_search_intro"))
+        st.code(_text_ai_search_prompt(target_lang, native_lang, level, interest), language=None)
+
+    _render_content_discussion(target_lang, native_lang, level)
+
     st.markdown("---")
     col1, col2 = st.columns(2)
     with col1:
@@ -3439,6 +3467,77 @@ def phase5_video(session: LessonSession) -> str | None:
                      use_container_width=True, key="p5_done"):
             return "menu"
     return None
+
+
+def _render_content_discussion(target_lang: str, native_lang: str, level: str) -> None:
+    """
+    Phase 5 "Discuss with AI" -- student pastes an excerpt/description of a
+    video or article they found (e.g. via the copy-paste AI-search prompts
+    above) and discusses it with the tutor live, in target_lang, via
+    engine.gemini.chat_with_tutor(discussion_context=...). Text-only (no
+    voice, unlike Phase 4 Roleplay) -- this is about something the student
+    read or watched, not a spoken scene. Ungraded/ephemeral by design, same
+    as construction_drill/target_grammar practice before mastery-tracking
+    was added there -- this is comprehension/vocabulary conversation, not a
+    lesson exercise, so it doesn't write to mastery/SRS (2026-09-16).
+    """
+    with st.expander(i18n.get(native_lang, "discuss_title")):
+        st.markdown(i18n.get(native_lang, "discuss_intro"))
+
+        if "p5disc_context" not in st.session_state:
+            context = st.text_area(
+                i18n.get(native_lang, "discuss_context_label"),
+                placeholder=i18n.get(native_lang, "discuss_context_placeholder"),
+                key="p5disc_context_input",
+            )
+            if (st.button(i18n.get(native_lang, "discuss_start_btn"), type="primary", key="p5disc_start")
+                    and context.strip()):
+                try:
+                    with st.spinner("..."):
+                        opener = _gemini.chat_with_tutor(
+                            [], _gemini._DISCUSSION_KICKOFF, target_lang, level, native_lang,
+                            discussion_context=context.strip(),
+                        )
+                    st.session_state["p5disc_context"] = context.strip()
+                    st.session_state["p5disc_history"] = [{"role": "model", "parts": [opener]}]
+                    st.rerun()
+                except _gemini.PaidFeatureRequired:
+                    _show_upsell("p5disc_start")
+            return
+
+        history = st.session_state["p5disc_history"]
+
+        if st.button(i18n.get(native_lang, "discuss_change_btn"), key="p5disc_reset"):
+            for _k in ("p5disc_context", "p5disc_history", "p5disc_text"):
+                st.session_state.pop(_k, None)
+            st.rerun()
+
+        for msg in history:
+            label = (i18n.get(native_lang, "roleplay_you_label") if msg["role"] == "user"
+                     else i18n.get(native_lang, "discuss_ai_label"))
+            st.markdown(f"**{label}:** {msg['parts'][0]}")
+
+        typed = st.text_input(i18n.get(native_lang, "discuss_message_placeholder"), key="p5disc_text")
+        if st.button(i18n.get(native_lang, "discuss_send_btn"), type="primary", key="p5disc_send") and typed.strip():
+            try:
+                with st.spinner("..."):
+                    reply = _gemini.chat_with_tutor(
+                        history, typed.strip(), target_lang, level, native_lang,
+                        discussion_context=st.session_state["p5disc_context"],
+                    )
+                st.session_state["p5disc_history"] += [
+                    {"role": "user", "parts": [typed.strip()]},
+                    {"role": "model", "parts": [reply]},
+                ]
+                st.session_state.pop("p5disc_text", None)
+                st.rerun()
+            except _gemini.PaidFeatureRequired:
+                _show_upsell("p5disc_send")
+
+        if st.button(i18n.get(native_lang, "discuss_end_btn"), key="p5disc_end"):
+            for _k in ("p5disc_context", "p5disc_history", "p5disc_text"):
+                st.session_state.pop(_k, None)
+            st.rerun()
 
 
 def phase5_summary(session: LessonSession) -> bool:
