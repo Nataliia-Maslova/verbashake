@@ -228,6 +228,48 @@ _WARMUP_TOPICS = [
     "your favorite way to relax",
     "a skill you'd like to learn",
     "your neighborhood",
+    "your favorite color and why",
+    "what you had for breakfast",
+    "your best friend",
+    "a pet you have or would like to have",
+    "your favorite sport",
+    "how you spent last weekend",
+    "your favorite holiday",
+    "the room you are in right now",
+    "your morning routine",
+    "a book you like",
+    "your favorite app or website",
+    "what you usually do after work or school",
+    "your favorite place to eat",
+    "a language you'd like to speak",
+    "how many people are in your family",
+    "your favorite type of music to relax to",
+    "the last gift you gave someone",
+    "your favorite way to spend a rainy day",
+    "a game you enjoy playing",
+    "your typical breakfast",
+    "your favorite time of year",
+]
+
+# Topics that lean on more complex grammar (conditionals, hypotheticals,
+# comparisons, abstract opinions) — held back from A1/A2 so a "simple {level}
+# question" instruction isn't fighting the topic itself (CLAUDE.md 2026-09-16).
+_WARMUP_TOPICS_ADVANCED = [
+    "what you would do if you had more free time",
+    "how your city has changed over the years",
+    "a decision you're proud of",
+    "something you'd like to change about your daily routine",
+    "what your life might look like in five years",
+    "a tradition from your country you'd explain to a foreigner",
+    "the biggest difference between your hometown and a big city",
+    "a piece of advice someone gave you that stuck",
+    "how technology has changed the way you learn",
+    "what you would do with an unexpected day off",
+    "a challenge you overcame recently",
+    "how you'd describe your ideal weekend to a friend",
+    "something you used to believe but don't anymore",
+    "what makes a good leader, in your opinion",
+    "a mistake you learned something from",
 ]
 
 
@@ -236,18 +278,43 @@ def warmup_question(
     level: str, target_lang: str, native_lang: str, bilingual: bool = False,
 ) -> dict:
     """
-    Generate ONE proactive warmup question in the target language.
+    ONE warmup question for the student, in target_lang.
+
+    Served from a pre-generated static pool (data/warmup_questions.csv via
+    engine.warmup_loader), not a fresh live call — Phase 1 fires on every
+    single lesson start, making the old live-generation path the single
+    most frequent Gemini call in the app (CLAUDE.md 2026-09-16). Falls back
+    to live generation (the old behavior, via _warmup_question_cached) if
+    the pool has nothing for this (target_lang, level) pair yet — e.g. the
+    batch script hasn't been run for it, or an unrecognized level string.
 
     bilingual=True also returns the question in native_lang, so a beginner
     can read both at once (CLAUDE.md item 2, 2026-08-20: on A1 the question
     itself is shown in both languages; the student still answers in
     target_lang). Toggleable per call, not hardcoded to a level, so the UI
-    can decide when to turn it on.
+    can decide when to turn it on. Costs one extra (cached) translate_phrase
+    call — the question text itself is free either way now.
 
     Returns: {"target": str, "native": str | None}
     """
-    topic = random.choice(_WARMUP_TOPICS)
-    return _warmup_question_cached(topic, level, target_lang, native_lang, bilingual)
+    from engine import warmup_loader
+
+    target_text = warmup_loader.random_question(target_lang, level)
+    if target_text is None:
+        from engine.recommender import CEFR_RANK
+        pool = _WARMUP_TOPICS
+        if CEFR_RANK.get(level, CEFR_RANK["B1"]) >= CEFR_RANK["B1"]:
+            pool = _WARMUP_TOPICS + _WARMUP_TOPICS_ADVANCED
+        topic = random.choice(pool)
+        return _warmup_question_cached(topic, level, target_lang, native_lang, bilingual)
+
+    if not bilingual or native_lang == target_lang:
+        return {"target": target_text, "native": None}
+    try:
+        native_text = translate_phrase(target_text, target_lang, native_lang)
+    except PaidFeatureRequired:
+        native_text = None
+    return {"target": target_text, "native": native_text}
 
 
 @_cache.memoize()
