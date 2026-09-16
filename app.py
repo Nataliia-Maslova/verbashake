@@ -48,6 +48,7 @@ from engine import billing          # noqa: E402
 from engine import user_prefs       # noqa: E402
 from engine import client_tz        # noqa: E402
 from engine import feedback         # noqa: E402
+from engine import account_deletion # noqa: E402
 from engine.gamification import sidebar_widget  # noqa: E402
 
 # Used for fetching progress on the launcher
@@ -775,6 +776,29 @@ def render_launcher():
                     st.error("Checkout unavailable right now — please try again in a moment.")
         if st.button("Sign out", use_container_width=True, key="launcher_signout"):
             st.logout()
+
+        # GDPR-style self-service account deletion (2026-09-17) -- for
+        # testers Наталя doesn't personally know, "just message me" isn't a
+        # real option. Typed "DELETE" confirmation (not just a second
+        # button click) since this is a whole account, not one lesson --
+        # see custom_app.py's delete-lesson confirm for the lighter-weight
+        # pattern this deliberately goes one step further than.
+        with st.expander(i18n.get(native, "account_delete_title")):
+            st.warning(i18n.get(native, "account_delete_warning"))
+            confirm_text = st.text_input(
+                i18n.get(native, "account_delete_type_label"),
+                placeholder=i18n.get(native, "account_delete_type_placeholder"),
+                key="_account_delete_confirm_text",
+            )
+            if st.button(
+                i18n.get(native, "account_delete_confirm_btn"),
+                type="primary", use_container_width=True,
+                disabled=(confirm_text.strip() != "DELETE"),
+                key="_account_delete_go",
+            ):
+                account_deletion.delete_account(user_id)
+                st.session_state.clear()
+                st.logout()
 
     st.markdown("<div style='margin:18px 0 10px'></div>", unsafe_allow_html=True)
 

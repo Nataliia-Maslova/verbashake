@@ -1,5 +1,10 @@
 {
   "ca": {
+    "account_delete_confirm_btn": "Eliminar el meu compte permanentment",
+    "account_delete_title": "⚠️ Elimina el meu compte",
+    "account_delete_type_label": "Escriu DELETE per confirmar",
+    "account_delete_type_placeholder": "DELETE",
+    "account_delete_warning": "Això esborra permanentment el teu progrés, domini, ratxa, XP, frases desades i qualsevol subscripció activa (cancellada immediatament). Això no es pot desfer.",
     "all_lessons_completed_msg": "🎉 Totes les lliçons de {module} completades per a aquest parell d'idiomes!",
     "answer_label": "La teva resposta:",
     "answer_method": "Mètode de resposta",
@@ -379,6 +384,11 @@
     "you_asked": "Vas preguntar:"
   },
   "de": {
+    "account_delete_confirm_btn": "Konto dauerhaft löschen",
+    "account_delete_title": "⚠️ Mein Konto löschen",
+    "account_delete_type_label": "Gib DELETE ein, um zu bestätigen",
+    "account_delete_type_placeholder": "DELETE",
+    "account_delete_warning": "Dies löscht dauerhaft Ihren Fortschritt, Ihre Beherrschung, Ihre Serie, Ihre XP, Ihre gespeicherten Phrasen und jedes aktive Abonnement (sofort gekündigt). Dies kann nicht rückgängig gemacht werden.",
     "all_lessons_completed_msg": "🎉 Alle {module} Lektionen für dieses Sprachpaar abgeschlossen!",
     "answer_label": "Deine Antwort:",
     "answer_method": "Antwortmethode",
@@ -758,6 +768,11 @@
     "you_asked": "Du hast gefragt:"
   },
   "es": {
+    "account_delete_confirm_btn": "Eliminar mi cuenta permanentemente",
+    "account_delete_title": "⚠️ Borrar mi cuenta",
+    "account_delete_type_label": "Escribe DELETE para confirmar",
+    "account_delete_type_placeholder": "DELETE",
+    "account_delete_warning": "Esto elimina permanentemente tu progreso, maestría, racha, XP, frases guardadas y cualquier suscripción activa (cancelada inmediatamente). Esto no se puede deshacer.",
     "all_lessons_completed_msg": "🎉 ¡Todas las lecciones de {module} completadas para este par de idiomas!",
     "answer_label": "Tu respuesta:",
     "answer_method": "Método de respuesta",
@@ -1046,6 +1061,11 @@
     "you_asked": "Pediste:"
   },
   "fr": {
+    "account_delete_confirm_btn": "Supprimer définitivement mon compte",
+    "account_delete_title": "⚠️ Supprimer mon compte",
+    "account_delete_type_label": "Tapez DELETE pour confirmer",
+    "account_delete_type_placeholder": "DELETE",
+    "account_delete_warning": "Ceci supprime définitivement votre progression, votre maîtrise, votre série, vos XP, vos phrases enregistrées, et tout abonnement actif (annulé immédiatement). Ceci ne peut pas être annulé.",
     "all_lessons_completed_msg": "🎉 Toutes les leçons de {module} sont terminées pour cette paire de langues !",
     "answer_label": "Votre réponse:",
     "answer_method": "Méthode de réponse",
@@ -1425,6 +1445,11 @@
     "you_asked": "Vous avez demandé :"
   },
   "it": {
+    "account_delete_confirm_btn": "Elimina permanentemente il mio account",
+    "account_delete_title": "⚠️ Elimina il mio account",
+    "account_delete_type_label": "Scrivi DELETE per confermare",
+    "account_delete_type_placeholder": "DELETE",
+    "account_delete_warning": "Questo elimina permanentemente i tuoi progressi, la maestria, la striscia, XP, frasi salvate e qualsiasi abbonamento attivo (annullato immediatamente). Questo non può essere annullato.",
     "all_lessons_completed_msg": "🎉 Tutte le lezioni di {module} completate per questa coppia linguistica!",
     "answer_label": "La tua risposta:",
     "answer_method": "Metodo di risposta",
@@ -1804,6 +1829,11 @@
     "you_asked": "Hai chiesto:"
   },
   "ja": {
+    "account_delete_confirm_btn": "アカウントを完全に削除する",
+    "account_delete_title": "⚠️ アカウントを削除",
+    "account_delete_type_label": "確認するには DELETE と入力してください",
+    "account_delete_type_placeholder": "DELETE",
+    "account_delete_warning": "この操作は、あなたの進捗、習熟度、連続記録、XP、保存したフレーズ、および現在有効なサブスクリプション（即時キャンセル）を完全に削除します。この操作は元に戻すことができません。",
     "all_lessons_completed_msg": "🎉 すべての{module}レッスンの学習ペアが完了しました！",
     "answer_label": "あなたの答え：",
     "answer_method": "回答方法",
@@ -2183,6 +2213,11 @@
     "you_asked": "あなたがお尋ねになったこと："
   },
   "ko": {
+    "account_delete_confirm_btn": "계정을 영구적으로 삭제하시겠습니까?",
+    "account_delete_title": "⚠️ 내 계정 삭제",
+    "account_delete_type_label": "확인하려면 DELETE를 입력하세요",
+    "account_delete_type_placeholder": "DELETE",
+    "account_delete_warning": "이것은 당신의 진행 상황, 숙련도, 연속 기록, XP, 저장된 문구, 그리고 모든 활성 구독(즉시 취소됨)을 영구적으로 삭제합니다. 이는 되돌릴 수 없습니다.",
     "all_lessons_completed_msg": "🎉 모든 {module} 수업을 완료했습니다 이 언어 쌍에 대해!",
     "answer_label": "당신의 답:",
     "answer_method": "답변 방법",
@@ -2471,6 +2506,11 @@
     "you_asked": "당신이 물어본 것:"
   },
   "nl": {
+    "account_delete_confirm_btn": "Verwijder mijn account permanent",
+    "account_delete_title": "⚠️ Verwijder mijn account",
+    "account_delete_type_label": "Typ DELETE om te bevestigen",
+    "account_delete_type_placeholder": "DELETE",
+    "account_delete_warning": "Dit verwijdert permanent je voortgang, beheersing, reeks, XP, opgeslagen zinnen en elk actief abonnement (onmiddellijk geannuleerd). Dit kan niet ongedaan worden gemaakt.",
     "all_lessons_completed_msg": "🎉 Alle {module} lessen voltooid voor dit taalpaar!",
     "answer_label": "Jouw antwoord:",
     "answer_method": "Antwoordmethode",
@@ -2850,6 +2890,11 @@
     "you_asked": "U vroeg:"
   },
   "pl": {
+    "account_delete_confirm_btn": "Trwale usuń moje konto",
+    "account_delete_title": "⚠️ Usuń moje konto",
+    "account_delete_type_label": "Wpisz DELETE, aby potwierdzić",
+    "account_delete_type_placeholder": "DELETE",
+    "account_delete_warning": "To trwale usuwa Twoje postępy, mistrzostwo, passę, punkty XP, zapisane frazy i wszelkie aktywne subskrypcje (anulowane natychmiast). Nie można tego cofnąć.",
     "all_lessons_completed_msg": "🎉 Wszystkie lekcje {module} ukończone dla tej pary językowej!",
     "answer_label": "Twoja odpowiedź:",
     "answer_method": "Metoda odpowiedzi",
@@ -3229,6 +3274,11 @@
     "you_asked": "Poprosiłeś:"
   },
   "pt": {
+    "account_delete_confirm_btn": "Excluir minha conta permanentemente",
+    "account_delete_title": "⚠️ Excluir minha conta",
+    "account_delete_type_label": "Digite DELETE para confirmar",
+    "account_delete_type_placeholder": "DELETE",
+    "account_delete_warning": "Isso exclui permanentemente seu progresso, maestria, sequência, XP, frases salvas e qualquer assinatura ativa (cancelada imediatamente). Isso não pode ser desfeito.",
     "all_lessons_completed_msg": "🎉 Todas as lições de {module} concluídas para este par de idiomas!",
     "answer_label": "Sua resposta:",
     "answer_method": "Método de resposta",
@@ -3608,6 +3658,11 @@
     "you_asked": "Você perguntou:"
   },
   "ru": {
+    "account_delete_confirm_btn": "Удалить мой аккаунт навсегда",
+    "account_delete_title": "⚠️ Удалить мой аккаунт",
+    "account_delete_type_label": "Введите DELETE для подтверждения",
+    "account_delete_type_placeholder": "DELETE",
+    "account_delete_warning": "Это навсегда удалит ваш прогресс, освоение, серию, XP, сохраненные фразы и любую активную подписку (отменяется немедленно). Это действие нельзя отменить.",
     "all_lessons_completed_msg": "🎉 Все уроки {module} пройдены для этой языковой пары!",
     "answer_label": "Ваш ответ:",
     "answer_method": "Способ ответа",
@@ -3987,6 +4042,11 @@
     "you_asked": "Вы спросили:"
   },
   "zh": {
+    "account_delete_confirm_btn": "永久删除我的账户",
+    "account_delete_title": "⚠️ 删除我的账号",
+    "account_delete_type_label": "输入 DELETE 确认",
+    "account_delete_type_placeholder": "DELETE",
+    "account_delete_warning": "这将永久删除您的进度、掌握情况、连胜记录、经验值、保存的短语以及任何有效的订阅（立即取消）。此操作无法撤销。",
     "all_lessons_completed_msg": "🎉 此语言对的 {module} 课程已全部完成！",
     "answer_label": "你的答案：",
     "answer_method": "回答方式",

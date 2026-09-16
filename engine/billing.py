@@ -90,6 +90,31 @@ def is_paid(user_id: str | None) -> bool:
     return get_status(user_id).get("status") == "active"
 
 
+def cancel_subscription(user_id: str) -> None:
+    """
+    Cancels this user's active Stripe subscription immediately (not "at
+    period end") -- called from engine.account_deletion.delete_account() so
+    deleting an account doesn't leave an orphaned subscription still
+    charging a Google account nobody can log into anymore to cancel it
+    themselves. Best-effort: no subscription row, no stripe_subscription_id,
+    or the Stripe call itself failing are all silently no-ops here -- the
+    caller (delete_account) still proceeds to erase the data either way,
+    since refusing to delete personal data because a payment provider call
+    failed would be the wrong tradeoff.
+    """
+    row = db.fetch_one(
+        "SELECT stripe_subscription_id FROM subscriptions WHERE user_id = :uid",
+        {"uid": user_id},
+    )
+    sub_id = row.get("stripe_subscription_id") if row else None
+    if not sub_id:
+        return
+    try:
+        _stripe().Subscription.cancel(sub_id)
+    except Exception as e:
+        print(f"[billing] cancel_subscription failed for {user_id}: {e}")
+
+
 def _sync_from_stripe(user_id: str, customer_id: str) -> dict:
     stripe = _stripe()
     subs = stripe.Subscription.list(customer=customer_id, status="all", limit=1)
