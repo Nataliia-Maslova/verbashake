@@ -139,7 +139,7 @@ LANGUAGES = [
     "English", "Ukrainian", "Spanish", "Korean",
     "French", "German", "Japanese", "Chinese",
     "Portuguese", "Italian", "Polish", "Russian",
-    "Catalan", "Dutch",
+    "Catalan", "Dutch", "Romanian", "Bulgarian", "Czech", "Turkish", "Swedish",
 ]
 
 DB_GRAMMAR  = ROOT / "data" / "imlls_database.xlsx"
@@ -425,8 +425,9 @@ _SELF_LEVELS = ["zero", "A1", "A2", "B1", "B2", "C1", "C2"]
 _SCRIPT_FAMILY: dict[str, str] = {
     "English": "latin", "French": "latin", "German": "latin", "Spanish": "latin",
     "Italian": "latin", "Portuguese": "latin", "Catalan": "latin", "Dutch": "latin",
-    "Polish": "latin",
-    "Ukrainian": "cyrillic", "Russian": "cyrillic",
+    "Polish": "latin", "Romanian": "latin", "Czech": "latin", "Turkish": "latin",
+    "Swedish": "latin",
+    "Ukrainian": "cyrillic", "Russian": "cyrillic", "Bulgarian": "cyrillic",
     "Korean": "hangul", "Japanese": "japanese", "Chinese": "chinese",
 }
 

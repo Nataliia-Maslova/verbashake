@@ -594,3 +594,243 @@ Chinese,zh_potential_directional,B2,他快步跑进教室。
 Chinese,zh_potential_directional,B2,门太小了，这张桌子搬不进去。
 Chinese,zh_potential_directional,B2,作业太多了，我今天晚上做不完。
 Chinese,zh_potential_directional,B2,老师让我们把书翻开到第一页。
+Romanian,ro_enclitic_article,A1,Masă este mare.
+Romanian,ro_enclitic_article,A1,Cartea este pe scaun.
+Romanian,ro_enclitic_article,A1,Fata citește.
+Romanian,ro_enclitic_article,A1,Băiatul are un măr.
+Romanian,ro_enclitic_article,A1,Casa este roșie.
+Romanian,ro_enclitic_article,A1,Mașina este rapidă.
+Romanian,ro_enclitic_article,A1,Pâinea este bună.
+Romanian,ro_enclitic_article,A1,Apă este rece.
+Romanian,ro_neuter_gender,A1,Un tablou frumos este pe perete.
+Romanian,ro_neuter_gender,A1,Două tablouri frumoase sunt pe perete.
+Romanian,ro_neuter_gender,A1,Un telefon nou este scump.
+Romanian,ro_neuter_gender,A1,Două telefoane noi sunt scumpe.
+Romanian,ro_neuter_gender,A1,Un pahar plin este pe masă.
+Romanian,ro_neuter_gender,A1,Două pahare pline sunt pe masă.
+Romanian,ro_neuter_gender,A1,Un creion mare este aici.
+Romanian,ro_neuter_gender,A1,Două creioane mari sunt aici.
+Romanian,ro_subjunctive_sa,A2,Eu vreau să mănânc o pizza.
+Romanian,ro_subjunctive_sa,A2,Tu poți să vorbești română?
+Romanian,ro_subjunctive_sa,A2,El încearcă să învețe engleză.
+Romanian,ro_subjunctive_sa,A2,Noi trebuie să mergem acasă.
+Romanian,ro_subjunctive_sa,A2,Voi vreți să beți cafea?
+Romanian,ro_subjunctive_sa,A2,Ei pot să vină mâine.
+Romanian,ro_subjunctive_sa,A2,Ea trebuie să citească cartea.
+Romanian,ro_subjunctive_sa,A2,Mie îmi place să ascult muzică.
+Romanian,ro_cases_nom_gen,A2,Cartea este pe masă.
+Romanian,ro_cases_nom_gen,A2,Dau cartea mamei.
+Romanian,ro_cases_nom_gen,A2,Culoarea mașinii este roșie.
+Romanian,ro_cases_nom_gen,A2,El merge la școală.
+Romanian,ro_cases_nom_gen,A2,Numele fetei este Ana.
+Romanian,ro_cases_nom_gen,A2,Ofer un cadou prietenului.
+Romanian,ro_cases_nom_gen,A2,Jucăria copilului este nouă.
+Romanian,ro_cases_nom_gen,A2,Vorbesc cu profesoara.
+Romanian,ro_pe_clitic_doubling,B1,Îl văd pe profesor la universitate.
+Romanian,ro_pe_clitic_doubling,B1,O cunosc pe Maria de mulți ani.
+Romanian,ro_pe_clitic_doubling,B1,Îi ajutăm pe studenți cu proiectul.
+Romanian,ro_pe_clitic_doubling,B1,Îl aștept pe tata acasă.
+Romanian,ro_pe_clitic_doubling,B1,O sun pe sora mea în fiecare zi.
+Romanian,ro_pe_clitic_doubling,B1,Îi invităm pe prieteni la cină.
+Romanian,ro_pe_clitic_doubling,B1,Îl admir pe artist pentru munca lui.
+Romanian,ro_pe_clitic_doubling,B1,O vizitez pe bunica în weekend.
+Romanian,ro_possessive_articles,B1,Mașina este a tatălui meu.
+Romanian,ro_possessive_articles,B1,Cartea este a profesoarei.
+Romanian,ro_possessive_articles,B1,Câinele este al vecinului.
+Romanian,ro_possessive_articles,B1,Ideile sunt ale studenților.
+Romanian,ro_possessive_articles,B1,Casa este a familiei Popescu.
+Romanian,ro_possessive_articles,B1,Bicicleta este a copilului.
+Romanian,ro_possessive_articles,B1,Florile sunt ale bunicii.
+Romanian,ro_possessive_articles,B1,Pixul este al colegului meu.
+Bulgarian,bg_definite_article_suffix,A1,Къщата е голяма.
+Bulgarian,bg_definite_article_suffix,A1,Столът е червен.
+Bulgarian,bg_definite_article_suffix,A1,Масата е нова.
+Bulgarian,bg_definite_article_suffix,A1,Книгата е интересна.
+Bulgarian,bg_definite_article_suffix,A1,Моливът е къс.
+Bulgarian,bg_definite_article_suffix,A1,Чантата е тежка.
+Bulgarian,bg_definite_article_suffix,A1,Хлябът е вкусен.
+Bulgarian,bg_definite_article_suffix,A1,Ябълката е зелена.
+Bulgarian,bg_da_construction,A2,Искам да ям сега.
+Bulgarian,bg_da_construction,A2,Трябва да уча повече.
+Bulgarian,bg_da_construction,A2,Мога да говоря български.
+Bulgarian,bg_da_construction,A2,Обичам да чета книги.
+Bulgarian,bg_da_construction,A2,Искаш ли да пиеш вода?
+Bulgarian,bg_da_construction,A2,Трябва да отидем до магазина.
+Bulgarian,bg_da_construction,A2,Можете ли да ми помогнете?
+Bulgarian,bg_da_construction,A2,Харесва ми да слушам музика.
+Bulgarian,bg_aspect_basic,A2,Аз всяка сутрин пиша имейл.
+Bulgarian,bg_aspect_basic,A2,Аз вече написах имейл.
+Bulgarian,bg_aspect_basic,A2,Децата играят в парка сега.
+Bulgarian,bg_aspect_basic,A2,Децата си поиграха и си тръгнаха.
+Bulgarian,bg_aspect_basic,A2,Той чете книга всеки ден.
+Bulgarian,bg_aspect_basic,A2,Той прочете книгата за един час.
+Bulgarian,bg_aspect_basic,A2,Ние строим къща от месец.
+Bulgarian,bg_aspect_basic,A2,Ние построихме къща миналата година.
+Bulgarian,bg_aspect_past,B1,"Всяка сутрин тя пиеше кафе, преди да отиде на работа."
+Bulgarian,bg_aspect_past,B1,Вчера той изпи едно кафе и си тръгна.
+Bulgarian,bg_aspect_past,B1,"Когато бях дете, играех футбол всеки ден."
+Bulgarian,bg_aspect_past,B1,В събота изиграхме един мач и после си почивахме.
+Bulgarian,bg_aspect_past,B1,Тя често четеше книги във влака.
+Bulgarian,bg_aspect_past,B1,Вчера прочете няколко страници от новата книга.
+Bulgarian,bg_aspect_past,B1,Всяко лято ходехме на море за две седмици.
+Bulgarian,bg_aspect_past,B1,Миналото лято отидохме на море само за уикенда.
+Bulgarian,bg_clitic_doubling,B1,Видях я Мария в магазина.
+Bulgarian,bg_clitic_doubling,B1,На него му харесва футболът.
+Bulgarian,bg_clitic_doubling,B1,Разказах им на децата история.
+Bulgarian,bg_clitic_doubling,B1,Купихме й на сестра ми подарък.
+Bulgarian,bg_clitic_doubling,B1,Ще ги поканим приятелите на вечеря.
+Bulgarian,bg_clitic_doubling,B1,Дадох му на учителя домашната работа.
+Bulgarian,bg_clitic_doubling,B1,Обясних й на колежката задачата.
+Bulgarian,bg_clitic_doubling,B1,Срещнахме ги туристите в центъра.
+Bulgarian,bg_renarrative_mood,B2,Той бил много уморен след работа.
+Bulgarian,bg_renarrative_mood,B2,"Тя каза, че била забравила чадъра си."
+Bulgarian,bg_renarrative_mood,B2,"Разбрах, че времето щяло да се влоши."
+Bulgarian,bg_renarrative_mood,B2,Те били пристигнали по-рано от очакваното.
+Bulgarian,bg_renarrative_mood,B2,"Детето плачело, защото искало играчка."
+Bulgarian,bg_renarrative_mood,B2,"Казват, че филмът бил много интересен."
+Bulgarian,bg_renarrative_mood,B2,"Изглежда, че той бил заминал за чужбина."
+Bulgarian,bg_renarrative_mood,B2,"Съседката разказа, че колата ѝ била повредена."
+Czech,cs_gender_animacy,A1,Vidím pána.
+Czech,cs_gender_animacy,A1,Vidím hrad.
+Czech,cs_gender_animacy,A1,Mám bratra.
+Czech,cs_gender_animacy,A1,Mám stůl.
+Czech,cs_gender_animacy,A1,Znám studenta.
+Czech,cs_gender_animacy,A1,Znám dům.
+Czech,cs_gender_animacy,A1,Hledám otce.
+Czech,cs_gender_animacy,A1,Hledám vlak.
+Czech,cs_cases_basic,A2,To je můj pes.
+Czech,cs_cases_basic,A2,Vidím velký dům.
+Czech,cs_cases_basic,A2,Nemám žádné peníze.
+Czech,cs_cases_basic,A2,On je student.
+Czech,cs_cases_basic,A2,Koupím si kávu.
+Czech,cs_cases_basic,A2,Mám málo času.
+Czech,cs_cases_basic,A2,Jablko je červené.
+Czech,cs_cases_basic,A2,Nechci žádnou vodu.
+Czech,cs_aspect_basic,A2,Každý den čtu knihu.
+Czech,cs_aspect_basic,A2,Dnes vařím večeři.
+Czech,cs_aspect_basic,A2,Včera jsem psal email.
+Czech,cs_aspect_basic,A2,Ráno jsem pil kávu.
+Czech,cs_aspect_basic,A2,Teď uklízím pokoj.
+Czech,cs_aspect_basic,A2,Děti si hrají venku.
+Czech,cs_aspect_basic,A2,Často kupuji chleba.
+Czech,cs_aspect_basic,A2,On mi pomáhal s úkolem.
+Czech,cs_aspect_past,B1,Každé ráno jsem pil kávu.
+Czech,cs_aspect_past,B1,Včera jsem si dal kávu.
+Czech,cs_aspect_past,B1,Dříve jsem často chodil do kina.
+Czech,cs_aspect_past,B1,Minulý týden jsem šel do kina na nový film.
+Czech,cs_aspect_past,B1,Jako dítě jsem si hrál venku každý den.
+Czech,cs_aspect_past,B1,Včera odpoledne jsem si hrál s kamarády.
+Czech,cs_aspect_past,B1,Vždycky jsem četl knihy před spaním.
+Czech,cs_aspect_past,B1,Včera večer jsem přečetl jednu kapitolu.
+Czech,cs_clitic_word_order,B1,Včera jsme šli do kina.
+Czech,cs_clitic_word_order,B1,Kde jsi byl?
+Czech,cs_clitic_word_order,B1,Ona se dívá na televizi.
+Czech,cs_clitic_word_order,B1,Kdy bys přišel?
+Czech,cs_clitic_word_order,B1,To se mi líbí.
+Czech,cs_clitic_word_order,B1,Zítra si koupím knihu.
+Czech,cs_clitic_word_order,B1,On mi to řekl.
+Czech,cs_clitic_word_order,B1,Proč bys to dělal?
+Czech,cs_conditional_bych,B2,"Kdybych měl čas, šel bych s tebou do kina."
+Czech,cs_conditional_bych,B2,"Kdyby pršelo, zůstali bychom doma."
+Czech,cs_conditional_bych,B2,"Co bys dělal, kdybys vyhrál loterii?"
+Czech,cs_conditional_bych,B2,"Byli byste rádi, kdybychom vám pomohli?"
+Czech,cs_conditional_bych,B2,"Kdybychom věděli, přišli bychom dříve."
+Czech,cs_conditional_bych,B2,"Myslím, že by se jí ten dárek líbil."
+Czech,cs_conditional_bych,B2,"Určitě by mi to řekl, kdyby to věděl."
+Czech,cs_conditional_bych,B2,"Kdyby byl doma, už by otevřel dveře."
+Turkish,tr_vowel_harmony,A1,Kitaplar masada.
+Turkish,tr_vowel_harmony,A1,Kalemler çantada.
+Turkish,tr_vowel_harmony,A1,Evde kedi var.
+Turkish,tr_vowel_harmony,A1,Okulda öğrenci çok.
+Turkish,tr_vowel_harmony,A1,Bahçede çiçekler var.
+Turkish,tr_vowel_harmony,A1,Odada ışık yok.
+Turkish,tr_vowel_harmony,A1,Arabada anahtar var.
+Turkish,tr_vowel_harmony,A1,Defterler rafta.
+Turkish,tr_case_suffixes,A2,Kitabı masaya koydum.
+Turkish,tr_case_suffixes,A2,Evde yemek yedik.
+Turkish,tr_case_suffixes,A2,Okuldan geliyorum.
+Turkish,tr_case_suffixes,A2,Kalemi çantadan çıkardım.
+Turkish,tr_case_suffixes,A2,Annem markete gitti.
+Turkish,tr_case_suffixes,A2,Arkadaşlarım parkta oynuyor.
+Turkish,tr_case_suffixes,A2,Çocuklar bahçeden koştu.
+Turkish,tr_case_suffixes,A2,Su şişesini arabaya koy.
+Turkish,tr_possessive_suffixes,A2,Kalemim masada.
+Turkish,tr_possessive_suffixes,A2,Evin nerede?
+Turkish,tr_possessive_suffixes,A2,Kitabı çok güzel.
+Turkish,tr_possessive_suffixes,A2,Arabamız eski.
+Turkish,tr_possessive_suffixes,A2,Okulunuz büyük mü?
+Turkish,tr_possessive_suffixes,A2,Anneleri burada çalışıyor.
+Turkish,tr_possessive_suffixes,A2,Çantam ağır.
+Turkish,tr_possessive_suffixes,A2,Köpeği çok hızlı koşuyor.
+Turkish,tr_question_particle,A1,"Bu, elma mı?"
+Turkish,tr_question_particle,A1,"Sen, öğrenci misin?"
+Turkish,tr_question_particle,A1,"O, doktor mu?"
+Turkish,tr_question_particle,A1,"Bu, güzel mi?"
+Turkish,tr_question_particle,A1,"Sen, aç mısın?"
+Turkish,tr_question_particle,A1,"Ev, büyük mü?"
+Turkish,tr_question_particle,A1,"Bu, sıcak mı?"
+Turkish,tr_question_particle,A1,"O, öğretmen mi?"
+Turkish,tr_evidential_past,B1,Annem dün pasta yaptı. (I saw her)
+Turkish,tr_evidential_past,B1,Annem dün pasta yapmış. (Someone told me)
+Turkish,tr_evidential_past,B1,"Arkadaşım geçen hafta tatile gitti. (I know this for a fact, maybe I saw him go)"
+Turkish,tr_evidential_past,B1,Arkadaşım geçen hafta tatile gitmiş. (I heard it from someone else)
+Turkish,tr_evidential_past,B1,Çocuklar bahçede top oynadı. (I saw them playing)
+Turkish,tr_evidential_past,B1,Çocuklar bahçede top oynamış. (I saw the ball and infer they played)
+Turkish,tr_evidential_past,B1,"O, yeni bir araba aldı. (I witnessed the purchase)"
+Turkish,tr_evidential_past,B1,"O, yeni bir araba almış. (I heard he bought one)"
+Turkish,tr_agglutinative_verbs,B1,Konuşamadım çünkü çok utandım.
+Turkish,tr_agglutinative_verbs,B1,"Gelemeyeceğim, işim var."
+Turkish,tr_agglutinative_verbs,B1,"Yazamayabilirim, kalemim yok."
+Turkish,tr_agglutinative_verbs,B1,Anlayamayacak mısın?
+Turkish,tr_agglutinative_verbs,B1,"Koşamayız, hava çok sıcak."
+Turkish,tr_agglutinative_verbs,B1,Gidemediniz mi?
+Turkish,tr_agglutinative_verbs,B1,Bekleyemeyecekler mi?
+Turkish,tr_agglutinative_verbs,B1,"Yiyemedi, çünkü çok doluydu."
+Swedish,sv_en_ett_gender,A1,Jag har en stor katt.
+Swedish,sv_en_ett_gender,A1,Det är ett litet bord.
+Swedish,sv_en_ett_gender,A1,Hon äter en god pizza.
+Swedish,sv_en_ett_gender,A1,Vi ser ett gammalt hus.
+Swedish,sv_en_ett_gender,A1,Vill du ha en varm kaffe?
+Swedish,sv_en_ett_gender,A1,De köper ett nytt äpple.
+Swedish,sv_en_ett_gender,A1,Han har en blå bil.
+Swedish,sv_en_ett_gender,A1,Det är ett roligt spel.
+Swedish,sv_definite_suffix,A1,Boken är ny.
+Swedish,sv_definite_suffix,A1,Huset är stort.
+Swedish,sv_definite_suffix,A1,Bilen är röd.
+Swedish,sv_definite_suffix,A1,Katten sover.
+Swedish,sv_definite_suffix,A1,Bordet är runt.
+Swedish,sv_definite_suffix,A1,Flickan äter en banan.
+Swedish,sv_definite_suffix,A1,Pojken läser tidningen.
+Swedish,sv_definite_suffix,A1,Vattnet är kallt.
+Swedish,sv_adjective_agreement,A2,Jag har en stor bil.
+Swedish,sv_adjective_agreement,A2,Huset är stort.
+Swedish,sv_adjective_agreement,A2,De har stora hus.
+Swedish,sv_adjective_agreement,A2,Min mamma har en ny kappa.
+Swedish,sv_adjective_agreement,A2,Barnet har ett nytt spel.
+Swedish,sv_adjective_agreement,A2,Vi köper nya skor.
+Swedish,sv_adjective_agreement,A2,Han har en röd tröja.
+Swedish,sv_adjective_agreement,A2,Det är ett rött äpple.
+Swedish,sv_double_definiteness,A2,Den lilla katten sover.
+Swedish,sv_double_definiteness,A2,Det röda huset är stort.
+Swedish,sv_double_definiteness,A2,De nya böckerna är intressanta.
+Swedish,sv_double_definiteness,A2,Den gamla bilen är billig.
+Swedish,sv_double_definiteness,A2,Det gröna äpplet är gott.
+Swedish,sv_double_definiteness,A2,De snälla barnen leker.
+Swedish,sv_double_definiteness,A2,Den varma tröjan är skön.
+Swedish,sv_double_definiteness,A2,Det kalla vattnet är friskt.
+Swedish,sv_v2_word_order,B1,I dag äter vi middag tidigt.
+Swedish,sv_v2_word_order,B1,På morgonen dricker jag kaffe.
+Swedish,sv_v2_word_order,B1,Efter jobbet går hon hem.
+Swedish,sv_v2_word_order,B1,Nästa vecka reser de till Spanien.
+Swedish,sv_v2_word_order,B1,Ofta läser han böcker.
+Swedish,sv_v2_word_order,B1,Till dig köper jag en present.
+Swedish,sv_v2_word_order,B1,Här bor mina föräldrar.
+Swedish,sv_v2_word_order,B1,Snart börjar filmen.
+Swedish,sv_reflexive_possessive,B1,Hon glömde sin väska hemma.
+Swedish,sv_reflexive_possessive,B1,Pojken leker med sin nya boll.
+Swedish,sv_reflexive_possessive,B1,Vi tog med våra egna smörgåsar.
+Swedish,sv_reflexive_possessive,B1,De målade om sitt hus förra veckan.
+Swedish,sv_reflexive_possessive,B1,Jag älskar min hund väldigt mycket.
+Swedish,sv_reflexive_possessive,B1,Han tvättade sin bil på lördagen.
+Swedish,sv_reflexive_possessive,B1,Katterna slickar sina tassar rena.
+Swedish,sv_reflexive_possessive,B1,Du måste ta hand om din familj.

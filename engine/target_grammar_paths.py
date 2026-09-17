@@ -290,6 +290,216 @@ TARGET_GRAMMAR_PATHS: dict[str, list[dict]] = {
          "description": "The present subjunctive mood, triggered by expressions of wish, "
                          "doubt, emotion, or necessity (vull que..., cal que...)."},
     ],
+    "Romanian": [
+        {"key": "ro_enclitic_article", "level": "A1", "lesson_id": 1075, "category": "nouns",
+         "title": "Articolul hotărât enclitic",
+         "gloss_en": "Enclitic (suffixed) definite article",
+         "description": "The definite article attaches to the END of the noun as a suffix "
+                         "(băiat -> băiatul, casă -> casa) instead of standing before it as a "
+                         "separate word -- unique among the Romance languages here."},
+        {"key": "ro_neuter_gender", "level": "A1", "lesson_id": 1076, "category": "nouns",
+         "title": "Genul neutru",
+         "gloss_en": "Neuter gender (masculine in singular, feminine in plural)",
+         "description": "A third grammatical gender alongside masculine/feminine: neuter nouns "
+                         "take masculine agreement in the singular and feminine agreement in "
+                         "the plural (un scaun mic / două scaune mici)."},
+        {"key": "ro_subjunctive_sa", "level": "A2", "lesson_id": 1077, "category": "modals",
+         "title": "Conjunctivul cu \"să\"",
+         "gloss_en": "Subjunctive with să (replaces the infinitive)",
+         "description": "The subjunctive mood introduced by să, used after verbs of wish/"
+                         "intention/ability instead of an infinitive (vreau să merg, not "
+                         "\"vreau a merge\") -- far more pervasive in Romanian than the "
+                         "subjunctive is in French/Italian/Spanish/Portuguese/Catalan."},
+        {"key": "ro_cases_nom_gen", "level": "A2", "lesson_id": 1078, "category": "nouns",
+         "title": "Cazurile: nominativ-acuzativ și genitiv-dativ",
+         "gloss_en": "Case remnants: nominative/accusative vs genitive/dative",
+         "description": "Romanian keeps a reduced case system (a Latin remnant lost in the "
+                         "other Romance languages here): nouns and their articles change form "
+                         "between the nominative/accusative and the genitive/dative "
+                         "(fata -> fetei for 'of/to the girl')."},
+        {"key": "ro_pe_clitic_doubling", "level": "B1", "lesson_id": 1079, "category": "advanced",
+         "title": "Prepoziția \"pe\" și dublarea prin pronume clitic",
+         "gloss_en": "Marker pe + clitic pronoun doubling",
+         "description": "Definite/animate direct objects are marked with pe and commonly "
+                         "doubled by a clitic pronoun even when the full noun is also present "
+                         "(Îl văd pe Ion -- literally 'him I-see PE Ion')."},
+        {"key": "ro_possessive_articles", "level": "B1", "lesson_id": 1080, "category": "nouns",
+         "title": "Articolul posesiv al/a/ai/ale",
+         "gloss_en": "Possessive linking article (al/a/ai/ale)",
+         "description": "A possessive construction needs a linking article that agrees in "
+                         "gender/number with the possessed noun, not the possessor (cartea "
+                         "băiatului 'the boy's book', but caietul fetei 'the girl's notebook')."},
+    ],
+    "Bulgarian": [
+        {"key": "bg_definite_article_suffix", "level": "A1", "lesson_id": 1081, "category": "nouns",
+         "title": "Определителен член (наставка)",
+         "gloss_en": "Enclitic (suffixed) definite article",
+         "description": "The definite article attaches to the END of the noun as a suffix "
+                         "(къща -> къщата 'the house', стол -> столът 'the chair') instead of "
+                         "standing before it as a separate word -- unique among the Slavic "
+                         "languages here."},
+        {"key": "bg_da_construction", "level": "A2", "lesson_id": 1082, "category": "modals",
+         "title": "Конструкцията с \"да\" вместо инфинитив",
+         "gloss_en": "Да + present tense replaces the infinitive",
+         "description": "Bulgarian lost the infinitive entirely (a Balkan-sprachbund feature "
+                         "shared with Romanian's să and Modern Greek) -- 'I want to go' is "
+                         "искам да отида, literally 'I want that I-go', not a bare verb form."},
+        {"key": "bg_aspect_basic", "level": "A2", "lesson_id": 1083, "category": "past",
+         "title": "Глаголен вид: свършен и несвършен",
+         "gloss_en": "Verbal aspect: perfective vs imperfective",
+         "description": "Perfective vs imperfective aspect pairs (пиша/напиша) and how the "
+                         "choice changes whether an action is ongoing/habitual vs completed -- "
+                         "most verbs come in aspectual pairs, often via a different prefix or "
+                         "stem."},
+        {"key": "bg_aspect_past", "level": "B1", "lesson_id": 1084, "category": "past",
+         "title": "Вид в минало време: навик срещу завършено действие",
+         "gloss_en": "Aspect in the past tense",
+         "description": "Using imperfective aspect in the past for habitual/repeated actions "
+                         "vs perfective for a single completed action -- layered on top of "
+                         "Bulgarian's own rich past-tense system (aorist vs imperfect)."},
+        {"key": "bg_clitic_doubling", "level": "B1", "lesson_id": 1085, "category": "advanced",
+         "title": "Удвояване с кратки местоимения",
+         "gloss_en": "Clitic pronoun doubling",
+         "description": "Short (clitic) object pronouns commonly double a full noun phrase, "
+                         "especially for definite/topical objects and possession (Видях го "
+                         "Иван 'I saw him, Ivan' / на мен ми харесва 'to me, it pleases me') -- "
+                         "similar in spirit to Romanian's pe-doubling but with its own "
+                         "distribution rules."},
+        {"key": "bg_renarrative_mood", "level": "B2", "lesson_id": 1086, "category": "advanced",
+         "title": "Преизказно наклонение",
+         "gloss_en": "Renarrative (evidential) mood",
+         "description": "A dedicated verb mood marking that the speaker is reporting something "
+                         "they didn't witness firsthand (hearsay, inference, surprise) -- e.g. "
+                         "той бил вкъщи 'he was [apparently] home', distinct from той беше вкъщи "
+                         "'he was home' (witnessed) -- a hallmark Balkan-Slavic feature English "
+                         "has no grammatical equivalent for."},
+    ],
+    "Czech": [
+        {"key": "cs_gender_animacy", "level": "A1", "lesson_id": 1087, "category": "nouns",
+         "title": "Rod podstatných jmen: životnost",
+         "gloss_en": "Gender & animacy (masculine animate vs inanimate)",
+         "description": "Czech splits masculine nouns into animate and inanimate subtypes, "
+                         "each with its own accusative/genitive endings and its own "
+                         "past-tense verb agreement (vidím pána vs vidím hrad) -- a "
+                         "distinction most other Slavic languages here don't grammaticalize "
+                         "as sharply."},
+        {"key": "cs_cases_basic", "level": "A2", "lesson_id": 1088, "category": "nouns",
+         "title": "Pády: 1., 4. a 2. pád v běžných větách",
+         "gloss_en": "Basic case usage (nominative, accusative, genitive)",
+         "description": "Basic case usage in everyday sentences: nominative for the subject, "
+                         "accusative for a direct object, genitive after negation and "
+                         "quantities -- part of Czech's full seven-case declension system."},
+        {"key": "cs_aspect_basic", "level": "A2", "lesson_id": 1089, "category": "past",
+         "title": "Vidová dvojice: dokonavý a nedokonavý",
+         "gloss_en": "Verbal aspect: perfective vs imperfective",
+         "description": "Perfective vs imperfective aspect pairs (dělat/udělat) and how the "
+                         "choice changes whether an action is ongoing/habitual vs completed."},
+        {"key": "cs_aspect_past", "level": "B1", "lesson_id": 1090, "category": "past",
+         "title": "Vid v minulém čase: zvyk vs dokončený děj",
+         "gloss_en": "Aspect in the past tense",
+         "description": "Using imperfective aspect in the past for habitual/repeated actions "
+                         "vs perfective for a single completed action."},
+        {"key": "cs_clitic_word_order", "level": "B1", "lesson_id": 1091, "category": "advanced",
+         "title": "Slovosled příklonek (Wackernagelovo pravidlo)",
+         "gloss_en": "Clitic word order (Wackernagel's law)",
+         "description": "Short unstressed words -- reflexive se/si, short pronouns, the "
+                         "conditional particle by, the auxiliary jsem -- must cluster in the "
+                         "clause's second position regardless of what the first word is, a "
+                         "strict word-order rule with no English equivalent."},
+        {"key": "cs_conditional_bych", "level": "B2", "lesson_id": 1092, "category": "modals",
+         "title": "Podmiňovací způsob s \"bych/by\"",
+         "gloss_en": "Conditional mood with bych/by",
+         "description": "The conditional mood is built with the invariant particle by plus "
+                         "person-marked forms (bych, bys, by, bychom, byste, by) attached to "
+                         "the past participle, not a single conjugated verb form."},
+    ],
+    "Turkish": [
+        {"key": "tr_vowel_harmony", "level": "A1", "lesson_id": 1093, "category": "basics",
+         "title": "Ünlü Uyumu",
+         "gloss_en": "Vowel harmony",
+         "description": "Nearly every suffix in Turkish has multiple forms (e.g. -da/-de, "
+                         "-lar/-ler) and the vowel it takes must harmonize with the last vowel "
+                         "of the word it attaches to -- a rule that governs almost all "
+                         "grammar built through suffixes, unlike anything in English."},
+        {"key": "tr_case_suffixes", "level": "A2", "lesson_id": 1094, "category": "nouns",
+         "title": "Hal Ekleri (Durum Ekleri)",
+         "gloss_en": "Case suffixes (accusative, dative, locative, ablative)",
+         "description": "Turkish marks a noun's grammatical role by attaching a case suffix "
+                         "directly to it (evi 'the house' [accusative], eve 'to the house' "
+                         "[dative], evde 'at the house' [locative], evden 'from the house' "
+                         "[ablative]) instead of using prepositions or word order."},
+        {"key": "tr_possessive_suffixes", "level": "A2", "lesson_id": 1095, "category": "nouns",
+         "title": "İyelik Ekleri",
+         "gloss_en": "Possessive suffixes",
+         "description": "Possession is marked with a suffix on the possessed noun itself "
+                         "(evim 'my house', evin 'your house', evi 'his/her house'), not a "
+                         "separate possessive pronoun standing before the noun as in English."},
+        {"key": "tr_question_particle", "level": "A1", "category": "basics", "lesson_id": 1096,
+         "title": "Soru Eki \"mI\"",
+         "gloss_en": "The question particle mı/mi/mu/mü",
+         "description": "Yes/no questions are formed with a separate question particle "
+                         "(mı/mi/mu/mü, chosen by vowel harmony) placed right after the word "
+                         "being questioned, not by inverting word order or relying only on "
+                         "intonation."},
+        {"key": "tr_evidential_past", "level": "B1", "lesson_id": 1097, "category": "past",
+         "title": "Öğrenilen Geçmiş Zaman (-mIş) ile Görülen Geçmiş Zaman (-DI)",
+         "gloss_en": "Evidential past: witnessed (-DI) vs reported/inferred (-mIş)",
+         "description": "Two distinct past-tense suffixes depending on whether the speaker "
+                         "witnessed the event (geldi 'he came', seen firsthand) or is "
+                         "reporting/inferring it (gelmiş 'he came, apparently/I heard') -- a "
+                         "grammatical evidentiality distinction English marks only lexically, "
+                         "if at all."},
+        {"key": "tr_agglutinative_verbs", "level": "B1", "lesson_id": 1098, "category": "advanced",
+         "title": "Fiillerde Ek Yığılması",
+         "gloss_en": "Suffix stacking on verbs (negation, ability, tense, person)",
+         "description": "A single Turkish verb stacks multiple suffixes in a fixed order "
+                         "(stem + ability -(y)Abil + negation -mA + tense + person), so one "
+                         "word like gelemedim ('I was not able to come') carries what English "
+                         "needs a whole sentence for."},
+    ],
+    "Swedish": [
+        {"key": "sv_en_ett_gender", "level": "A1", "lesson_id": 1099, "category": "nouns",
+         "title": "En- och ett-ord",
+         "gloss_en": "Common vs neuter gender (en/ett)",
+         "description": "Every noun is either an en-word (common gender, en hund) or an "
+                         "ett-word (neuter, ett hus) -- not predictable from meaning, and it "
+                         "controls the indefinite article and adjective endings, unlike "
+                         "English's genderless nouns."},
+        {"key": "sv_definite_suffix", "level": "A1", "lesson_id": 1100, "category": "nouns",
+         "title": "Bestämd form (efterled)",
+         "gloss_en": "Enclitic (suffixed) definite article",
+         "description": "The definite article attaches to the END of the noun as a suffix "
+                         "(hund -> hunden 'the dog', hus -> huset 'the house') instead of "
+                         "standing before it as a separate word."},
+        {"key": "sv_adjective_agreement", "level": "A2", "lesson_id": 1101, "category": "nouns",
+         "title": "Adjektivböjning",
+         "gloss_en": "Adjective agreement (en/ett/plural)",
+         "description": "Adjectives take different endings depending on the noun's gender and "
+                         "number (en stor hund, ett stort hus, stora hundar/hus) -- three "
+                         "forms for what English expresses with one invariant adjective."},
+        {"key": "sv_double_definiteness", "level": "A2", "lesson_id": 1102, "category": "advanced",
+         "title": "Dubbel bestämdhet",
+         "gloss_en": "Double definiteness",
+         "description": "When an adjective modifies a definite noun, Swedish marks "
+                         "definiteness TWICE: a free article before the adjective (den/det/de) "
+                         "AND the noun's own suffix (den stora hunden 'the big dog') -- both "
+                         "are required together, unlike English's single 'the'."},
+        {"key": "sv_v2_word_order", "level": "B1", "lesson_id": 1103, "category": "basics",
+         "title": "V2-regeln (verbet på andra plats)",
+         "gloss_en": "Verb-second (V2) word order",
+         "description": "The finite verb must be the second element in a main clause -- when "
+                         "anything other than the subject is fronted (a time expression, an "
+                         "object), the subject and verb invert (Idag åker jag 'Today go I', "
+                         "not 'Today I go') to keep the verb in second position."},
+        {"key": "sv_reflexive_possessive", "level": "B1", "lesson_id": 1104, "category": "advanced",
+         "title": "Reflexiva possessiva pronomen (sin/sitt/sina)",
+         "gloss_en": "Reflexive possessives (sin/sitt/sina) vs hans/hennes",
+         "description": "A dedicated reflexive possessive (sin/sitt/sina) refers back to the "
+                         "sentence's own subject (Han älskar sin bil 'He loves his [own] car') "
+                         "and is required instead of hans/hennes whenever the possessor IS the "
+                         "subject -- a distinction English marks only with awkward emphasis, "
+                         "if at all."},
+    ],
     "German": [
         {"key": "de_gender_der_die_das", "level": "A1", "lesson_id": 1044, "category": "nouns",
          "title": "Substantivgenus: der, die, das",

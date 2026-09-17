@@ -113,7 +113,8 @@ _LANG_NAMES: dict[str, str] = {
     "en": "English", "uk": "Ukrainian", "de": "German", "es": "Spanish",
     "ko": "Korean", "fr": "French", "ja": "Japanese", "zh": "Chinese",
     "pt": "Portuguese", "it": "Italian", "pl": "Polish", "ru": "Russian",
-    "ca": "Catalan", "nl": "Dutch",
+    "ca": "Catalan", "nl": "Dutch", "ro": "Romanian", "bg": "Bulgarian",
+    "cs": "Czech", "tr": "Turkish", "sv": "Swedish",
 }
 
 

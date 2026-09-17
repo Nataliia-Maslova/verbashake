@@ -42,6 +42,11 @@ LANG_TO_CODE = {
     "Russian":    "ru",
     "Catalan":    "ca",
     "Dutch":      "nl",
+    "Romanian":   "ro",
+    "Bulgarian":  "bg",
+    "Czech":      "cs",
+    "Turkish":    "tr",
+    "Swedish":    "sv",
 }
 
 # Big icon shown next to the step title. Universal across languages.

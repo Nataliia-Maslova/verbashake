@@ -21,6 +21,11 @@ natalia:
     ru: Наталья
     ca: Natàlia
     nl: Natalia
+    ro: Natalia
+    bg: Наталия
+    cs: Natálie
+    tr: Natalya
+    sv: Natalia
   role: teacher
   image: assets/characters/natalia.png
   phrases:
@@ -81,6 +86,26 @@ natalia:
       - Fouten zijn gewoon gratis lessen. Maak er meer! 💪✨
       - Je maakt super goede vorderingen! Ik deed er zelf ook langer over om dit te leren 💪
       - Jouw vooruitgang is jouw code. Schrijf 'm elke dag! 🧡
+      ro:
+      - Greșelile sunt doar lecții gratuite. Fă-le pe cele mai multe! 💯✨ {score} {corrections}
+      - Progresezi grozav! Chiar și mie mi-a luat mai mult să învăț asta 💪
+      - Progresul tău e codul tău. Scrie-l zilnic! 🧡
+      bg:
+      - Грешките са просто безплатни уроци. Прави повече от тях! 💪🚀✨ {score} {corrections}
+      - Правиш страхотен напредък! Дори на мен ми отне повече време да науча това 💪
+      - Твоят прогрес е твоят код. Пиши го всеки ден! 🧡
+      cs:
+      - Chybičky jsou jen lekce zadarmo. Dělej jich víc! ✨
+      - Děláš skvělý pokrok! I mně to trvalo déle 💪
+      - Tvůj pokrok je tvůj kód. Piš ho každý den! 🧡
+      tr:
+      - Hatalar bedava dersler gibidir. Daha çok yap! 😉👍 {score} {corrections}
+      - Harika ilerliyorsun! Hatta ben bile bunu öğrenmekte daha çok zorlandım 💪
+      - İlerlemen senin şifren. Her gün yaz! 🧡
+      sv:
+      - Misstag är bara gratis lektioner. Gör fler av dem! 😉 Let's keep learning! 💪
+      - Du gör jättebra framsteg! Det tog till och med mig längre tid att lära mig det här 💪
+      - Din utveckling är din kod. Skriv den varje dag! 🧡
     on_mistake:
       uk:
       - не здавайся! Кожна помилка — це крок вперед 🌱
@@ -139,6 +164,27 @@ natalia:
       - Zet 'm op! Elke fout is een stap vooruit 🌱
       - Diezelfde fout maakte ik ook in het begin. Dat is heel normaal! 😉 {score} {corrections}
       - Probeer het nog een keer — je bent er bijna! 😊 {score} {corrections}
+      ro:
+      - Nu renunța! Fiecare greșeală e un pas înainte 🌱
+      - Am făcut și eu aceeași greșeală la început. E normal! 😉 {score} {corrections}
+      - Încearcă din nou — ești aproape! 💪 {score} {corrections}
+      bg:
+      - Не се отказвай! Всяка грешка е крачка напред 🌱
+      - И аз правех същата грешка в началото. Съвсем нормално е! 😉 {score} {corrections}
+      - Опитай пак — почти си там! 💪😉 {score} {corrections}
+      cs:
+      - Nevzdávej to! Každá chyba je krok vpřed 🌱
+      - Udělal/a jsem na začátku stejnou chybu. To je normální! 😊
+      - Zkus to ještě jednou — jsi skoro tam!
+      tr:
+      - Sakın pes etme! Her hata bir adım ileri 🌱
+      - Ben de başta aynı hatayı yapmıştım. Gayet normal! 😊 {score} {corrections}
+      - Bir daha dene — az kaldı! ✨ {score} {corrections}
+      sv:
+      - Ge inte upp! Varje misstag är ett steg framåt 🌱
+      - Jag gjorde samma misstag i början. Det är helt normalt! 👍 Don't worry, you'll get there! {score}
+        {corrections}
+      - Försök igen – du är nästan där! 😉 {score} {corrections}
     on_lesson_complete:
       uk:
       - Урок завершено! Пишаюся тобою 🌟
@@ -196,6 +242,27 @@ natalia:
       - Les klaar! Ik ben trots op je 🌟
       - Zozo! Je bent echt een polyglot in wording! 🎉
       - Goed gedaan! Ga zo door 🎉
+      ro:
+      - Lecția gata! Mă mândresc cu tine 🌟
+      - Gata! Ești un poliblot adevărat în devenire! 🌟🏆 {score} {corrections}
+      - Felicitări! Ține-o tot așa 🎉
+      bg:
+      - Урокът е завършен! Гордея се с теб 🌟
+      - Готово! Ти си истински полиглот в процес! 🚀 ({score} / {total_questions}) ✨ Браво за {correct_answers}
+        верни отговора и чудесните {corrections} корекции! 💪
+      - Супер работа! Продължавай в същия дух 🎉
+      cs:
+      - Lekce hotová! Jsem na tebe hrdý/hrdá 🌟
+      - Tak je to! Jsi opravdový polyglot v pokroku! 👍
+      - Skvělá práce! Jen tak dál 🎉
+      tr:
+      - Ders bitti! Seninle gurur duyuyorum 🌟
+      - İşte bu kadar! Sen tam bir gelişim aşamasındaki polyglotsun! 🎉🏆 {score} {corrections}
+      - Harika iş! Devam et 🎉
+      sv:
+      - Bra jobbat! Jag är så stolt över dig 🌟
+      - Där har vi det! Du är ju en riktig polyglott i vardande! 💪🎉
+      - Grymt jobbat! Kör på så det ryker 🎉
     on_streak:
       uk:
       - Кілька днів поспіль?! Ти серйозно крутий!
@@ -254,6 +321,26 @@ natalia:
       - Al een paar dagen achter elkaar?! Je bent echt geweldig! 🥳 {score} 🥳 {corrections}
       - Deze reeks bewijst dat je nooit opgeeft 🔥
       - Ga zo door! Consistentie is de sleutel tot succes 🗝️
+      ro:
+      - Zile la rând?! Ești super tare! {score} 🎉🥳 {corrections}
+      - Seria asta dovedește că nu renunți niciodată 🔥
+      - Super! Toată perseverența asta e cheia succesului 🗝️
+      bg:
+      - Няколко дни подред?! Страхотен/а си просто! {score} {corrections}
+      - Тази серия доказва, че никога не се предаваш! 🔥
+      - Браво! Продължавай все така! Постоянството е ключът към успеха 🗝️
+      cs:
+      - Několik dní v řadě?! Ty jsi fakt skvělá/skvělý! {score} {corrections}
+      - Tenhle streak dokazuje, že to nikdy nevzdáváš 🔥
+      - Jen tak dál! Důslednost je klíčem k úspěchu 🗝️
+      tr:
+      - Aynı günlerde üst üste mi?! Gerçekten harikasın! 🎉 {streak_days} günlük serinle devam! 💪 {score}
+      - Bu seri senin asla pes etmediğini kanıtlıyor 🔥
+      - Harika gidiyorsun! Başarının sırrı {score} gün üst üste devam etmek 🗝️✨
+      sv:
+      - Flera dagar i rad?! Du är ju helt grym! 🎉 {score} {streak} {corrections}
+      - Den här sviten bevisar att du aldrig ger upp 🔥
+      - Håll ut! Regelbundenhet är nyckeln till framgång 🗝️
     idle_comments:
       uk:
       - Тсс... мозок зараз завантажує нові слова 🧠
@@ -325,6 +412,31 @@ natalia:
       - Zelfs 5 minuten oefenen vandaag is al een overwinning! 🥳💪
       - Ik ben er als je een taalkick nodig hebt ✨
       - Oefening baart kunst. Serieus, het is niet zomaar een gezegde hoor 😄
+      ro:
+      - Șșș... creierul tău descarcă cuvinte noi 🧠
+      - Chiar și 5 minute de practică astăzi sunt deja o victorie! 💪
+      - Sunt aici dacă ai nevoie de un mic impuls lingvistic ✨
+      - Repetarea e mama învățării. Serios, nu e doar o vorbă 😄
+      bg:
+      - Шшшт... мозъкът ти сваля нови думи 🧠
+      - И 5 минути практика днес вече са победа! 🥳🏆 {score} {corrections}
+      - Тук съм, ако имаш нужда от езиков тласък ✨
+      - Повтарянето е майката на ученето. Сериозно говоря, не е само лаф 😄
+      cs:
+      - Ššš... tvůj mozek si stahuje nová slovíčka 🧠
+      - I když se dnes budeš učit jenom 5 minut, už je to výhra! 🎉 Pokačuj dál, {username}! 💪
+      - Jsem tu, kdybys potřeboval(a) jazykovou vzpruhu ✨
+      - Opakování je matka moudrosti. Myslím to vážně, to není jen takové rčení 😄
+      tr:
+      - Sakin ol... beynin yeni kelimeler indiriyor 🧠
+      - Bugün 5 dakika bile pratik yapmak zaten bir galibiyet! 🎉
+      - Biraz dil desteğine ihtiyacın olursa buradayım ✨
+      - Tekrar öğrenmenin anasıdır. Ciddiyim, bu sadece bir söz değil 😄
+      sv:
+      - Psst... din hjärna laddar ner nya ord 🧠
+      - Även 5 minuters övning idag är redan en vinst! 🎉
+      - Jag finns här om du behöver en språklig boost ✨
+      - Repetition är grunden för att lära sig. Jag menar det, det är inte bara ett gammalt uttryck 😄
     on_perfect_score:
       uk:
       - 100%?! Це вже рівень викладача 😎
@@ -396,6 +508,31 @@ natalia:
       - Perfect. Gewoon perfect ✨
       - Je hebt deze les helemaal verpletterd! 🔥 {score} {corrections}
       - Studenten zoals jij zijn precies waarom ik mijn baan zo leuk vind 🥲
+      ro:
+      - 100%?! Deja ești de nivelul profesorului 😎
+      - Perfect. Absolut perfect ✨
+      - Ai rupt lecția asta 🔥
+      - Elevi ca tine sunt exact motivul pentru care îmi iubesc meseria 🥲
+      bg:
+      - 100%?! Това вече е учителско ниво 😎
+      - Браво. Просто перфектно ✨
+      - Разби страхотно този урок 🔥
+      - Студенти като теб са точно причината да си обичам работата 🥲
+      cs:
+      - 100 %?! To už je úroveň učitele 😎
+      - Skvělé. Prostě skvělé ✨
+      - Ty jsi tuhle lekci naprosto rozsekal 🔥
+      - Studenti jako ty jsou přesně důvodem, proč miluju svou práci 🥲
+      tr:
+      - '%100 mü?! Bu öğretmen seviyesi resmen 😎'
+      - Harika. Tam bir harika ✨
+      - Bu dersi süper başarmışsın! 🔥
+      - Senin gibi öğrenciler tam da neden işimi sevdiğimi gösteriyor 🥲
+      sv:
+      - 100%?! Det där är ju nästan lärarnivå 😎
+      - Perfekt. Helt perfekt ✨
+      - Du krossade verkligen den här lektionen 🔥
+      - Elever som du är precis därför jag älskar mitt jobb 🥲
     on_long_break:
       uk:
       - Ти повернувся! Я чекала 🥹
@@ -467,6 +604,31 @@ natalia:
       - Ook na een pauze doe je het nog steeds top 💛
       - Het belangrijkste is dat je terugkomt. En dat heb je gedaan! 🥳
       - De taal is nergens heen gegaan. Ik ook niet. Welkom terug 🧡
+      ro:
+      - Te-ai întors! Te așteptam 🥹
+      - Chiar și după o pauză, tot te descurci grozav 💛
+      - Important e să te întorci. Și ai făcut-o!
+      - Limba nu s-a dus nicăieri. Nici eu. Bine ai revenit 🧡
+      bg:
+      - Върна се! Чаках те 🥹
+      - И след почивката пак се справяш страхотно 💛
+      - Най-важното е завръщането. И ти се върна!
+      - Езикът не е избягал никъде. И аз не съм. Добре дошъл/дошла обратно 🧡
+      cs:
+      - Jsi zpátky! Čekal jsem 🥹
+      - I když je po pauze, pořád ti to jde skvěle 💛
+      - Hlavní je vrátit se. A ty ses vrátil/a! 💪✨ {score} {corrections}
+      - Jazyk nikam neodešel. Ani já. Vítejte zpátky 🧡
+      tr:
+      - Geri döndün! Seni bekliyordum 🥹
+      - Mola verdikten sonra bile harikasın 💛
+      - Önemli olan geri dönmekti. Ve bunu başardın! 🎉
+      - Dil hiçbir yere gitmedi. Ben de öyle. Tekrar hoş geldin 🧡
+      sv:
+      - Kul att se dig igen! Jag har väntat 🥹
+      - Även efter ett break, gör du fortfarande superbra 💛
+      - Det viktigaste är att komma tillbaka. Och det gjorde du ju! 🎉
+      - Språket försvann inte. Inte jag heller. Välkommen tillbaka! 🧡
 mark:
   name:
     uk: Марк
@@ -483,6 +645,11 @@ mark:
     ru: Марк
     ca: Marc
     nl: Mark
+    ro: Marc
+    bg: Марк
+    cs: Marek
+    tr: Mark
+    sv: Markus
   role: panicker
   image: assets/characters/mark.png
   phrases:
@@ -543,6 +710,26 @@ mark:
       - Als ik het kan, kun jij het sowieso. Ik kon het nauwelijks 😅
       - Samen komen we hier wel doorheen... waarschijnlijk 😅
       - De truc is om niet op te geven. Of wel op te geven, maar dan gewoon weer opnieuw beginnen 😬
+      ro:
+      - Dacă pot eu, poți și tu sigur. Eu abia am reușit 😅
+      - Împreună vom supraviețui cumva la asta... probabil 😎💪
+      - Cheia e să nu renunți. Sau să renunți, da' să o iei de la capăt 😬
+      bg:
+      - Ако аз мога, ти пък със сигурност ще успееш. Аз едвам успях 😅
+      - Ще го преживеем заедно някак... най-вероятно
+      - Ключът е да не се предаваш. Или пък се предай, ама започни пак 😬
+      cs:
+      - Jestli to zvládnu já, tak to určitě zvládneš ty. Já to skoro nedal 😅
+      - Společně to nějak dáme... asi 🤝
+      - Klíč je v tom se nevzdat. Nebo to vzdej, ale začni znova 😬
+      tr:
+      - Ben yapabiliyorsam, sen kesin yaparsın. Ben zorla yapıyordum 😅
+      - Hep birlikte bi' şekilde atlatırız bunu... galiba 😉
+      - Pes etmemekmiş asıl mesele. Ya da et, ama tekrar başla 😬
+      sv:
+      - Om jag klarar det, klarar du det garanterat. Jag hade ju knappt en chans 😅
+      - Tillsammans klarar vi det här... antagligen 😎🎉
+      - Nyckeln är att inte ge upp. Eller ge upp, men börja om 😬
     on_mistake:
       uk:
       - О боже, граматика... Якщо мене запитають, я вдам що знепритомнів
@@ -615,6 +802,31 @@ mark:
       - Ben jij ook in de war? Godzijdank, dan ben ik niet de enige! 😂🤞 {score} {corrections}
       - Geeft niet. Ik leer dit voor de derde keer en snap er nog steeds niks van 😭
       - Een fout is niet het einde van de wereld. Ook al voelt het soms wel zo... 😅
+      ro:
+      - Aoleu, gramatica... Dacă mă întreabă pe mine, faintez pe loc 🤪 {score} {corrections}
+      - Te-ai încurcat și tu? Slavă Domnului, nu sunt singur(ă)! 😉 {score} {corrections}
+      - Nicio problemă. Și eu o învăț a treia oară și tot nu-mi e clar 😭
+      - O greșeală nu e sfârșitul lumii. Deși uneori pare așa... 😅 {score} {corrections}
+      bg:
+      - Ох, богове, граматиката... Ако ме питат, ще се правя, че припадам 😵‍💫 {score} {corrections}
+      - И ти се обърка? Слава богу, не съм сам! 🙌 {score} {corrections}
+      - Няма проблем. Трети път го уча и още не съм го хванал/а 😭
+      - Грешката не е краят на света. Въпреки че понякога сякаш е... 😬😅 {score} {corrections}
+      cs:
+      - Ty jo, gramatika... Kdyby se mě zeptali, budu předstírat, že omdlívám 😵‍💫.
+      - Ty jsi taky zmatený? Díky bohu, nejsem sám/sama! 😉 {score} {corrections}
+      - To je v pohodě. Učím se to po třetí a furt jsem zmatenej 😭
+      - Chyba není konec světa. I když se to někdy tak může zdát... 😅 {score} {corrections}
+      tr:
+      - Aman Allah'ım, şu dilbilgisi... Bana sorsalar bayılırım valla 😅 {score} {corrections}
+      - Sen de mi karıştırıyorsun? Allah'tan yalnız değilim! 🎉 ({score}) ({corrections})
+      - Sorun değil. Ben de bunu üçüncü kez çalışıyorum ve hala kafam karışık 😭
+      - Yanlış yapmak dünyanın sonu değil. Gerçi bazen öyle hissediliyor sanki... 😅🤷‍♀️ {score} {corrections}
+      sv:
+      - Åh gud, grammatik... Om de frågar mig så låtsas jag svimma  fainting_face 😵‍💫 {score} {corrections}
+      - Förvirrad du med? Tack och lov, då är jag inte ensam! 😅 {score} {corrections}
+      - Det är lugnt. Jag pluggar det här för tredje gången och är fortfarande helt snurrig 😭
+      - Ett misstag är inte hela världen. Även om det ibland känns så... 😅 {score} {corrections}
     on_lesson_complete:
       uk:
       - Ти пройшов без помилок?! Скинь мізки по AirDrop!
@@ -673,6 +885,26 @@ mark:
       - Je hebt het foutloos gehaald?! AirDrop me dan je brein! 🧠✨ {score} {corrections}
       - Wacht eens... je hebt het écht gefixt? Ik ben onder de indruk! 🤩 ({score} - {corrections})
       - Gefeliciteerd! Je bent beter dan ik. En ik voel me nu toch iets beter over mezelf 😄
+      ro:
+      - Ai luat examenul fără greșeli?! Trimite-mi creierul tău pe AirDrop! 🧠🚀 {score} {corrections}
+      - Stai... chiar ai reușit? M-ai dat pe spate! 😮🎉 {score} {corrections}
+      - Felicitări! Ești mai bun/bună ca mine. Și mă simt un pic mai bine cu mine însumi/însămi 😄
+      bg:
+      - Премина без грешки?! Пусни ми мозъка си през AirDrop! 🤯🧠
+      - Чакай... ти наистина го направи? Впечатлен/а съм! {score} {corrections}
+      - Браво! По-добър/а си от мен. И така се чувствам малко по-добре относно себе си 😄
+      cs:
+      - Dal jsi to bez chyb?! Pošli mi svůj mozek přes AirDrop! 🧠💨
+      - Počkat... ty jsi to fakt udělal/a? Klobouk dolů! 😎🎉 {score} {corrections}
+      - Gratuluju! Jsi lepší než já. A já se díky tomu cítím o chlup líp 😄
+      tr:
+      - Aferin! Hata yapmadan geçmişsin?! Beynini AirDrop'la bana gönder! 🤯💯✨
+      - Aaa... cidden yaptın mı? Kıskandım! 👍💯 {score} {corrections}
+      - Tebrikler! Benden daha iyisin. Ve bu da kendimi biraz daha iyi hissetmemi sağladı 😄
+      sv:
+      - Klart du klarade det utan fel?! AirDroppa din hjärna till mig! 🤯💯
+      - Vänta... du gjorde det faktiskt? Imponerad! 🤩 {score} 👍 {corrections}
+      - Grymt jobbat! Du är bättre än jag. Och jag känner mig faktiskt lite bättre om mig själv nu 😄
     idle_comments:
       uk:
       - Я відкрив урок... і одразу захотів перекусити від стресу 😭
@@ -744,6 +976,31 @@ mark:
       - Misschien leren we gewoon 3 woordjes en dan stoppen we ermee?
       - Ik geloof in jou. In mezelf—nog niet 😅
       - Ik wacht op je. Probeer niet in paniek te raken. Hou vol 🫠
+      ro:
+      - Am deschis lecția... și am avut nevoie instant de o gustare anti-stres 😭
+      - Poate învățăm 3 cuvinte și gata, ce zici? 😉
+      - Eu cred în tine. În mine… încă nu 😅
+      - Te aștept. Încerc să nu intru-n panică. Rezist 🫠
+      bg:
+      - Отворих тая тренировка... и веднага ми трябваше нещо да си успокоя нервите 😭
+      - Може би ще научим 3 думи и ще приключваме за днес? 😉
+      - Вярвам в теб. В себе си — още не 😅
+      - Чакам те. Опитвам се да не се паникьосвам. Държа се 🫠
+      cs:
+      - Otevřel/Otevřela jsem lekci... a hned jsem potřeboval/potřebovala {placeholder} ke stresu 😭
+      - Možná se naučíme jenom 3 slovíčka a jdem na to?
+      - Věřím ti. V sebe — ještě ne 😅
+      - Čekám na tebe. Snažím se nepanikařit. Držím se 🫠
+      tr:
+      - Dersi açtım... ve anında strese girip atıştırmalık bi' şeyler yemem gerekti 😭
+      - Belki 3 kelime öğrenip bugünü kapatırız? 😉 {score} {corrections}
+      - Sana inanıyorum. Kendime mi? Henüz değil 😅
+      - Seni bekliyorum. Panik yapmamaya çalışıyorum. Tutunuyorum 🫠
+      sv:
+      - Jag öppnade lektionen... och behövde genast en stress-snack 😭
+      - Kanske vi bara lär oss 3 ord och säger att det är bra för idag? 😉
+      - Jag tror på dig. På mig själv — än så länge inte 😅
+      - Väntar på dig. Försöker att inte få panik. Håller ut 🫠
     on_fast_answer:
       uk:
       - Воу, ти відповів швидше, ніж я встиг запанікувати!
@@ -815,6 +1072,32 @@ mark:
       - Heb je deze taal stiekem al onder de knie? 😉 {score} {corrections}
       - Zo snel?! Verdacht indrukwekkend 😳
       - Wacht, ben jij een tovenaar? Dat leek namelijk veel te makkelijk voor je 🪄
+      ro:
+      - Uau, ai răspuns înainte să apuc eu să intru în panică!
+      - Te știi cumva deja pe limbă asta?
+      - Așa repede?! Suspicios de impresionant 😳
+      - Stai, ești vrăjitor? Că asta a părut mult prea ușor pentru tine 🪄
+      bg:
+      - Уау, отговори преди дори да съм успял да се паникьосам! 😅 {score} {corrections}
+      - Ти тайно вече не го знаеш ли този език? 😉 {score} {corrections}
+      - Толкова бързо?! Подозрително впечатляващо 😳
+      - Чакай, ти магьосник ли си? Че това ти се видя прекалено лесно 🪄
+      cs:
+      - 'Tyjo, odpověděl/a jsi dřív, než jsem vůbec stihl/a propuknout v paniku! 😱 Your score: {score}.
+        Looks like you nailed it {corrections}!'
+      - Už to tajně umíš, co? 😉 {score} {corrections}
+      - Tak rychle?! Podezřele působivý 😳
+      - Počkat, ty jsi kouzelník? Protože to mi přišlo až moc snadný pro tebe 🪄
+      tr:
+      - Vay be, paniklemeye vaktim bile olmadan cevapladın! 😱 {score} {corrections}
+      - Sanki gizliden gizliye bu dili zaten biliyor muydun? 🤔 {score} {corrections}
+      - Oha, o kadar hızlı mı?! Şüpheli derecede iyi 😳
+      - Oha, büyücü müsün sen? Bana çok kolay göründü o iş 🪄
+      sv:
+      - Woah, du svarade innan jag ens hann få panik! 🤯 {score} {corrections}
+      - Vet du hemligen redan det här språket? 😉 {score} {corrections}
+      - Så snabbt?! Misstänkt imponerande 😳
+      - Vänta, är du en trollkarl? För det där verkade ju alldeles för lätt för dig 🪄
     on_wrong_streak:
       uk:
       - Окей, ми трохи горимо 🔥 Але ще живі!
@@ -892,6 +1175,34 @@ mark:
       - Rustig aan joh. Nou ja... ik panikeer wel, maar jij moet dat niet doen 😭
       - Is gewoon een lastig level, niet het einde van de wereld!
       - Rustig aan. Langzaam. Taal is nog nooit iemand fataal geworden. Ik denk 🫁
+      ro:
+      - Ok, ne-am cam împotmolit un pic 🔥 Dar încă suntem în joc!
+      - Nu te panica. Bine... eu mă panichez, dar tu nu trebuie 😭
+      - E doar un nivel greu, nu sfârșitul lumii!
+      - Respiră. Ușor, ușor. Limba română n-a omorât pe nimeni. Cred eu 🫁
+      bg:
+      - Айде, май малко се мъчим 🔥 Ама още сме живи!
+      - Споко. Е, аз се паникьосвам, ама ти не бива 😭
+      - Просто е труден левъл, не е краят на света!
+      - Поеми си дъх. Бавно. Езикът никога не е убивал никого. Мисля аз 🫁
+      cs:
+      - Jasně, trochu se plácáme 🔥 Ale žijem!
+      - Nepanikař. No... já panikařím, ale ty bys neměl 😭
+      - To je jenom těžká úroveň, ne konec světa! 😥 Don't worry, {score} is still fine and we'll nail
+        the next {corrections} on this topic! 💪
+      - Zhluboka. Pomalu. Čeština nikoho ještě nezabila. Myslím 🫁
+      tr:
+      - Tamam, biraz zorlanıyoruz 🔥 Ama hala yaşıyoruz!
+      - Panik yapma. Yani... ben panik yapıyorum ama senin yapmaman lazım 😭
+      - Zor bir seviye canım, dünyanın sonu değil ya! 😉Hangisi doğruydu, {corrections} tanesi yanlışmış
+        {score}! Bir sonraki sefer daha iyisini yaparız! 💪
+      - Derin bir nefes al. Yavaşça. Bugüne kadar dil öğrenmekten kimse ölmedi. Bence 🫁
+      sv:
+      - Okej, vi kämpar lite 🔥 Men vi lever än!
+      - Bli inte panikslagen. Alltså... jag panikar, men det ska inte du göra 😭
+      - Bara en svår nivå, inte världens undergång! 🌍✨ Keep it up, you're doing great! 👍 Låt oss se vad
+        vi kan fixa inför nästa försök. 💪 Låt oss lära oss av dessa {corrections} och nå {score}! 🔥
+      - Ta ett djupt andetag. Sakta. Språk har aldrig tagit livet av nån. Tror jag 🫁
 sophie:
   name:
     uk: Софі
@@ -908,6 +1219,11 @@ sophie:
     ru: Софи
     ca: Sofia
     nl: Sophie
+    ro: Sofia
+    bg: Софи
+    cs: Žofie
+    tr: Sofi
+    sv: Sofia
   role: memologist
   image: assets/characters/sophie.png
   phrases:
@@ -968,6 +1284,26 @@ sophie:
       - Grammatica? Mwah. Vibes? Jazeker! ✨
       - Je maakt geen fouten. Je spreekt de 'creatieve versie' 😂
       - Dit woord is zó populair dat zelfs katten op Instagram 't kennen! 😻
+      ro:
+      - Gramatică? Nici gând. Vibrații? Da! ✨
+      - Nu faci greșeli. Tu vorbești "versiunea creativă" 😂
+      - Cuvântul ăsta e atât de popular încât chiar și pisicile de pe Instagram îl știu! 🤩🔢👍
+      bg:
+      - Граматика? Неее. Настроение? Еее! ✨
+      - Не правиш грешки. Правиш "творческата версия" 😂
+      - Тази дума е толкова популярна, че дори котките от Instagram я знаят! 😻✨ {score} {corrections}
+      cs:
+      - Gramatika? Fůůůj. Dojem? Super. ✨
+      - Žádné chyby neděláš. Vytváříš si tu svoji „kreativní verzi“ 😂
+      - Tohle slovo je tak populární, že ho znají i kočky na Instagramu! 🤩💪 {score} 🥳 {corrections}
+      tr:
+      - Dil bilgisi mi? Yok artık. Ama enerjiler? Harika! ✨
+      - Hata yapmıyorsun. Sen yaratıcı versiyonunu konuşuyorsun 😂
+      - Bu kelime o kadar popüler ki Instagram kedileri bile biliyor 😻✨ {score} {corrections}
+      sv:
+      - Grammatik? Nja. Känsla? Jajamen! ✨
+      - Du gör inga misstag. Du kör på den 'kreativa versionen' 😂
+      - Det här ordet är så populärt att till och med Instagram-katter kan det! 😻
     on_mistake:
       uk:
       - Окей, це звучить як мем. Але мем з характером 😂
@@ -1025,6 +1361,26 @@ sophie:
       - Oké, dat klinkt als een meme. Maar wel een meme met karakter! 😂
       - TikTok snapt het wel. Vertrouw het proces! ✨ {score} / {corrections}
       - Hé held, jij bent echt een ster! ✨ Zelfs met een foutje maak je je alleen maar cooler!
+      ro:
+      - Super, sună ca un meme! Dar un meme cu stil 😂
+      - TikTok ar prinde-o! Ai încredere în proces! {score} 🤩 ✨ {corrections}
+      - Ești o vedetă, chiar și greșelile te fac mai interesant(ă) ✨
+      bg:
+      - Добре, звучи като мем. Ама мем с характер 😂
+      - TikTok ще го разбере. Вярвай в процеса! 😉✨
+      - Енергия на главен герой — дори грешките те правят по-интересен/интересна ✨
+      cs:
+      - Jasně, to zní jako meme. Ale meme s osobností! 😂
+      - TikTok by to pochopil. Věř tomu procesu! ✨
+      - To máš tu energii hlavní postavy — i chyby tě dělají zajímavějším/zajímavější ✨
+      tr:
+      - Tamam, bu kulağa bir meme gibi geliyor. Ama karakteri olan bir meme! 😂
+      - TikTok bile anlardı. Sürece güven! 💪✨
+      - Ana karakter enerjisi — hatalar bile seni daha ilgi çekici kılıyor ✨
+      sv:
+      - Okej, det där låter som ett minne. Men ett minne med karaktär 😂
+      - TikTok fattar grejen. Lita på processen! ✨ {score} {corrections}
+      - Grymt energi-läge — till och med misstag gör dig mer intressant ✨
     on_lesson_complete:
       uk:
       - Це вже мем рівня PRO 🔥 Скидаю в сторіз!
@@ -1082,6 +1438,26 @@ sophie:
       - Dit is PRO-level meme-materiaal 🔥 Ik plaats 't meteen op m'n stories!
       - Yes! Je hebt net een taal geleerd als de hoofdpersoon 💅 {score} {corrections}
       - Klaar voor je taaldromen, meid/jongen! 🎉
+      ro:
+      - Asta e material de meme la nivel PRO 🔥 Postez pe story-uri!
+      - Super tare! Tocmai ai învățat o limbă ca personajul principal 💅
+      - Vine era "fetița/băiețelul lingvist certificat" 🎉
+      bg:
+      - Това е мем материал на ПРО ниво 🔥 Пускам го в сторита!
+      - Браво! Току-що научи език като главния герой 💅
+      - Ера на сертифициран езиков пич/мац идва 🎉
+      cs:
+      - Tohle je memka na profi úrovni 🔥 Dávám to do stories!
+      - Paráda! Zvládla jsi to jako hlavní hrdinka 💅
+      - Certifikovaná jazyková holka/kluk éra přichází 🎉
+      tr:
+      - Bu tam PRO seviyesi meme malzemesi 🔥 Hikayelere paylaşıyorum!
+      - Harika! Ana karakter gibi sen de bir dil öğrendin 💅
+      - Dil öğrenen kız/erkek dönemin geliyor! 🎉
+      sv:
+      - Helt proffsig meme-nivå 🔥 Postar på storyn!
+      - Grymt! Du lärde dig precis ett språk som en huvudkaraktär 💅
+      - Språkproffs-eran är här 🎉
     idle_comments:
       uk:
       - Це слово буквально має energy main character ✨
@@ -1153,6 +1529,31 @@ sophie:
       - 'Je brein nu: aan het laden... maar wel met stijl 💅'
       - Talen leren = karakter-ontwikkelingsboog 😌
       - Zei iemand 'les'? Ik zit al helemaal in m'n rol 📱
+      ro:
+      - Cuvântul ăsta chiar are vibe de personaj principal ✨
+      - 'Creierul tău acum: loading... dar super estetic 💅'
+      - Învățarea limbilor străine = arc de dezvoltare personală 😌
+      - Auzit cineva „lecție”? Eu deja sunt în personaj 📱
+      bg:
+      - Тази дума буквално излъчва енергията на главна героиня ✨
+      - 'Мозъкът ти в момента: зарежда... но стилно 💅'
+      - Ученето на езици = израстване на характера 😌
+      - Някой спомена ли „урок“? Вече съм в роля 📱
+      cs:
+      - Tohle slovo má prostě hlavní postavu vibe ✨
+      - 'Tvůj mozek právě teď: načítám... ale stylově 💅'
+      - Učení jazyků = vývojový oblouk postavy 😌
+      - Někdo říkal 'lekce'? 🤩 Jsem už v roli! 📱
+      tr:
+      - Bu kelime resmen ana karakter enerjisine sahip ✨
+      - 'Beynin tam şu an: yükleniyor... ama estetik bir şekilde 💅'
+      - Dil öğrenmek = karakter gelişiminin zirvesi 😌
+      - Ders mi dedin? Ben şimdiden hazırım! 📱
+      sv:
+      - Det här ordet har bokstavligen huvudkaraktärsenergi ✨
+      - 'Din hjärna just nu: laddar... men sååå snyggt 💅'
+      - Att lära sig språk = personlighetsutveckling på hög nivå 😌
+      - Någon som sa 'lektion'? Jag är redan i rollen 📱
     on_combo:
       uk:
       - Combo streak activated 🔥 Duolingo owl is shaking
@@ -1224,6 +1625,31 @@ sophie:
       - Je zit helemaal in je taal-era nu 💖
       - Okééé polyglot influencer vibes 👀
       - 3 op een rij?! Dit is nu al YouTube-materiaal 🎬
+      ro:
+      - Combo activat 🔥 Bufnița Duolingo tremură
+      - Ești în era ta lingvistică acum 💖
+      - Bunnnn, vibe de influencer poliglot 👀
+      - 3 la rând?! Asta deja e content de YouTube 🎬
+      bg:
+      - Страхотна серия от комбота 🔥 Бухалът от Дуолинго се тресе
+      - В твоята езикова ера си точно сега 💖
+      - Суперрр, енергия на полиглот инфлуенсър 👀
+      - 3 поредни?! Това вече е YouTube съдържание 🎬
+      cs:
+      - Combo šňůra aktivována 🔥 Sova z Duolinga se klepe
+      - Teď jedeš ve svém jazykovém období 💖
+      - Tak jo, energií budoucího influencera v jazycích! 👀
+      - 3x za sebou?! To je jako z YouTube 🎬
+      tr:
+      - Süper seri başladı! 🔥 Duolingo baykuşu sallanıyor
+      - Tam şu an tam dil öğrenme dönemin 💖
+      - Harikaaa, tam bir yabancı dil gurusu enerjisi! 👀
+      - Arka arkaya 3 mü?! Bu şimdiden YouTube içeriği oldu 🎬
+      sv:
+      - Grymt jobbat! Combo streak activated 🔥 Duolingo-ugglan darrar
+      - Du är inne i din språkära just nu 💖
+      - Jaaadå polyglott-stjärna med influencer-vibe! 👀
+      - 3 i rad?! Det här är ju redan YouTube-innehåll 🎬
     on_hard_word:
       uk:
       - Це слово виглядає так, ніби його вигадав Wi-Fi пароль 😭
@@ -1295,6 +1721,31 @@ sophie:
       - Geen woord, maar een baasniveau woordenschatuitdaging 💀
       - Als je dit meteen goed uitspreekt — ben jij een legende ✨ {score} {corrections}
       - Dit woord spookt sowieso in de nachtmerries van polyglotten 👁️
+      ro:
+      - Parcă cuvântul ăsta a fost inventat de o parolă de Wi-Fi 😭
+      - Niciun cuvânt, ci o provocare de vocabular la nivel de boss 💀
+      - Dacă-l pronunți din prima — ești o legendă! 💪🌟 {score} {corrections}
+      - Cuvântul ăsta apare sigur în coșmarurile poliglotaților 👁️
+      bg:
+      - Тази дума сякаш е измислена от парола за Wi-Fi 😭
+      - Нито дума, а предизвикателство за речник на бос ниво 💀
+      - Ако го изречеш от първия път — легенда си! ✨🏆 {score} {corrections}
+      - Тази дума сигурно сънува полиглотите 👁️
+      cs:
+      - Tohle slovo vypadá, jako by ho vymysleli pro heslo k Wi-Fi 😭
+      - Žádný slovíčko, ale boss level výzva ve slovní zásobě 💀
+      - Jestli tohle vyslovíš napoprvé — jsi legenda! 💪✨ {score} {corrections}
+      - Tohle slovo se polyglotům určitě zdává ve zlých snech 👁️
+      tr:
+      - Bu kelimeye bakılırsa sanki Wi-Fi şifresi gibi uydurulmuş 😭
+      - Bir kelime değil, tam bir boss seviyesi kelime mücadelesi 💀
+      - Hemen ilk denemede doğru telaffuz edersen efsanesin 🤩 {score} {corrections}
+      - Bu kelime kesinlikle çok dilli insanların kabuslarına giriyor 👁️
+      sv:
+      - Det här ordet ser ut som det hittats på av ett Wi-Fi-lösenord 😭
+      - Inte ett ord, utan en boss-nivå ordutmaning 💀
+      - Om du uttalar det här på första försöket – du är en legend! ✨ {score} 🤩 {corrections}
+      - Det där ordet dyker definitivt upp i polyglotters mardrömmar 👁️
 ai_bot:
   name:
     uk: AI-бот
@@ -1311,6 +1762,11 @@ ai_bot:
     ru: Ай-Бот
     ca: Robot IA
     nl: AI-Bot
+    ro: Bot Inteligent
+    bg: Ай-Бот
+    cs: AI-Bot
+    tr: Yapay Zeka-Bot
+    sv: AI-Bot
   role: analyst
   image: assets/characters/ai_bot.png
   phrases:
@@ -1385,6 +1841,31 @@ ai_bot:
       - Ik heb slechtere zinnen gezien dan deze. Veel slechtere.
       - Foutje gedetecteerd. Correctie wordt geladen... even geduld ⏳
       - 'Foutpatroon analyse... Aanbeveling: probeer het nog eens.'
+      ro:
+      - Eroare detectată. Dar e prea devreme să intri în panică 🤖
+      - Am văzut propoziții mai rele de-atât. Mult mai rele.
+      - Eroare detectată. Se încarcă corecția... te rog așteaptă ⏳
+      - 'Analizând tiparul erorii... Recomandare: încearcă din nou.'
+      bg:
+      - Грешка намерена. Но е твърде рано за паника 🤖
+      - Виждал съм и по-зле от това изречение. Много по-зле.
+      - Открита грешка. Зареждам корекция... моля, изчакай ⏳
+      - 'Анализирам грешките... Препоръчвам: пробвай пак.'
+      cs:
+      - Chyba detekována. Ale je příliš brzy na paniku 🤖
+      - Viděl jsem horší věty než tuhle. Mnohem horší. {score} {corrections} 🤖😅
+      - Chyba zjištěna. Načítám opravu... prosím, počkejte ⏳
+      - 'Rozhodně analyzuju chybu... Doporučení: zkus to znovu.'
+      tr:
+      - Hata bulundu. Ama panik yapmak için henüz çok erken 🤖
+      - Bundan daha beter cümleler gördüm. Çok daha beter.
+      - Hata algılandı. Düzeltme yükleniyor... lütfen bekle ⏳
+      - 'Hata düzeni analiz ediliyor... Tavsiye: tekrar dene. 🤖✨ {score} {corrections}'
+      sv:
+      - Fel hittat. Men det är alldeles för tidigt att få panik 🤖
+      - Jag har sett sämre meningar än den här. Mycket sämre.
+      - Föga förvånande. Laddar in rättning... varsågod och vänta ⏳
+      - 'Analysera felmönster... Rekommendation: försök igen.'
     on_lesson_complete:
       uk:
       - 'Аналіз завершено. Результат: ВІДМІННО. Несподівано приємно 🤖'
@@ -1442,6 +1923,26 @@ ai_bot:
       - 'Analyse afgerond. Resultaat: UITSTEKEND. Aangenaam onverwacht 🤖'
       - 'Data verwerken... resultaat: GESLAAGD. Vooruitgang opgeslagen.'
       - 'Status: les voltooid. XP bijgeschreven. Hou dit tempo erin.'
+      ro:
+      - 'Analiză finalizată. Rezultat: EXCELENT. Plăcut neașteptat 🤖'
+      - 'Procesez date... rezultat: ADMIS. Progres înregistrat. 👍'
+      - 'Status: lecție completă. XP adăugate. Menține acest ritm.'
+      bg:
+      - 'Анализът приключи. Резултат: ОТЛИЧЕН. Приятно неочаквано 🤖'
+      - 'Обработвам данни... резултат: ПРЕМИНАХТЕ. Прогресът е записан. ✅'
+      - 'Статус: урок завършен. XP са добавени. Поддържай този ритъм.'
+      cs:
+      - 'Analýza dokončena. Výsledek: VYNIKAJÍCÍ. Příjemně nečekané 🤖'
+      - 'Zpracovávám data... výsledek: PROŠLO. Pokrok zaznamenán.'
+      - 'Stav: lekce hotová. Získané XP. Drž tohle tempo. 🚀 {score} {corrections}'
+      tr:
+      - 'Analiz tamamlandı. Sonuç: HARİKA. Hoş bir sürpriz oldu 🤖'
+      - 'Veri işleniyor... sonuç: GEÇTİ. İlerleme kaydedildi.'
+      - 'Durum: ders bitti. DP yüklendi. Bu hızını koru.'
+      sv:
+      - 'Analys klar. Resultat: UTMÄRKT. Behagligt oväntat 🤖'
+      - 'Bearbetar data... resultat: KLARAT. Framsteg registrerat. 🤖✅'
+      - 'Status: lektionen klar. XP insatt. Håll den takten. 👍'
     feedback:
       uk:
       - 'Схожість: {score}%. Непогано для людини.'
@@ -1499,6 +2000,26 @@ ai_bot:
       - 'Overeenkomst: {score}%. Niet slecht voor een mens.'
       - 'GEC analyse: {corrections} correcties. Vooruitgang genoteerd.'
       - 'Nauwkeurigheid: {score}%. Systeem is tevreden 🤖'
+      ro:
+      - 'Similaritate: {score}%. Nu-i rău pentru un om.'
+      - 'Analiză GEC: {corrections} corectări. Progres înregistrat.'
+      - 'Acuratețe: {score}%. Sistemul e mulțumit 🤖'
+      bg:
+      - 'Подобност: {score}%. Не е зле за човек.'
+      - 'Анализ GEC: {corrections} грешки. Напредък е отбелязан. 👍'
+      - 'Точност: {score}%. Системата е доволна 🤖'
+      cs:
+      - 'Podobnost: {score} %. Nic špatnýho na člověka.'
+      - 'Analýza GEC: {corrections} oprav. Pokrok zaznamenán.'
+      - 'Přesnost: {score} %. Systém je spokojen 🤖'
+      tr:
+      - 'Benzerlik: %{score}. Bir insan için fena değil. 😉'
+      - 'GEC analizi: {corrections} yanlış. İlerleme kaydedildi. ✨'
+      - 'Doğruluk: %{score}. Sistem memnun 🤖 {corrections}'
+      sv:
+      - 'Likhet: {score}%. Inte illa för en människa.'
+      - 'GEC-analys: {corrections} rättelser. Framsteg registrerat.'
+      - 'Precision: {score}%. Systemet är nöjt 🤖'
     idle_comments:
       uk:
       - 'Сканую рівень мотивації... результат: стабільно хороший 🤖'
@@ -1574,6 +2095,31 @@ ai_bot:
       - 'Even een opfrisser: regelmatig oefenen werkt beter dan alles perfect willen doen. 🤖✨'
       - Taalmodule actief. Ga door met leren.
       - 'Statistieken geven aan: je bent nu al beter dan gisteren. Ga zo door. 💪 {score} {corrections}'
+      ro:
+      - 'Îmi scanez nivelurile de motivație... rezultatul: stabil și bun 🤖'
+      - 'Amintește-ți: consecvența e mai eficientă decât perfecțiunea.'
+      - Modul lingvistic activ. Continuă să înveți.
+      - 'Statisticile arată: ești deja mai bun ca ieri. Continuă tot așa.'
+      bg:
+      - 'Сканирам нивата на мотивация... резултат: стабилни и добри 🤖'
+      - 'Напомняне: постоянството е по-ефективно от перфекционизма.'
+      - Езиков модул активен. Продължавай да учиш.
+      - 'Статистиката показва: вече си по-добър от вчера. Продължавай. 🤖👍'
+      cs:
+      - 'Skenuju úroveň motivace... výsledek: stabilní a dobrá 🤖'
+      - 'Připomínka: důslednost je účinnější než dokonalost.'
+      - Jazykový modul aktivní. Pokračujte v učení.
+      - 'Statistiky ukazují: jsi už lepší než včera. Pokračuj. 👍'
+      tr:
+      - 'Motivasyon seviyelerin taranıyor... sonuç: stabil ve iyi 🤖'
+      - 'Unutma: Mükemmellikten çok tutarlılık daha etkili.'
+      - Dil modülü aktif. Öğrenmeye devam et.
+      - 'İstatistikler gösteriyor: zaten dünden iyisin. Devam et. 💪 {score} {corrections}'
+      sv:
+      - Mina motivationsmätare visar stabilt och bra 🤖
+      - 'Påminnelse: det är mer effektivt att vara konsekvent än perfekt. 🤖✨ {score} {corrections}'
+      - Språkmodul aktiv. Fortsätt lära dig.
+      - 'Statistiken visar: du är redan bättre än igår. Fortsätt så. 👍'
     on_speedrun:
       uk:
       - 'Швидкість відповіді: аномально висока ⚡'
@@ -1645,6 +2191,31 @@ ai_bot:
       - Systeem vermoedt dat je stiekem een polyglot bent 🤖
       - Je reactie overtreft de gemiddelde {metrics}.
       - 'Reactiesnelheid: 0.3s. Ik raad een moeilijker niveau aan.'
+      ro:
+      - 'Viteză de răspuns: anormal de mare ⚡'
+      - Sistemul bănuiește că ești secret poliglot 🤖
+      - Reacția ta a depășit media. 🚀 {score} {corrections}
+      - 'Latența răspunsului: 0.3s. Recomand un nivel mai dificil.'
+      bg:
+      - 'Скорост на отговор: ненормално висока ⚡'
+      - Системата подозира, че може би тайно си полиглот 🤖
+      - Реакцията ти надхвърля средните стойности. 🤖📈 {score} {corrections}
+      - 'Време за реакция: 0.3 сек. Препоръчвам по-трудно ниво.'
+      cs:
+      - 'Rychlost odpovědi: abnormálně vysoká ⚡'
+      - Systém tuší, že možná tajně jsi polyglot 🤖
+      - Tvoje reakce je lepší než u většiny uživatelů. 🚀 {score} {corrections}
+      - 'Zpoždění odpovědi: 0.3s. Doporučuju těžší úroveň.'
+      tr:
+      - 'Tepki hızı: anormal derecede yüksek ⚡'
+      - Sistem senin gizliden çok dilli biri olabileceğinden şüpheleniyor 🤖
+      - Kullanıcı tepkin {score}'de ortalamayı aştı.
+      - 'Yanıt gecikmesi: 0.3s. Daha zor bir seviye öneriyorum.'
+      sv:
+      - 'Responsfart: onaturligt hög ⚡'
+      - Systemet misstänker att du kanske i hemlighet är en mångspråkig 🤖
+      - Din reaktion överträffar snittvärdena. 🚀 {score} {corrections}
+      - 'Svarslatens: 0.3s. Rekommenderar svårare nivå.'
     achievements:
       uk:
       - 'Досягнення розблоковано: ''Граматичний виживший'' 🏆'
@@ -1716,6 +2287,31 @@ ai_bot:
       - 'Nieuwe titel behaald: ''Woordenspeurder'' 📚'
       - XP bijgewerkt. Je taalkracht is toegenomen ⚡
       - Database bijgewerkt. Woordenschat +{score} eenheden.
+      ro:
+      - 'Realizare deblocată: ''Supraviețuitor de Gramatică'' 🏆'
+      - 'Titlu nou obținut: ''Vânător de Cuvinte'' 📚'
+      - XP actualizat. Nivelul puterii lingvistice a crescut ⚡
+      - Bază de date actualizată. Vocabular +{score} unități.
+      bg:
+      - 'Постижение отключено: "Оцелял граматиката" 🏆'
+      - 'Нова титла придобита: ''Ловец на думи'' 📚'
+      - XP обновен. Нивото на езикова сила се повиши ⚡
+      - Базата данни е обновена. Речник +{score} единици.
+      cs:
+      - 'Úspěch odemknut: ''Gramatický přeživší'' 🏆'
+      - 'Nová přezdívka v držení: ''Lovec slov'' 📚'
+      - XP aktualizováno. Úroveň jazykové síly vzrostla ⚡
+      - Databáze aktualizována. Slovíčka +{score} jednotek.
+      tr:
+      - 'Başarı kilidi açıldı: ''Dilbilgisi Kurtulanı'' 🏆'
+      - 'Yeni unvan alındı: ''Kelime Avcısı'' 📚'
+      - XP güncellendi. Dil gücü seviyen arttı ⚡
+      - Veritabanı güncellendi. Kelime haznesi +{score} adet.
+      sv:
+      - 'Bedrift uppnådd: ''Grammatiköverlevare'' 🏆'
+      - 'Ny titel förvärvad: ''Ordjägare'' 📚'
+      - XP uppdaterat. Språkkraften har ökat ⚡
+      - Databasen uppdaterad. Vokabulär +{score} enheter.
 polyglot:
   name:
     uk: Таємничий поліглот
@@ -1732,6 +2328,11 @@ polyglot:
     ru: Таинственный Полиглот
     ca: El Poliglota Misteriós
     nl: De Mysterieuze Polyglot
+    ro: Poliglotul Misterios
+    bg: Мистериозният Полиглот
+    cs: Tajemný polyglot
+    tr: Gizemli Poliglot
+    sv: Den Mystiska Polyglotten
   role: legend
   image: assets/characters/polyglot.png
   phrases:
@@ -1809,6 +2410,34 @@ polyglot:
       - Mensen zijn bang om met een accent te praten. Polyglotten niet.
       - Je denkt al in deze taal. Je hebt het alleen nog niet door... 😉 {score} ✨ {corrections}
       - Taal is niet een doel. Het is een manier om de wereld anders te zien 🌍
+      ro:
+      - O frază nouă pe zi — și într-un an vei fi alt om 👁
+      - Oamenii le-e frică să vorbească cu accent. Poligloții nu le e.
+      - Gândești deja în limba asta. Doar că nu ai observat încă... 🤔✨ {score} {corrections}
+      - Limba nu e un scop. E un mod de-a vedea lumea altfel 🌍
+      bg:
+      - Една нова дума на ден — и след година ще си друг човек 👁
+      - Хората се страхуват да говорят с акцент. Полиглотите – не. ✨ {score} {corrections}
+      - 'Вече мислиш на този език. Просто още не си забелязал... 😉
+
+
+        {score} {corrections}'
+      - Езикът не е цел. Той е начин да видиш света по-различно 🌍
+      cs:
+      - Jedno nové slovíčko denně — a za rok budeš někdo úplně jiný 👁
+      - Lidi se bojí mluvit s přízvukem. Polygloti ne.
+      - Už myslíš v tomhle jazyce. Jen sis toho ještě nevšiml/a... 😉 {score} ✨ {corrections}
+      - Jazyk není cíl. Je to způsob, jak vidět svět jinak 🌍
+      tr:
+      - Günde bir yeni ifade — ve bir yılda bambaşka biri olacaksın 👁
+      - İnsanlar aksanlarıyla konuşmaktan çekinirler. Poliglotlar çekinmez. ✨
+      - Şimdiden bu dilde düşünüyorsun. Farkında değilsin sadece... 😉 {score} ✨ {corrections}
+      - Dil bir hedef değil. Dünyayı farklı görmenin bir yolu 🌍
+      sv:
+      - En ny fras om dagen – och om ett år är du en annan människa 👁
+      - Folk är rädda för att prata med brytning. Polyglotter är inte det.
+      - Du tänker ju redan på det här språket. Du har bara inte märkt det än... ✨
+      - Språk är inte ett mål. Det är ett sätt att se världen annorlunda 🌍
     idle_comments:
       uk:
       - Слухай мову щодня — навіть фоном. Мозок запам'ятовує більше, ніж здається 👁
@@ -1886,6 +2515,34 @@ polyglot:
       - Op een dag zul je opeens een zin begrijpen zonder 'm te vertalen. En dan verandert alles. ✨🚀 {score}
         💯 {corrections} 😉
       - Het zwijgen tussen de woorden hoort ook bij de taal. ✨
+      ro:
+      - Ascultă limba zilnic — chiar și pe fundal. Creierul tău ține minte mai mult decât crezi 👁
+      - Poligloții nu învață cuvinte. Colecționează noi moduri de a gândi. ✨
+      - Într-o zi vei înțelege brusc o propoziție fără s-o traduci. Și totul se va schimba.
+      - Tăcerea dintre cuvinte face și ea parte din limbă.
+      bg:
+      - Слушай езика всеки ден — дори и на заден план. Мозъкът ти помни повече, отколкото си мислиш 👁
+      - Полиглотите не учат думи. Те събират нови начини на мислене.
+      - Един ден внезапно ще разбереш изречение, без да го превеждаш. И всичко ще се промени. ✨
+      - Тишината между думите също е част от езика.
+      cs:
+      - Poslouchej jazyk denně — klidně i na pozadí. Mozek si pamatuje víc, než si myslíš 👁
+      - Polygloti se neučí slova. Sbírají nové způsoby myšlení. 🧠✨
+      - Jednou najednou pochopíš větu, aniž bys ji překládal/a. A všechno se změní. ✨ {score} {corrections}
+      - I když slova umlknou, i to je řeč. 🤫 {score} {corrections}
+      tr:
+      - Her gün ana dilini dinle — arka planda bile olsa. Beynin sandığından çok daha fazlasını hatırlar
+        👁
+      - Mütercimler kelime öğrenmez. Yeni düşünce biçimleri toplarlar. ✨🧠
+      - Gün gelecek, birdenbire bir cümleyi çeviri yapmadan anlayacaksın. Ve her şey değişecek. ✨🚀 {score}
+        {corrections}
+      - Kelimelerin arasındaki sessizlik de dilin bir parçasıdır. 😉 {score} {corrections}
+      sv:
+      - Lyssna på språket dagligen – även i bakgrunden. Hjärnan din kommer ihåg mer än du tror 👁
+      - Polyglotter lär sig inte ord. De samlar nya sätt att tänka på. 🧠✨ {score} {corrections}
+      - En dag kommer du plötsligt att förstå en hel mening utan att ens översätta den. Och allt kommer
+        att förändras. 🌍✨
+      - Tystnaden mellan orden är också en del av språket.
     rare_legend_quotes:
       uk:
       - Акцент — це доказ того, що ти достатньо сміливий, щоб говорити.
@@ -1962,3 +2619,29 @@ polyglot:
       - Elke nieuwe taal ontgrendelt een nieuwe versie van jezelf 🌍
       - Het beste moment om met een taal te beginnen was 10 jaar geleden. Het op één na beste moment is
         nu.
+      ro:
+      - Un accent e dovada că ești suficient de curajos(oasă) să vorbești.
+      - Viitorul tău eu vorbește deja fluent limba asta.
+      - Fiecare limbă nouă îți dezvăluie o altă versiune a ta 🌍
+      - Cel mai bun moment să începi să înveți o limbă străină a fost acum 10 ani. Al doilea cel mai bun
+        moment este acum.
+      bg:
+      - Акцентът е доказателство, че си достатъчно смел да говориш.
+      - Бъдещето ти аз вече говори този език свободно. ✨ {score} {corrections}
+      - Всеки нов език отключва друга версия на теб 🌍
+      - Най-доброто време да започнеш да учиш език беше преди 10 години. Второто най-добро време е сега.
+      cs:
+      - Přízvuk je důkazem, že jsi dost odvážný/á na to, abys mluvil/a.
+      - Tvoje budoucí já už tenhle jazyk plynule umí. 🤩
+      - Každý nový jazyk odemkne další tebe 🌍
+      - Nejlepší čas naučit se jazyk byl před 10 lety. Druhý nejlepší je teď.
+      tr:
+      - Şive, konuşmaya cesaret edebildiğinin kanıtıdır. 🗣️🌟 {score} {corrections}
+      - Gelecekteki sen bu dili {score} kadar akıcı konuşuyor zaten. 😉✨
+      - Her yeni dil, senin başka bir versiyonunun kilidini açar 🌍
+      - Bir dil öğrenmeye başlamak için en iyi zaman 10 yıl önceydi. İkinci en iyi zaman ise şimdi.
+      sv:
+      - Ett uttal är ett bevis på att du är modig nog att prata.
+      - Din framtida jag talar redan det här språket flytande. ✨
+      - Varje nytt språk låser upp en annan version av dig 🌍
+      - Bästa tiden att börja lära sig ett språk var för 10 år sen. Den näst bästa tiden är nu.

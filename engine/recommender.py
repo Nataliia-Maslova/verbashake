@@ -30,7 +30,8 @@ LANG_TO_CODE: dict[str, str] = {
     "English": "en", "Ukrainian": "uk", "Spanish": "es", "Korean": "ko",
     "French": "fr", "German": "de", "Japanese": "ja", "Chinese": "zh",
     "Portuguese": "pt", "Italian": "it", "Polish": "pl", "Russian": "ru",
-    "Catalan": "ca", "Dutch": "nl",
+    "Catalan": "ca", "Dutch": "nl", "Romanian": "ro", "Bulgarian": "bg",
+    "Czech": "cs", "Turkish": "tr", "Swedish": "sv",
 }
 
 CODE_TO_LANG: dict[str, str] = {v: k for k, v in LANG_TO_CODE.items()}

@@ -44,6 +44,11 @@ LANG_COLUMNS = {
     "Russian":    "ru",
     "Catalan":    "ca",
     "Dutch":      "nl",
+    "Romanian":   "ro",
+    "Bulgarian":  "bg",
+    "Czech":      "cs",
+    "Turkish":    "tr",
+    "Swedish":    "sv",
 }
 
 
