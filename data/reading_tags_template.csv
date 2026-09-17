@@ -572,3 +572,151 @@ ca,27,C2,
 ca,28,C2,
 ca,29,C2,У валенсійському варіанті замість avui вживається hui [ˈuj].
 ca,30,C2,
+ro,1,A1,
+ro,2,A1,
+ro,3,A1,
+ro,4,A1,
+ro,5,A1,
+ro,6,A2,
+ro,7,A2,
+ro,8,A2,
+ro,9,A2,
+ro,10,B1,
+ro,11,B1,
+ro,12,B1,
+ro,13,B1,
+ro,14,B1,
+ro,15,B2,
+ro,16,B2,"The digraph 'che' is pronounced like 'k' followed by 'e', as in 'chem'. Similarly 'chi' is [ci], 'ghe' is [ge], 'ghi' is [gi]."
+ro,17,B2,"The letter 'c' followed by 'e' or 'i' is pronounced like 'ch' in 'church', as in 'pace'. Similarly 'g' followed by 'e' or 'i' is pronounced like 'j' in 'jump', as in 'page'."
+ro,18,B2,"The letter 'x' is usually pronounced [ks], as in 'examen'. In some words, it can be pronounced [gz]."
+ro,19,C1,"The letter 'y' is a semi-vowel, similar to 'i' in hiatus, mostly found in loanwords, as in 'yoga'."
+ro,20,C1,"The letter 'q' is rare and appears almost exclusively in foreign loanwords, typically pronounced [k] as in 'quorum'."
+ro,21,C1,
+ro,22,C1,
+ro,23,C1,
+ro,24,C2,
+ro,25,C2,
+ro,26,C2,
+ro,27,C2,
+bg,1,A1,"This is the first letter of the Bulgarian alphabet, 'A'. It sounds like the 'a' in 'father'."
+bg,2,A1,This is 'O'. It sounds like the 'o' in 'orange' or 'cot'.
+bg,3,A1,This is 'T'. It sounds like the 't' in 'top'.
+bg,4,A1,This is 'I'. It sounds like the 'ee' in 'see' or 'machine'.
+bg,5,A1,This is 'S'. It sounds like the 's' in 'sun'.
+bg,6,A1,This is 'E'. It sounds like the 'e' in 'bed' or 'egg'.
+bg,7,A1,This is 'U'. It sounds like the 'oo' in 'moon' or 'flute'.
+bg,8,A2,"This is 'R'. It is a rolled 'r', similar to Spanish or Italian."
+bg,9,A2,This is 'V'. It sounds like the 'v' in 'van'.
+bg,10,A2,This is 'D'. It sounds like the 'd' in 'dog'.
+bg,11,A2,This is 'Ch'. It sounds like the 'ch' in 'church'.
+bg,12,A2,This is 'Ts'. It sounds like the 'ts' in 'cats'.
+bg,13,A2,This is 'B'. It sounds like the 'b' in 'bat'.
+bg,14,A2,This is 'Zh'. It sounds like the 's' in 'measure' or 'pleasure'.
+bg,15,B1,This is 'Z'. It sounds like the 'z' in 'zebra'.
+bg,16,B1,This is 'G'. It sounds like the 'g' in 'go'.
+bg,17,B1,This is 'F'. It sounds like the 'f' in 'fish'.
+bg,18,B1,This is 'Sh'. It sounds like the 'sh' in 'she'.
+bg,19,B1,"This is 'H'. It's a guttural sound, like the 'ch' in Scottish 'loch' or German 'Bach'."
+bg,20,B1,This is 'Y short'. It sounds like the 'y' in 'yes' or 'yogurt'.
+bg,21,B2,This is 'Yu'. It sounds like the 'yu' in 'cute' or 'use'.
+bg,22,B2,This is 'Ya'. It sounds like the 'ya' in 'yak'.
+bg,23,B2,This is 'Sht'. It sounds like the 'sht' in 'fresh tart'.
+bg,24,B2,"This is 'Yat'. It's a schwa-like sound, similar to the 'u' in 'but' or 'cup', but a bit deeper."
+bg,25,B2,"This is the 'soft sign'. It does not have its own sound, but softens the preceding consonant, making it palatalized."
+bg,26,B2,Review word: 'there'.
+bg,27,B2,Review word: 'grandmother'.
+bg,28,C1,This word means 'I'.
+bg,29,C1,This word means 'we'.
+bg,30,C1,This word means 'small' (masculine).
+bg,31,C1,This phrase means 'I am'.
+bg,32,C1,This phrase means 'We are'.
+bg,33,C1,This phrase means 'Good morning'.
+bg,34,C1,This phrase means 'How are you?' (informal).
+bg,35,C2,This word means 'Thank you'.
+bg,36,C2,This phrase means 'My name is'.
+bg,37,C2,This word means 'Yes'.
+bg,38,C2,This word means 'Excuse me' or 'Sorry'.
+bg,39,C2,This phrase means 'How much does it cost?'.
+bg,40,C2,This word means 'I want'.
+cs,1,A1,
+cs,2,A1,
+cs,3,A1,
+cs,4,A1,
+cs,5,A1,
+cs,6,A2,
+cs,7,A2,
+cs,8,A2,The 'háček' diacritic (čárka) above a vowel indicates a long vowel sound. A long 'á' is pronounced [aː].
+cs,9,A2,
+cs,10,A2,The 'háček' diacritic above a consonant indicates a palatalized or 'softened' sound. 'č' is pronounced [tʃ].
+cs,11,B1,
+cs,12,B1,"The digraph 'ch' is treated as a single letter in Czech and is pronounced [x], similar to 'ch' in Scottish 'loch'."
+cs,13,B1,
+cs,14,B1,The sequence 'mě' is pronounced as [mɲɛ]. The 'm' sound is followed by a palatalized 'n' sound.
+cs,15,B2,
+cs,16,B2,"Czech has both 'i' and 'y', and their long forms 'í' and 'ý'. For beginners, they are pronounced identically: 'i' and 'y' are both [ɪ], and 'í' and 'ý' are both [iː]. The distinction is purely orthographical and grammatical."
+cs,17,B2,"The diphthong 'ou' is pronounced [oʊ̯], like in 'boat'."
+cs,18,B2,
+cs,19,B2,"Czech stress typically falls on the first syllable of a word. When a word consists of multiple syllables, the first one is emphasized."
+cs,20,C1,The letter 'x' is typically found in loanwords and is pronounced [ks].
+cs,21,C1,
+cs,22,C1,
+cs,23,C1,
+cs,24,C1,
+cs,25,C2,
+cs,26,C2,
+cs,27,C2,
+cs,28,C2,
+tr,1,A1,
+tr,2,A1,
+tr,3,A1,
+tr,4,A1,
+tr,5,A2,
+tr,6,A2,
+tr,7,A2,
+tr,8,A2,
+tr,9,B1,
+tr,10,B1,"The circumflex (şapka) on 'â' indicates a long 'a' sound. For example, 'kâr' means 'profit'."
+tr,11,B1,"The circumflex on 'î' indicates a long 'i' sound, often also palatalizing the preceding consonant. For example, 'dinî' means 'religious'."
+tr,12,B1,"The circumflex on 'û' indicates a long 'u' sound, often also palatalizing the preceding consonant. For example, 'rûh' means 'spirit'."
+tr,13,B2,"The letter 'k' can be palatalized to [c] before front vowels (e, i, ö, ü). For example, 'kar' vs 'kâr'."
+tr,14,B2,"The letter 'g' can be palatalized to [ɟ] before front vowels (e, i, ö, ü). For example, 'gül' means 'rose'."
+tr,15,B2,"Some Turkish consonants (p, ç, t, k) change to their voiced counterparts (b, c, d, ğ) when a vowel-initial suffix is added. For example, 'kitap' becomes 'kitabı'."
+tr,16,B2,
+tr,17,C1,
+tr,18,C1,
+tr,19,C1,
+tr,20,C1,
+tr,21,C2,
+tr,22,C2,
+tr,23,C2,
+tr,24,C2,
+sv,1,A1,
+sv,2,A1,
+sv,3,A1,
+sv,4,A1,
+sv,5,A1,
+sv,6,A2,
+sv,7,A2,
+sv,8,A2,
+sv,9,A2,
+sv,10,A2,
+sv,11,B1,
+sv,12,B1,
+sv,13,B1,
+sv,14,B1,
+sv,15,B1,
+sv,16,B2,
+sv,17,B2,"The letter 'c' is typically pronounced [s] before 'e', 'i', 'y', 'ä', 'ö' (soft vowels), as in 'cirka' [ˈsɪrka]."
+sv,18,B2,"Vowels are short when followed by two or more consonants, as in 'hatt' [hatː] (hat) or 'tack' [takː] (thank you). Note the double consonant is pronounced as one elongated sound."
+sv,19,B2,"The digraphs 'sj', 'skj', 'stj', and 'ch' (in many loanwords) are typically pronounced with the 'sj-sound' [ɕ], a voiceless palatal-velar fricative, as in 'sju' [ɕʉː] (seven) or 'skjuta' [ˈɕʉːta] (to shoot)."
+sv,20,B2,"The digraphs 'tj' and 'kj' are typically pronounced with the 'tj-sound' [ɕ], a voiceless palatal-velar fricative, as in 'tjena' [ˈɕeːna] (hello) or 'kille' [ˈɕɪlɛ] (boy)."
+sv,21,C1,"The digraph 'ng' is pronounced as a velar nasal [ŋ], similar to 'sing' in English, as in 'sång' [sɔŋ] (song) or 'lång' [lɔŋ] (long)."
+sv,22,C1,"When 'r' is followed by 'd', 'l', 'n', 's', or 't', it forms a retroflex consonant. For example, 'bord' [buːɖ] (table), 'pärla' [ˈpæːɭa] (pearl), 'barn' [baːɳ] (child), 'först' [fœʂt] (first), 'kort' [kɔʈ] (short)."
+sv,23,C1,
+sv,24,C1,
+sv,25,C1,
+sv,26,C2,
+sv,27,C2,
+sv,28,C2,
+sv,29,C2,

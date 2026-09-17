@@ -43,7 +43,8 @@ from engine.recommender import DIFFICULTY_TO_CEFR, LANG_TO_CODE
 
 DATA_DIR = Path(__file__).parent.parent / "data"
 
-READING_LANGS = ["en", "uk", "es", "ko", "fr", "de", "pt", "it", "pl", "ru", "ja", "zh", "nl", "ca"]
+READING_LANGS = ["en", "uk", "es", "ko", "fr", "de", "pt", "it", "pl", "ru", "ja", "zh", "nl", "ca",
+                  "ro", "bg", "cs", "tr", "sv"]
 
 
 def _load_tags_template(path: Path, key_cols: list[str]) -> dict[tuple, dict]:

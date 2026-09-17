@@ -32,7 +32,8 @@ import pandas as pd
 DATA_DIR = Path(__file__).parent.parent / "data"
 TEMPLATE = DATA_DIR / "reading_tags_template.csv"
 
-NEW_LANGS = ["fr", "de", "pt", "it", "pl", "ru", "ja", "zh", "nl", "ca"]
+NEW_LANGS = ["fr", "de", "pt", "it", "pl", "ru", "ja", "zh", "nl", "ca",
+             "ro", "bg", "cs", "tr", "sv"]
 LEVELS = ["A1", "A2", "B1", "B2", "C1", "C2"]
 
 

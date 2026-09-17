@@ -77,7 +77,7 @@ _UNSEEN_MASTERY    = 0.0   # a topic with no attempts yet is "not yet mastered",
 # for grammar, WHICH LESSON; it still calls get_next()/mastery/srs_state
 # underneath for the actual within-module ranking (vocab keeps its free
 # score-based mixing, exactly as before).
-SCRIPT_GATE_LANGS: frozenset[str] = frozenset({"ko", "ja", "zh"})
+SCRIPT_GATE_LANGS: frozenset[str] = frozenset({"ko", "ja", "zh", "bg"})
 # Languages whose script has to be learned as a whole before grammar/vocab
 # are legible at all (confirmed by Natalia's own experience learning Korean:
 # without the letters, even the easiest grammar was unreadable) -- for these,

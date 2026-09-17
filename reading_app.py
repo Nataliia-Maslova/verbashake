@@ -110,6 +110,18 @@ TTS_CONFIG = {
     # GPL-3.0 with a separate voice-artist commercial license requirement --
     # not a drop-in swap for the gTTS/edge-tts call here. Left as future work.
     "ca": {"voice": "ca-ES-JoanaNeural",         "gtts": "ca"},
+    # ro/bg/cs/tr/sv (2026-09-17, new Reading tracks): edge-tts is not
+    # installed in any deployment of this app (not in requirements.txt,
+    # confirmed absent from the local venv too) -- _edge_ok() is always
+    # False in practice, so the "voice" values below are never actually
+    # exercised right now (dead until edge-tts is added as a dependency);
+    # "gtts" is what real playback uses today, and gTTS's documented
+    # language list covers all five directly.
+    "ro": {"voice": "ro-RO-AlinaNeural",         "gtts": "ro"},
+    "bg": {"voice": "bg-BG-KalinaNeural",        "gtts": "bg"},
+    "cs": {"voice": "cs-CZ-VlastaNeural",        "gtts": "cs"},
+    "tr": {"voice": "tr-TR-EmelNeural",          "gtts": "tr"},
+    "sv": {"voice": "sv-SE-SofieNeural",         "gtts": "sv"},
 }
 LANG_LABELS = {
     "en": "English 🇬🇧",
@@ -126,12 +138,18 @@ LANG_LABELS = {
     "ru": "Русский 🇷🇺",
     "nl": "Nederlands 🇳🇱",
     "ca": "Català 🇪🇸",
+    "ro": "Română 🇷🇴",
+    "bg": "Български 🇧🇬",
+    "cs": "Čeština 🇨🇿",
+    "tr": "Türkçe 🇹🇷",
+    "sv": "Svenska 🇸🇪",
 }
 WHISPER_LANG = {
     "en": "en", "uk": "uk", "es": "es", "ko": "ko",
     "fr": "fr", "de": "de", "ja": "ja", "zh": "zh",
     "pt": "pt", "it": "it", "pl": "pl", "ru": "ru",
     "nl": "nl", "ca": "ca",
+    "ro": "ro", "bg": "bg", "cs": "cs", "tr": "tr", "sv": "sv",
 }
 
 # Native language → column name in «Правила» sheet (rules for English lessons)
