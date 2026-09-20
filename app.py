@@ -414,28 +414,20 @@ _SELF_LEVELS = ["zero", "A1", "A2", "B1", "B2", "C1", "C2"]
 
 # Coarse script family per language — used ONLY to decide whether the
 # onboarding screen needs to ask the literacy ("already read this script, or
-# need the letters first?") question at all; the student's actual answer
-# (engine/user_prefs.py's literacy_required) is what drives the reading gate
-# in engine/recommender.py, for whatever target_lang they picked. A learner
+# need the letters first?") question at all; the student's actual answer is
+# saved per (user, target_lang) via user_prefs.set_language_literacy() below
+# and is what drives the reading gate in engine/recommender.py for that
+# specific target_lang (2026-09-20 -- previously a single global-per-user
+# field, silently misapplied to every later target_lang switch). A learner
 # whose native and target language share a script (e.g. English -> French)
 # is assumed literate in it already and isn't asked; one crossing script
 # families is asked even above "zero" self-level (2026-09-06, Natalia:
 # "также при не-латинском алфавите") — a self-rated A1 in Korean may still
 # not know Hangul yet.
-_SCRIPT_FAMILY: dict[str, str] = {
-    "English": "latin", "French": "latin", "German": "latin", "Spanish": "latin",
-    "Italian": "latin", "Portuguese": "latin", "Catalan": "latin", "Dutch": "latin",
-    "Polish": "latin", "Romanian": "latin", "Czech": "latin", "Turkish": "latin",
-    "Swedish": "latin",
-    "Ukrainian": "cyrillic", "Russian": "cyrillic", "Bulgarian": "cyrillic",
-    "Korean": "hangul", "Japanese": "japanese", "Chinese": "chinese",
-}
-
-
-def _needs_literacy_question(native: str, target: str, self_level: str) -> bool:
-    if self_level == "zero":
-        return True
-    return _SCRIPT_FAMILY.get(native, "latin") != _SCRIPT_FAMILY.get(target, "latin")
+# Moved to engine/literacy.py (2026-09-20) so path_app.py's per-language
+# literacy banner can reuse the same script-family map/question logic
+# without a circular import.
+from engine.literacy import needs_literacy_question as _needs_literacy_question
 
 
 def _render_onboarding(user_id: str) -> None:
@@ -496,6 +488,15 @@ def _render_onboarding(user_id: str) -> None:
         user_prefs.save_onboarding(
             user_id, name.strip(), native, target, self_level, literacy_required,
         )
+        # Also seed the per-(user, target_lang) answer (2026-09-20) -- this
+        # is what engine.recommender._reading_gate_mode() actually reads now;
+        # user_prefs.literacy_required above is kept only for backward
+        # compatibility/other reads. Only writes when the question was
+        # actually asked (None means "not asked" -- same-script pair at a
+        # real self-level -- and should stay unanswered, not silently
+        # recorded as False).
+        if literacy_required is not None:
+            user_prefs.set_language_literacy(user_id, target, literacy_required)
         # Set session_state right after the profile save, BEFORE mastery
         # seeding below -- not after, like it used to be. Seeding used to
         # walk every module's topics one db.upsert() at a time (up to ~530

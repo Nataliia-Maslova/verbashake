@@ -3900,3 +3900,80 @@ step" тощо. Додано тим самим патерном (en/uk вруч�
 `generate_i18n_strings.py` на решту 12), живо перевірено вдруге: "Étape 1
 / 8", "Navigation d'étape", "← Précédent", "🔄 Répéter" — все французькою.
 Native/target повернуто на Russian/Korean після перевірки.
+
+## Обидва фікси reading-гейту: literacy per-language + reading_app.py default language (2026-09-20)
+
+Наталя (з реального нового акаунту, uk↔ro): Grammar усе одно рекомендується
+першою замість Reading, клік по іконці Reading автоматом тренує англійську, і
+при перемиканні цільової мови в середині застосунку більше нема запитання
+про літери. Обидва фікси, запропоновані у відповідь, підтверджені словом
+"обидва фікси".
+
+**Корінь бага (Fix #1)**: `user_prefs.literacy_required` — одне глобальне
+поле на юзера, записане ОДИН РАЗ при онбордингу для тієї пари мов, яку
+обрали ТОДІ. `engine/recommender.py::_reading_gate_mode()` застосовувало цю
+саму відповідь до КОЖНОЇ наступної цільової мови без жодного повторного
+запитання — акаунт, що вже раз відповів "так, читаю" для латинської пари,
+автоматично отримував `mode="skip"` і для щойно обраної корейської/румунської
+пари, минаючи Reading-гейт повністю.
+
+**Fix #1 — literacy стає per-(user, target_lang):**
+- [schema.sql](schema.sql) — нова таблиця `language_literacy` (PK
+  `user_id, target_lang`) — той самий шейп/патерн, що й `lesson_schedule`.
+  **Застосовано напряму до живої Supabase** (сирий psycopg2-курсор, дозвіл
+  на "Production Deploy" підтверджено окремим питанням у цій сесії) —
+  перевірено запитом: таблиця існує, RLS увімкнено.
+- [engine/literacy.py](engine/literacy.py) — новий модуль, `_SCRIPT_FAMILY` +
+  `needs_literacy_question()` винесені сюди з `app.py` (той самий код, лише
+  переміщений), щоб `path_app.py` міг перевикористати ту саму мапу без
+  циклічного імпорту (`app.py` імпортує `path_app.py` для роутингу).
+- [engine/user_prefs.py](engine/user_prefs.py) — нові
+  `get_language_literacy(user_id, target_lang)` /
+  `set_language_literacy(user_id, target_lang, value)`, той самий
+  fail-silent патерн, що й `save_prefs`/`save_timezone`.
+- `engine/recommender.py::_reading_gate_mode()` — тепер читає
+  `get_language_literacy(user_id, target_lang)` замість глобального
+  `profile["literacy_required"]`; `None` (ще не питали САМЕ про цю мову) —
+  той самий фолбек на script-family дефолт, що й раніше.
+- `app.py::_render_onboarding()` — після `save_onboarding()` додатково пише
+  ту саму відповідь у `language_literacy` для мови, обраної при онбордингу
+  (`user_prefs.literacy_required` лишається в схемі й записується як і
+  раніше, просто більше не читається гейтом — зворотна сумісність).
+- [path_app.py](path_app.py) — новий `_render_literacy_prompt()`, банер на
+  My Path (над рекомендованим уроком, над банером розкладу занять): якщо для
+  поточного `target_lang` ще нема запису в `language_literacy` І
+  script-family не збігається (та сама перевірка, що й на онбордингу) —
+  показує те саме питання (перевикористані вже перекладені на всі 14 мов
+  ключі `onboarding_literacy_label`/`literacy_can_read`/
+  `literacy_needs_letters`, нових i18n-ключів не знадобилось), клік по
+  кнопці пише відповідь і `st.rerun()`.
+
+**Перевірено наскрізно на реальній Supabase** (одноразовий тестовий юзер,
+`__test_language_literacy_wiring__`, зачищений після): свіжий акаунт без
+жодної відповіді — Korean (script-gated) → `"full"`, French → `"default"`
+(старий фолбек не зламаний); відповідь "так, читаю" для French →
+`_reading_gate_mode` для French стає `"skip"`; **та сама відповідь НЕ
+впливає на Korean** цього ж юзера (лишається `"full"`) — саме той сценарій
+бага, що описала Наталя, підтверджено виправленим на реальних даних;
+явна відповідь "так, читаю" для Korean (SCRIPT_GATE_LANGS-мова) реально
+переводить її гейт у `"skip"` — довід, що per-language override працює
+навіть там, де раніше спрацьовував лише жорсткий script-heuristic.
+
+**Fix #2 — reading_app.py більше не тренує англійську за замовчуванням**:
+[reading_app.py::render_setup()](reading_app.py) — на самому початку
+функції, якщо `"r_lang"` ще немає в `session_state` цієї сесії (перший
+візит у Reading), він ініціалізується з поточного `launcher_target`
+(через `recommender.LANG_TO_CODE`, з фолбеком на `"en"`, якщо код не має
+TTS-конфігу) замість завжди хардкодженого `"en"`. Ручне перемикання мови
+через існуючий `st.selectbox` після цього працює як і раніше (пише в те ж
+`session_state["r_lang"]`) — фікс торкається лише самого першого рендеру.
+**Перевірено ізольовано**: для всіх перевірених мов (включно з 5 нещодавно
+доданими — Romanian/Bulgarian/Czech/Turkish/Swedish) `LANG_TO_CODE` дає код,
+присутній у `TTS_CONFIG`; симуляція першого відкриття Reading з
+`launcher_target="Romanian"` дає `r_lang="ro"`, не `"en"`.
+
+**Не перевірено вживу через реальний Streamlit UI** — та сама відома межа:
+реальний клік у браузері через логін Наталі, не мій. Обидва фікси
+перевірені найсильнішим доступним у цій сесії способом — прямими запитами
+до живої Supabase (Fix #1) та ізольованою симуляцією точного коду (Fix #2),
+не лише логічним розбором.

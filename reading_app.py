@@ -1327,6 +1327,22 @@ def _render_module_nav_sidebar(current_module: str) -> None:
 
 
 def render_setup():
+    # Default the language picker to whatever target_lang is currently
+    # selected in the main launcher, once per session -- previously this
+    # always fell back to the hardcoded "en" until the student manually
+    # switched it, so opening Reading from e.g. a Romanian lesson silently
+    # trained English instead (2026-09-20, Natalia: "якщо нажму на іконку -
+    # читання обрати, то там буде автоматом англійська мова тренувати").
+    # Only seeds the FIRST visit this session -- once "r_lang" exists
+    # (manually changed via the selectbox below, or restored from a
+    # query-param deep link), it's left alone so manual switching still
+    # works exactly as before.
+    if "r_lang" not in st.session_state:
+        from engine import recommender as _recommender
+        _default_target_name = st.session_state.get("launcher_target", "English")
+        _default_code = _recommender.LANG_TO_CODE.get(_default_target_name, "en")
+        st.session_state["r_lang"] = _default_code if _default_code in TTS_CONFIG else "en"
+
     with st.sidebar:
         _render_module_nav_sidebar("reading")
         # ── Lesson ◀ ▶ navigation ─────────────────────────────────────

@@ -36,6 +36,8 @@ from engine import gemini as _gemini
 from engine import gamification as _gamification
 from engine import schedule as _schedule
 from engine import i18n
+from engine import user_prefs as _user_prefs
+from engine import literacy as _literacy
 
 ROOT        = Path(__file__).parent
 APP_IMG_DIR = ROOT / "static" / "app_images"
@@ -140,6 +142,38 @@ def _render_module_shortcuts(user: str, native: str, target: str) -> None:
             if st.button(btn_label, key=f"path_shortcut_{key}",
                          use_container_width=True):
                 _switch_module(key, user, native, target)
+
+
+def _render_literacy_prompt(user: str, native: str, target: str) -> None:
+    """Non-blocking literacy check for a target_lang this student hasn't
+    been asked about yet (2026-09-20, Natalia: "обидва фікси"). Mirrors
+    app.py::_render_onboarding's literacy question, but per target_lang
+    instead of once ever -- onboarding only asks about whichever pair was
+    picked at signup; switching to a different target_lang later used to
+    silently reuse that one answer (or the script-family default) for
+    every language after, see engine.recommender._reading_gate_mode()'s
+    docstring for the live bug this fixes. Uses the exact same i18n keys
+    as the onboarding question (already translated for all 14 languages),
+    not new ones."""
+    if not user or _user_prefs.get_language_literacy(user, target) is not None:
+        return
+    profile = _user_prefs.get_profile(user) or {}
+    self_level = profile.get("self_level") or ""
+    if not _literacy.needs_literacy_question(native, target, self_level):
+        return
+    with st.container(border=True):
+        st.markdown(f"**{i18n.get(native, 'onboarding_literacy_label').format(target=target)}**")
+        c1, c2 = st.columns(2)
+        with c1:
+            if st.button(i18n.get(native, "literacy_can_read"),
+                         key="literacy_prompt_can_read", use_container_width=True):
+                _user_prefs.set_language_literacy(user, target, False)
+                st.rerun()
+        with c2:
+            if st.button(i18n.get(native, "literacy_needs_letters"),
+                         key="literacy_prompt_needs_letters", use_container_width=True):
+                _user_prefs.set_language_literacy(user, target, True)
+                st.rerun()
 
 
 def _render_schedule_prompt(user: str, native: str) -> None:
@@ -468,6 +502,9 @@ def main() -> None:
 
     # ── Page header ──────────────────────────────────────────────────────────
     st.markdown(f"## {i18n.get(native, 'path_title')}")
+
+    # ── Literacy check for this target_lang, if not answered yet ────────────
+    _render_literacy_prompt(user, native, target)
 
     # ── Routine: delayed setup prompt + settings (engine/schedule.py) ───────
     _render_schedule_prompt(user, native)

@@ -326,6 +326,28 @@ CREATE TABLE IF NOT EXISTS lesson_schedule (
 -- actually set up a schedule.
 ALTER TABLE user_prefs ADD COLUMN IF NOT EXISTS schedule_prompt_dismissed BOOLEAN NOT NULL DEFAULT false;
 
+-- ── language_literacy ────────────────────────────────────────────────────────
+-- Per-(user, target_lang) literacy answer (2026-09-20), replacing
+-- user_prefs.literacy_required as the source engine.recommender's reading
+-- gate reads from. That field was a single global-per-user column, set once
+-- at onboarding for whichever target_lang was picked THEN -- switching to a
+-- different target_lang later silently reused the same answer (a "yes I can
+-- read" given for an earlier Latin-script pair got applied to a brand-new
+-- Korean pair too, skipping the reading-first gate entirely). This table
+-- lets each target_lang the student has ever opened carry its own answer;
+-- app.py's onboarding writes the first row here (mirroring
+-- user_prefs.literacy_required, which is left in place for backward
+-- compatibility/other reads but no longer consulted by the gate), and
+-- path_app.py's non-blocking banner asks again the first time a target_lang
+-- with no row here is opened.
+CREATE TABLE IF NOT EXISTS language_literacy (
+    user_id            TEXT NOT NULL,
+    target_lang        TEXT NOT NULL,
+    literacy_required  BOOLEAN NOT NULL,
+    updated_at         TIMESTAMPTZ NOT NULL DEFAULT now(),
+    PRIMARY KEY (user_id, target_lang)
+);
+
 -- ── user_feedback ────────────────────────────────────────────────────────────
 -- "🐛 Report a problem" widget (engine/feedback.py, 2026-09-16) -- added
 -- before the first test-user launch, since there was previously no in-app
@@ -383,5 +405,6 @@ ALTER TABLE user_prefs           ENABLE ROW LEVEL SECURITY;
 ALTER TABLE custom_phrases       ENABLE ROW LEVEL SECURITY;
 ALTER TABLE weekly_signup_gate   ENABLE ROW LEVEL SECURITY;
 ALTER TABLE lesson_schedule      ENABLE ROW LEVEL SECURITY;
+ALTER TABLE language_literacy    ENABLE ROW LEVEL SECURITY;
 ALTER TABLE user_feedback        ENABLE ROW LEVEL SECURITY;
 ALTER TABLE app_errors           ENABLE ROW LEVEL SECURITY;

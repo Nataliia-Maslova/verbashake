@@ -88,6 +88,42 @@ def save_timezone(user_id: str, tz_name: str) -> None:
         pass
 
 
+def get_language_literacy(user_id: str, target_lang: str) -> bool | None:
+    """Per-(user, target_lang) literacy answer, or None if this target_lang
+    has never been asked about yet (or DB unavailable) — see schema.sql's
+    language_literacy table comment for why this replaced the old global
+    user_prefs.literacy_required as engine.recommender's reading-gate
+    source (2026-09-20)."""
+    if not user_id or not target_lang:
+        return None
+    try:
+        row = db.fetch_one(
+            "SELECT literacy_required FROM language_literacy "
+            "WHERE user_id = :uid AND target_lang = :lang",
+            {"uid": user_id, "lang": target_lang},
+        )
+        return row["literacy_required"] if row else None
+    except Exception:
+        return None
+
+
+def set_language_literacy(user_id: str, target_lang: str, value: bool) -> None:
+    """Best-effort save, same fail-silent convention as save_prefs() —
+    called once from app.py's onboarding for the target_lang picked there,
+    and again from path_app.py's banner the first time a different
+    target_lang with no answer yet is opened."""
+    if not user_id or not target_lang:
+        return
+    try:
+        db.upsert(
+            "language_literacy",
+            keys={"user_id": user_id, "target_lang": target_lang},
+            values={"literacy_required": value},
+        )
+    except Exception:
+        pass
+
+
 def is_onboarded(user_id: str) -> bool:
     """True once the student has been through the first-run onboarding
     screen (app.py::_render_onboarding) — name + self-reported level saved,

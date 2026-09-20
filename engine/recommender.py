@@ -311,9 +311,10 @@ def _reading_gate_mode(user_id: str, target_lang: str) -> str:
     "full" | "skip" | "default" — how much of the reading catalog gates
     grammar/vocab for this student, in target_lang.
 
-    literacy_required (engine/user_prefs.py, set at onboarding) is the
-    AUTHORITATIVE signal when the student was actually asked and gave an
-    explicit answer, for any target language, script-gated or not:
+    engine.user_prefs.get_language_literacy(user_id, target_lang) (the
+    language_literacy table, schema.sql, 2026-09-20) is the AUTHORITATIVE
+    signal when the student was actually asked and gave an explicit answer
+    FOR THIS target_lang specifically, script-gated or not:
       - True  ("no, teach me the letters first")  -> "full": every reading
         lesson must be cleared first, same as ko/ja/zh always required.
       - False ("yes, I can already read")         -> "skip": no reading-
@@ -324,19 +325,25 @@ def _reading_gate_mode(user_id: str, target_lang: str) -> str:
         I can already read" was still recommended Reading Lesson 1 (A1)
         first, because only the "needs letters" -> full-gate direction had
         been wired, not this one.
-      - None  (never asked -- native/target scripts matched, so
-        app.py::_render_onboarding never showed the question, or the user
-        predates this feature) -> "default": fall back to the pre-2026-09-06
-        behavior, i.e. SCRIPT_GATE_LANGS (ko/ja/zh) forces "full", everyone
-        else gets the short READING_INTRO_COUNT intro.
+      - None  (never asked for THIS target_lang -- native/target scripts
+        matched at onboarding so app.py::_render_onboarding never showed the
+        question, the user predates this feature, or they switched to a
+        target_lang path_app.py's banner hasn't asked about yet) ->
+        "default": fall back to the pre-2026-09-06 behavior, i.e.
+        SCRIPT_GATE_LANGS (ko/ja/zh) forces "full", everyone else gets the
+        short READING_INTRO_COUNT intro.
 
-    literacy_required is per-user, not per-(user, target_lang) -- this only
-    reflects the answer given for whichever target_lang was picked at
-    onboarding; switching target_lang later doesn't re-ask.
+    This used to read a single global-per-user user_prefs.literacy_required
+    column instead -- set once at onboarding for whichever target_lang was
+    picked THEN, and silently misapplied to every later target_lang switch
+    (confirmed live 2026-09-20: a fresh account with an existing "yes, I can
+    read" answer for an earlier Latin-script pair got "skip" applied to a
+    brand-new Korean pair too, never asked about it, and skipped the
+    reading-first gate entirely). language_literacy is keyed per
+    (user_id, target_lang) specifically to fix that.
     """
     from engine import user_prefs
-    profile = user_prefs.get_profile(user_id)
-    literacy = profile.get("literacy_required") if profile else None
+    literacy = user_prefs.get_language_literacy(user_id, target_lang)
     if literacy is True:
         return "full"
     if literacy is False:
