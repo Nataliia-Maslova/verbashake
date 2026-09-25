@@ -122,7 +122,42 @@ def today_status(user_id: str, done_today: bool, tz_name: str | None = None) -> 
         now = _dt.datetime.now(ZoneInfo(tz_name)) if tz_name else _dt.datetime.now()
     except Exception:
         now = _dt.datetime.now()
+
+    def _state_for(entry: dict, slot_date: _dt.date) -> tuple[str, float]:
+        hh, mm = (int(p) for p in entry["time_of_day"].split(":"))
+        slot = now.replace(
+            year=slot_date.year, month=slot_date.month, day=slot_date.day,
+            hour=hh, minute=mm, second=0, microsecond=0,
+        )
+        delta = (now - slot).total_seconds() / 60
+        if delta < -TOLERANCE_MINUTES:
+            return "not_yet", delta
+        if delta <= TOLERANCE_MINUTES:
+            return "in_window", delta
+        return "missed_window", delta
+
     today_entry = next((e for e in entries if e["day_of_week"] == now.weekday()), None)
+
+    # A late-evening slot (e.g. 23:45) whose ±TOLERANCE_MINUTES grace window
+    # straddles midnight used to vanish the moment the clock ticked over:
+    # today_entry above is keyed on *today's* weekday, so a few minutes past
+    # midnight the student's actual slot -- still within its grace window --
+    # belonged to *yesterday* and was never looked up at all, silently
+    # falling through to "not_scheduled_today" even mid-window (found via a
+    # pure-function test, 2026-09-23; TOLERANCE_MINUTES=30 means this only
+    # bites for slots timed 23:30-23:59, and only for the first ~30 minutes
+    # of the next day). Check yesterday's entry too, but only prefer it over
+    # today's own entry (if any) when it's still genuinely in its window --
+    # a "missed_window" from yesterday must never resurrect itself and mask
+    # today's real state.
+    if now.hour == 0 and now.minute < TOLERANCE_MINUTES:
+        yesterday = now.weekday() - 1 if now.weekday() > 0 else 6
+        prev_entry = next((e for e in entries if e["day_of_week"] == yesterday), None)
+        if prev_entry:
+            prev_state, prev_delta = _state_for(prev_entry, (now - _dt.timedelta(days=1)).date())
+            if prev_state == "in_window" and not done_today:
+                return {"state": "in_window", "time_of_day": prev_entry["time_of_day"]}
+
     if today_entry is None:
         return {"state": "not_scheduled_today", "time_of_day": None}
 
@@ -130,17 +165,7 @@ def today_status(user_id: str, done_today: bool, tz_name: str | None = None) -> 
     if done_today:
         return {"state": "done", "time_of_day": time_of_day}
 
-    hh, mm = (int(p) for p in time_of_day.split(":"))
-    slot = now.replace(hour=hh, minute=mm, second=0, microsecond=0)
-    delta_minutes = (now - slot).total_seconds() / 60
-
-    if delta_minutes < -TOLERANCE_MINUTES:
-        state = "not_yet"
-    elif delta_minutes <= TOLERANCE_MINUTES:
-        state = "in_window"
-    else:
-        state = "missed_window"
-
+    state, _ = _state_for(today_entry, now.date())
     return {"state": state, "time_of_day": time_of_day}
 
 

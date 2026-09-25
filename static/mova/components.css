@@ -283,7 +283,7 @@
 .mova-chip[data-active="true"] {
   background: var(--mova-ink);
   border-color: var(--mova-ink);
-  color: #fff;
+  color: var(--mova-surface);
 }
 
 /* ---------- Icon tile (the colored gradient square behind big emojis) ---------- */
@@ -317,7 +317,7 @@
   border-radius: var(--mova-radius-full);
   background: var(--mova-coral);
   display: grid; place-items: center;
-  color: #fff;
+  color: var(--mova-ink-on-coral);
   font-size: 36px;
   box-shadow: 0 6px 18px rgba(255,123,107,.4);
   animation: mova-mic-pulse 1.4s var(--mova-ease) infinite;
@@ -368,7 +368,7 @@
   font-size: 14px;
   border: 2px solid transparent;
 }
-.mova-stepper-row[data-state="done"] .mova-stepper-bullet    { background: var(--mova-mint); color: #fff; }
+.mova-stepper-row[data-state="done"] .mova-stepper-bullet    { background: var(--mova-mint); color: var(--mova-ink-on-coral); }
 .mova-stepper-row[data-state="active"] .mova-stepper-bullet  { background: var(--mova-indigo); color: #fff; border-color: rgba(79,70,229,.25); }
 .mova-stepper-label { font-weight: var(--mova-fw-bold); color: var(--mova-ink); font-size: var(--mova-fs-h3); margin: 4px 0 4px; }
 .mova-stepper-help  { color: var(--mova-ink-3); font-size: var(--mova-fs-small); margin: 0 0 var(--mova-sp-3); }
@@ -396,7 +396,7 @@
   width: 36px; height: 36px; border-radius: var(--mova-radius-full);
   background: var(--mova-amber);
   display: grid; place-items: center;
-  color: #fff; font-weight: var(--mova-fw-bold); font-size: 14px;
+  color: var(--mova-ink-on-coral); font-weight: var(--mova-fw-bold); font-size: 14px;
   box-shadow: inset 0 -2px 0 rgba(0,0,0,.18);
 }
 .mova-icon-btn {
@@ -458,7 +458,7 @@
 .mova-letter-ipa {
   font-family: var(--mova-font-mono);
   font-size: var(--mova-fs-small);
-  color: var(--mova-indigo);
+  color: var(--mova-indigo-ink);
 }
 .mova-letter-example {
   font-size: var(--mova-fs-small);
@@ -496,7 +496,7 @@
   transition: all var(--mova-dur-2) var(--mova-ease);
 }
 .mova-fauxlit-btn-primary {
-  background: var(--mova-coral); color: #fff;
+  background: var(--mova-coral); color: var(--mova-ink-on-coral);
   box-shadow: 0 1px 0 rgba(0,0,0,.04), 0 2px 6px rgba(255,123,107,.28);
 }
 .mova-fauxlit-btn-primary:hover  { background: var(--mova-coral-press); }

@@ -928,7 +928,19 @@ def sidebar_widget(user_id: str) -> None:
         xp_hint = (_t("xp_next", lang, n=xp_to_next) if xp_to_next > 0
                    else _t("xp_max", lang))
 
-        badge_icons  = "".join(b[1] for b in BADGE_DEFS_RAW if b[0] in badges)[:10]
+        # Each badge gets a `title` (name — desc, localised) so a screen
+        # reader — or just a sighted student hovering — knows what the
+        # emoji means, not just the bare glyph (found via a live
+        # accessibility-tree read, 2026-09-25: badges rendered as a raw
+        # unlabeled emoji string, e.g. "🌱⭐⚡", with zero indication of what
+        # each one was for).
+        import html as _html
+        _earned_badges = [b for b in get_badge_defs(lang) if b[0] in badges][:10]
+        badge_icons = "".join(
+            f'<span title="{_html.escape(name)} — {_html.escape(desc)}" '
+            f'aria-label="{_html.escape(name)}">{emoji}</span>'
+            for _bid, emoji, name, desc in _earned_badges
+        )
         time_str     = _format_time(total_mins, lang)
         time_label   = _t("time_label", lang)
 

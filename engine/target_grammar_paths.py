@@ -667,6 +667,14 @@ TARGET_GRAMMAR_PATHS: dict[str, list[dict]] = {
     ],
 }
 
+# Language-specific verb-row lessons (2026-09-25) -- see engine/verb_form_topics.py.
+from engine.verb_form_topics import build_topics as _build_verb_topics  # noqa: E402
+_CODES = {"Spanish": "es", "French": "fr", "German": "de", "Italian": "it", "Portuguese": "pt", "Catalan": "ca",
+          "Dutch": "nl", "Swedish": "sv", "Romanian": "ro", "Russian": "ru", "Ukrainian": "uk", "Polish": "pl",
+          "Czech": "cs", "Bulgarian": "bg"}
+for _lang, _topics in _build_verb_topics(_CODES).items():
+    TARGET_GRAMMAR_PATHS.setdefault(_lang, []).extend(_topics)
+
 # lesson_id -> full topic dict, built once at import (every topic across all
 # languages has a globally-unique lesson_id, see the module docstring).
 LESSON_ID_TO_TOPIC: dict[int, dict] = {

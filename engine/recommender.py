@@ -225,7 +225,14 @@ def _candidates(target_lang: str, module: str | None = None) -> list[dict]:
     if module:
         sql += " AND module = :module"
         params["module"] = module
-    return db.fetch_all(sql, params)
+    rows = db.fetch_all(sql, params)
+    if target_lang != "English":
+        # English verb-form lists are hidden for every other target language
+        # (grammar.py::_load_grammar) -- keep them out of recommendations too.
+        from engine.verb_form_topics import ENGLISH_PIVOT_VERB_LESSONS
+        hidden = {f"grammar:{i}" for i in ENGLISH_PIVOT_VERB_LESSONS}
+        rows = [r for r in rows if r["unit_id"] not in hidden]
+    return rows
 
 
 def _mastery_topic(topic: str | None) -> str:
@@ -863,6 +870,26 @@ def lesson_for_topic(topic: str, target_lang: str, module: str = "grammar") -> d
         if u.get("topic") == topic:
             return u
     return None
+
+
+def lesson_position(target_lang: str, module: str, lesson_id: int) -> int | None:
+    """
+    1-based position of `lesson_id` among this module's lessons FOR target_lang
+    (same ordering/scoping the module's own lesson picker and sidebar
+    "Topic 6 / 981" counter use), or None if it isn't found. For display only:
+    raw ids are meaningless to a student -- CEFR-J vocab ids are 100000+ and
+    target-grammar-path grammar ids 1000+ (found live 2026-09-20: My Path said
+    "Урок 1104"). Built on _candidates(), so language-locked lessons of OTHER
+    languages don't inflate the position.
+    """
+    ids = []
+    for u in _candidates(target_lang, module):
+        try:
+            ids.append(parse_unit_id(u["unit_id"])["lesson_id"])
+        except Exception:
+            continue
+    ids = sorted(set(ids))
+    return ids.index(lesson_id) + 1 if lesson_id in ids else None
 
 
 def lesson_levels(module: str) -> dict[int, str]:

@@ -587,99 +587,6 @@ def play(path, autoplay=False):
 
 
 
-def autoplaylist_html(audio_paths, pause_secs=1.0, uid="pl"):
-    """JS component: plays a list of MP3s sequentially with a fixed pause between."""
-    import json as _json
-    srcs = []
-    for p in audio_paths:
-        if p and Path(p).exists():
-            with open(p, "rb") as f:
-                srcs.append("data:audio/mp3;base64," + base64.b64encode(f.read()).decode())
-        else:
-            srcs.append("")
-    srcs_js  = _json.dumps(srcs)
-    pause_ms = int(pause_secs * 1000)
-    n = len(srcs)
-    return f"""
-<div style="background:#FFFFFF;border:1px solid #E8E2D8;border-radius:12px;padding:14px 18px;margin:8px 0;">
-  <div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap;">
-    <button id="pl-btn-{uid}" onclick="plToggle_{uid}()"
-      style="background:#ECEBFB;color:#4F46E5;border:1px solid #4F46E5;border-radius:8px;
-             padding:7px 18px;cursor:pointer;font-family:JetBrains Mono,monospace;font-size:.88rem;">
-      ▶ Play All
-    </button>
-    <span id="pl-stat-{uid}" style="color:#7A7390;font-size:.8rem;font-family:JetBrains Mono,monospace;">ready</span>
-  </div>
-  <div id="pl-bar-{uid}" style="margin-top:10px;display:flex;gap:4px;flex-wrap:wrap;"></div>
-</div>
-<script>
-(function(){{
-  const srcs={srcs_js}, pauseMs={pause_ms}, n={n}, uid='{uid}';
-  let cur=-1, playing=false, aud=null, tmr=null;
-  const bar=document.getElementById('pl-bar-'+uid);
-  for(let i=0;i<n;i++){{
-    const d=document.createElement('div'); d.id='dot-'+uid+'-'+i;
-    d.style.cssText='width:10px;height:10px;border-radius:50%;background:#ECEBFB;transition:.2s;';
-    bar.appendChild(d);
-  }}
-  function dot(i,c){{
-    const d=document.getElementById('dot-'+uid+'-'+i); if(!d) return;
-    d.style.background = c==='active' ? '#4F46E5' : c==='done' ? '#1FB888' : '#ECEBFB';
-  }}
-  function ensureAud(){{
-    // Create ONE Audio element only inside a user-gesture handler.
-    // iOS Safari blocks new Audio()/play() called from setTimeout because
-    // they lose the gesture. Reusing one element keeps the unlock alive.
-    if(aud) return;
-    aud=new Audio();
-    aud.preload='auto';
-    aud.addEventListener('ended', function(){{
-      var i=cur;
-      dot(i,'done');
-      tmr=setTimeout(function(){{ playIdx(i+1); }}, pauseMs);
-    }});
-    aud.addEventListener('error', function(){{
-      tmr=setTimeout(function(){{ playIdx(cur+1); }}, 300);
-    }});
-  }}
-  function stop(){{
-    if(aud){{ try{{aud.pause();}}catch(e){{}} }}
-    if(tmr){{clearTimeout(tmr); tmr=null;}}
-    playing=false; cur=-1;
-    document.getElementById('pl-btn-'+uid).textContent='▶ Play All';
-    document.getElementById('pl-btn-'+uid).style.color='#4F46E5';
-  }}
-  function playIdx(i){{
-    if(i>=n){{
-      stop();
-      document.getElementById('pl-stat-'+uid).textContent='done ✓';
-      for(let j=0;j<n;j++) dot(j,'done');
-      return;
-    }}
-    cur=i; playing=true;
-    for(let j=0;j<i;j++) dot(j,'done'); dot(i,'active');
-    document.getElementById('pl-stat-'+uid).textContent='▶ '+(i+1)+' / '+n;
-    if(!srcs[i]){{ tmr=setTimeout(function(){{ playIdx(i+1); }}, pauseMs); return; }}
-    aud.src=srcs[i];
-    var p=aud.play();
-    if(p && typeof p.catch === 'function'){{
-      p.catch(function(){{ tmr=setTimeout(function(){{ playIdx(i+1); }}, 300); }});
-    }}
-  }}
-  window['plToggle_'+uid]=function(){{
-    if(playing){{ stop(); document.getElementById('pl-stat-'+uid).textContent='stopped'; }}
-    else{{
-      ensureAud();  // must run during this user-gesture click
-      document.getElementById('pl-btn-'+uid).textContent='■ Stop';
-      document.getElementById('pl-btn-'+uid).style.color='#FF7B6B';
-      playIdx(0);
-    }}
-  }};
-}})();
-</script>
-"""
-
-
 def lessons_table(rows, active_idx=None, scores=None,
                   show_word=True, show_trans=True):
     """Compact table view of all rows in a lesson (used by steps 1, 2, 4, 5)."""
@@ -855,7 +762,8 @@ _READING_ICONS = {
     "step3_icon": "\U0001F3AF", "step4_icon": "\U0001F3A4",
     "step5_icon": "\u23F1\uFE0F",
 }
-_READING_SHARED_KEYS = {"step_label", "required", "try_first", "main_menu"}
+_READING_SHARED_KEYS = {"step_label", "required", "try_first", "main_menu",
+                         "whisper_not_installed"}
 
 
 def _ui(key: str) -> str:
@@ -981,14 +889,14 @@ def do_step2(rows: pd.DataFrame) -> bool:
         pass
     else:
         if not STT_OK or not SCORER_OK:
-            st.caption("⚠️ Для перевірки потрібно: `pip install openai-whisper rapidfuzz`")
+            st.caption(f"⚠️ {_ui('whisper_not_installed')}")
 
         if st.button(_ui("check_pron"), type="primary",
                      use_container_width=True, key="s2_check"):
             if not audio:
                 st.warning(_ui("record_first"))
             elif not STT_OK or not SCORER_OK:
-                st.warning("Whisper/RapidFuzz не встановлені.")
+                st.warning(_ui("whisper_not_installed"))
             else:
                 t_ms = _audio_duration_ms(audio)
                 with st.spinner(_ui("transcribing")):
@@ -1252,15 +1160,16 @@ def clear_step_state():
             del st.session_state[k]
 
 
-def clear_all():
+def clear_all(go_home: bool = False):
     _keep = {k: st.session_state[k] for k in
              ("launcher_user", "launcher_native", "launcher_target", "_dark_mode")
              if k in st.session_state}
     # Set by path_app.py::_launch_unit() when the lesson was opened from My
     # Path (default) or from Search (return_module="search") -- routes back
     # to whichever screen the student actually came from instead of always
-    # landing on My Path. Same fix as grammar.py::_clear_all().
-    _return_module = st.session_state.get("_return_module")
+    # landing on My Path. Same fix as grammar.py::_clear_all(); go_home=True
+    # ("Main menu" buttons) ignores it and lands on the top-level launcher.
+    _return_module = None if go_home else st.session_state.get("_return_module")
     for k in list(st.session_state):
         del st.session_state[k]
     st.session_state.update(_keep)
@@ -1292,6 +1201,7 @@ def _render_module_nav_sidebar(current_module: str) -> None:
         ("reading",    "🔤", i18n.get(_sb_native, "module_reading")),
         ("custom",     "📝", i18n.get(_sb_native, "module_custom")),
         ("search",     "🔍", i18n.get(_sb_native, "search_title")),
+        ("mistakes",   "✏️", i18n.get(_sb_native, "mistakes_title")),
     ]
     st.markdown(
         '<div style="font-size:.7rem;color:var(--mova-ink-3);'
@@ -1356,7 +1266,7 @@ def render_setup():
                 st.session_state[_idx_key] = 0
             _cur = min(int(st.session_state[_idx_key]), len(_sb_lids) - 1)
             st.markdown("---")
-            _lesson_word_sb = {"English": "Lesson", "Ukrainian": "Урок", "Spanish": "Lección", "Korean": "수업"}.get(_sb_native, "Lesson")
+            _lesson_word_sb = i18n.get(_sb_native, "word_lesson")
             st.caption(f"{_lesson_word_sb} {_sb_lids[_cur]} / {len(_sb_lids)}")
             _sc1, _sc2 = st.columns(2)
             with _sc1:
@@ -1378,7 +1288,7 @@ def render_setup():
             pass
         st.markdown("---")
         if st.button(_ui("main_menu"), key="r_setup_home"):
-            clear_all()
+            clear_all(go_home=True)
             st.rerun()
 
 
@@ -1515,13 +1425,7 @@ def render_setup():
         except Exception as _e:
             st.error(f"Помилка: {_e}")
 
-    _LESSON_WORD = {
-        "English":   "Lesson",
-        "Ukrainian": "Урок",
-        "Spanish":   "Lección",
-        "Korean":    "수업",
-    }
-    _lesson_word = _LESSON_WORD.get(native_lang, "Lesson")
+    _lesson_word = i18n.get(native_lang, "word_lesson")
 
     default_lid = int(lessons[default_idx])
     _r_lesson_names  = {int(l): f"{_lesson_word} {l}" for l in lessons}
@@ -1536,7 +1440,7 @@ def render_setup():
     for _u_idx in range(0, len(_r_int_lessons), _UNIT_SIZE):
         _u_lids = _r_int_lessons[_u_idx:_u_idx + _UNIT_SIZE]
         _r_units.append({
-            "label": f"Unit {_u_idx // _UNIT_SIZE + 1}  ({_lesson_word} {_u_lids[0]}–{_u_lids[-1]})",
+            "label": f"{i18n.get(native_lang, 'word_unit')} {_u_idx // _UNIT_SIZE + 1}  ({_lesson_word} {_u_lids[0]}–{_u_lids[-1]})",
             "lids":  _u_lids,
         })
 
@@ -1579,13 +1483,13 @@ def render_setup():
     )
     _r_sel_lid   = _filtered_r[_r_opts.index(_r_sel)]
     _r_is_resume = (_r_sel_lid == _r_default_lid and resume_step > 1)
-    _r_btn_lbl   = (f"▶ Resume at Step {resume_step}" if _r_is_resume
+    _r_btn_lbl   = (i18n.get(native_lang, "dropdown_resume_step_btn").format(step=resume_step) if _r_is_resume
                     else f"▶ {_ui('start_prefix')} {_lesson_word}")
     if st.button(_r_btn_lbl, type="primary", use_container_width=True,
                  key=f"r_dd_btn_{chosen_lang}"):
         _start_reading_lesson(_r_sel_lid)
 
-    with st.expander("🗺️ Or browse the path"):
+    with st.expander(i18n.get(native_lang, "wave_browse_path_expander")):
         _r_clicked = _render_wave_plotly(
             lessons=_filtered_r,
             lesson_names=_r_lesson_names,
@@ -1779,10 +1683,7 @@ def main():
 
     lang        = _r_lang()
     native_lang = st.session_state.get("launcher_native", "Ukrainian")
-    _lesson_word = {
-        "English": "Lesson", "Ukrainian": "Урок",
-        "Spanish": "Lección", "Korean": "수업",
-    }.get(native_lang, "Lesson")
+    _lesson_word = i18n.get(native_lang, "word_lesson")
     df          = load(str(DB_PATH), lang=lang, native_lang=native_lang)
 
     step = st.session_state["r_step"]
@@ -1807,7 +1708,7 @@ def main():
         # made in grammar.py's sidebar). Step navigation specifically moved
         # into the lesson content itself (_render_step_nav_inline below).
         if st.button(_ui("main_menu"), use_container_width=True, key="r_sb_home_top"):
-            clear_all()
+            clear_all(go_home=True)
             st.rerun()
         st.markdown("---")
 

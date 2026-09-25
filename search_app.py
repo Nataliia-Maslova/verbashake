@@ -30,6 +30,7 @@ grammar/vocab/phrasebook/reading at a specific lesson.
 from __future__ import annotations
 
 import json
+import re
 from pathlib import Path
 
 import streamlit as st
@@ -81,35 +82,70 @@ def _match_grammar_term(native: str, query: str) -> tuple[str, bool] | None:
 
 MAX_RESULTS_PER_MODULE = 15
 
-# Fuzzy matching (rapidfuzz — already a dependency, used elsewhere for STT
-# scoring) instead of plain substring search: Grammar/Phrasebook topic names
-# and example sentences are translated per-language, and morphologically
-# rich languages (Ukrainian, Russian, Polish...) inflect the very words a
-# learner would search for — "прошедшее" (a query) vs "Прошедшие действия"
-# (a real lesson topic) differ only in a grammatical-case ending, so an exact
-# `.str.contains()` misses it even though it's obviously the right lesson.
-# rapidfuzz.fuzz.partial_ratio tolerates that. Short queries (<5 chars) are
-# still held to an exact-substring match (partial_ratio naturally returns
-# 100 for those) — letting fuzzy slop apply to a 2-3 letter query would match
-# almost any row and swamp results with noise.
-FUZZY_THRESHOLD  = 80
-EXACT_ONLY_BELOW = 5
+# Matching tiers (2026-09-20; was a single rapidfuzz.partial_ratio scan):
+#   100  the query is a whole word/phrase of the field ("hello" in "I say hello")
+#    97  the query is the start of a word in the field ("hell" -> "hello")
+#    94  the query is somewhere inside a word ("ello" -> "hello")
+#   <=93 fuzzy, only for queries >= FUZZY_MIN_LEN chars: a whole-word ratio
+#        against same-length-ish words, to survive inflection ("прошедшее" vs
+#        "Прошедшие действия" differ only in a case ending -- the reason fuzzy
+#        matching exists here at all).
+# The old partial_ratio scan compared BOTH directions: any field fully
+# contained in the query scored 100, so a search for "hello" matched the
+# headword "he", the letters "o"/"l"/"e"/"h" in Reading, "hell", "shell"...
+# and buried the exact word among noise (found live 2026-09-20). Now the
+# query must be inside the field, never the other way round.
+FUZZY_THRESHOLD = 85
+FUZZY_MIN_LEN   = 6      # shorter queries are exact-substring only
+MIDWORD_MIN_LEN = 5      # shorter queries must start a word (spaced scripts)
+_WORD_RE = re.compile(r"\w+", re.UNICODE)
+_UNSPACED_RE = re.compile(r"[\u3040-\u30ff\u3400-\u9fff\u0e00-\u0e7f]")   # kana/kanji/hanzi/thai: no spaces between words
 
 
 def _match_score(query: str, *fields) -> int:
-    """Best fuzzy score (0-100) of `query` against any of `fields`, or 0 if
-    none clears the bar for this query's length."""
-    q = query.lower()
+    """Best score (0-100) of `query` against any of `fields`, or 0 if none
+    clears the bar for this query's length."""
+    q = query.lower().strip()
+    if not q:
+        return 0
+    q_words = _WORD_RE.findall(q)
     best = 0
     for f in fields:
         if not f:
             continue
-        score = fuzz.partial_ratio(q, str(f).lower())
-        if score > best:
-            best = score
-    if len(query) < EXACT_ONLY_BELOW:
-        return best if best >= 100 else 0
-    return best if best >= FUZZY_THRESHOLD else 0
+        text = str(f).lower()
+        tokens = _WORD_RE.findall(text)
+        if q in text:
+            if q in tokens or (len(q_words) > 1 and f" {q} " in f" {' '.join(tokens)} "):
+                score = 100
+            elif any(t.startswith(q) for t in tokens):
+                score = 97
+            elif len(q) >= MIDWORD_MIN_LEN or _UNSPACED_RE.search(text):
+                # Inside a word ("ello" in "hello"). Short queries only count
+                # this way in unspaced scripts (Chinese/Japanese: the whole
+                # sentence is one "token"); elsewhere "katt" matching the
+                # middle of "uppskattar" is just noise.
+                score = 94
+            else:
+                score = 0
+            best = max(best, score)
+            continue
+        if len(q) < FUZZY_MIN_LEN:
+            continue
+        if len(q_words) > 1:
+            # Multi-word query: fuzzy against the field, but only when the
+            # field is at least as long as the query (query-inside-field).
+            if len(text) >= len(q):
+                sc = int(fuzz.partial_ratio(q, text))
+                if sc >= FUZZY_THRESHOLD:
+                    best = max(best, min(sc, 93))
+        else:
+            for t in tokens:
+                if abs(len(t) - len(q)) <= 2:
+                    sc = int(fuzz.ratio(q, t))
+                    if sc >= FUZZY_THRESHOLD:
+                        best = max(best, min(sc, 93))
+    return best
 
 _MODULE_META = {
     "grammar":    ("🗣️", "Grammar"),
@@ -199,8 +235,11 @@ def _search_vocab(native: str, target: str, query: str) -> tuple[list[dict], str
     # adds a one-line note for that case) — the real translation is lazy,
     # loaded only once the lesson itself is opened.
     scores = df.apply(lambda r: _match_score(query, r["headword"], r["source_en"]), axis=1)
-    hits = df[scores > 0].assign(_score=scores[scores > 0]) \
-             .sort_values("_score", ascending=False)
+    # An entry whose headword IS the query outranks sentences that merely
+    # contain it (both score 100) -- "hello" first, then its example uses.
+    hits = df[scores > 0].assign(_score=scores[scores > 0])
+    hits = hits.assign(_exact=hits["headword"].str.lower() == query.lower()) \
+               .sort_values(["_score", "_exact"], ascending=False)
     out = []
     for _, row in hits.head(MAX_RESULTS_PER_MODULE).iterrows():
         out.append({
@@ -237,8 +276,9 @@ def _search_reading(native: str, target: str, query: str) -> tuple[list[dict], s
     # `rule` (e.g. "H is always silent") is included so a query like "silent"
     # surfaces the right phonics lesson, not just literal target-word matches.
     scores = df.apply(lambda r: _match_score(query, r["word"], r["rule"]), axis=1)
-    hits = df[scores > 0].assign(_score=scores[scores > 0]) \
-             .sort_values("_score", ascending=False)
+    hits = df[scores > 0].assign(_score=scores[scores > 0])
+    hits = hits.assign(_exact=hits["word"].str.lower() == query.lower()) \
+               .sort_values(["_score", "_exact"], ascending=False)
     out = []
     for _, row in hits.head(MAX_RESULTS_PER_MODULE).iterrows():
         out.append({
@@ -276,6 +316,7 @@ def main() -> None:
             ("reading",    "🔤", i18n.get(native, "module_reading")),
             ("custom",     "📝", i18n.get(native, "module_custom")),
             ("search",     "🔍", i18n.get(native, "search_title")),
+            ("mistakes",   "✏️", i18n.get(native, "mistakes_title")),
         ]
         st.markdown(
             '<div style="font-size:.7rem;color:var(--mova-ink-3);'

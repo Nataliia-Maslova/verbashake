@@ -110,7 +110,7 @@ header[data-testid="stHeader"] {
 .stButton > button[kind="primary"],
 .stFormSubmitButton > button[kind="primary"] {
   background: var(--mova-coral) !important;
-  color: #fff !important;
+  color: var(--mova-ink-on-coral) !important;
   border-color: var(--mova-coral) !important;
   box-shadow: 0 1px 0 rgba(0,0,0,.04), 0 2px 6px rgba(255, 123, 107, 0.28);
 }
@@ -278,7 +278,7 @@ div[data-baseweb="popover"] li[role="option"][aria-selected="true"] {
 }
 [data-testid="stAudioInput"] button {
   background: var(--mova-coral) !important;
-  color: #fff !important;
+  color: var(--mova-ink-on-coral) !important;
   border: none !important;
   border-radius: var(--mova-radius-full) !important;
   width: 64px;

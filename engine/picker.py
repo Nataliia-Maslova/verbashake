@@ -2,15 +2,13 @@
 engine/picker.py — Lesson navigator UI widgets.
 
 Contains:
-  - Lesson category / topic constants (_VOCAB_CATEGORIES, _TOPIC_META,
-    _GRAMMAR_CATEGORIES)
+  - Lesson category constants (_GRAMMAR_CATEGORIES)
   - Wave/snake path lesson pickers (Plotly + HTML + native Streamlit)
-  - Vocab hierarchical navigator (_render_vocab_nav)
   - Flat grammar/reading wave navigator (_render_flat_wave_nav)
   - Lesson starter helper (_start_grammar_lesson)
 
 Extracted from grammar.py to keep it manageable.
-Public API used by grammar.py: _render_flat_wave_nav, _render_vocab_nav
+Public API used by grammar.py: _render_flat_wave_nav
 """
 from pathlib import Path
 import streamlit as st
@@ -23,89 +21,6 @@ from engine.session import LessonSession
 from engine import recommender as _recommender
 from engine import target_grammar_paths as _target_grammar_paths
 from engine import i18n
-
-# ═══════════════════════════════════════════════════════════════════════════
-# Hierarchical vocabulary navigator (Category -> Topic -> Lesson)
-# ═══════════════════════════════════════════════════════════════════════════
-
-_VOCAB_CATEGORIES = [
-    {
-        "id": "speaking", "icon": "\U0001f5e3\ufe0f", "name": "Communication",
-        "desc": "Greetings, questions, emergencies",
-        "sheets": [
-            "Greetings, Basics & Courtesy",
-            "Questions, Directions & Emergen",
-            "Daily Life, Routine & Feelings",
-        ],
-    },
-    {
-        "id": "wordbank", "icon": "\U0001f4da", "name": "Word Bank",
-        "desc": "Core vocabulary: adjectives, verbs, food, city (words + sentences)",
-        "sheets": ["Basic", "Verbs", "Food", "City"],
-    },
-    {
-        "id": "situations", "icon": "\U0001f30d", "name": "Situations",
-        "desc": "Restaurant, travel, shopping, work, school",
-        "sheets": [
-            "Restaurant, Food & Shopping", "Travel, Lodging & Weather",
-            "Shopping", "At the Doctor", "Work", "School", "Travel", "Restaurant",
-        ],
-    },
-    {
-        "id": "people", "icon": "\U0001f465", "name": "People",
-        "desc": "Friends, family, emotions, relationships",
-        "sheets": ["Friends and Relationships", "Family", "Emotions"],
-    },
-    {
-        "id": "home", "icon": "\U0001f3e0", "name": "Home & Routine",
-        "desc": "Home, daily routine, weather, clothes, transport",
-        "sheets": [
-            "House and Home", "Daily Routine", "Weather",
-            "Clothes", "Transport", "Hobbies", "Food and Drinks",
-        ],
-    },
-    {
-        "id": "leisure", "icon": "\U0001f389", "name": "Leisure",
-        "desc": "Sports, holidays, technology, city",
-        "sheets": ["Sports", "Holidays", "Technology", "City and Directions"],
-    },
-]
-
-_TOPIC_META = {
-    # Word Bank (Type A \u2014 words + sentences)
-    "Basic":                           ("\U0001f524", "Basic Adjectives & Words"),
-    "Verbs":                           ("\u26a1",     "Verbs"),
-    "Food":                            ("\U0001f34e", "Food Vocabulary"),
-    "City":                            ("\U0001f3d9\ufe0f", "City & Shopping"),
-    # Communication
-    "Greetings, Basics & Courtesy":    ("\U0001f44b", "Greetings & Courtesy"),
-    "Questions, Directions & Emergen": ("\u2753",      "Questions, Directions & Emergencies"),
-    "Daily Life, Routine & Feelings":  ("\u2600\ufe0f","Daily Life, Routine & Feelings"),
-    # Situations
-    "Restaurant, Food & Shopping":     ("\U0001f37d\ufe0f", "Restaurant, Food & Shopping"),
-    "Travel, Lodging & Weather":       ("\u2708\ufe0f",     "Travel, Lodging & Weather"),
-    "Shopping":                        ("\U0001f6cd\ufe0f", "Shopping"),
-    "At the Doctor":                   ("\U0001f3e5",        "At the Doctor"),
-    "Work":                            ("\U0001f4bc",        "Work"),
-    "School":                          ("\U0001f393",        "School"),
-    "Travel":                          ("\U0001f5fa\ufe0f", "Travel"),
-    "Restaurant":                      ("\U0001f374",        "Restaurant"),
-    "Friends and Relationships":       ("\U0001f91d",        "Friends & Relationships"),
-    "Family":                          ("\U0001f46a",        "Family"),
-    "Emotions":                        ("\U0001f60a",        "Emotions"),
-    "House and Home":                  ("\U0001f3e1",        "House and Home"),
-    "Daily Routine":                   ("\u23f0",            "Daily Routine"),
-    "Weather":                         ("\U0001f324\ufe0f", "Weather"),
-    "Clothes":                         ("\U0001f457",        "Clothes"),
-    "Transport":                       ("\U0001f68c",        "Transport"),
-    "Hobbies":                         ("\U0001f3a8",        "Hobbies"),
-    "Food and Drinks":                 ("\U0001f957",        "Food and Drinks"),
-    "Sports":                          ("\u26bd",            "Sports"),
-    "Holidays":                        ("\U0001f384",        "Holidays"),
-    "Technology":                      ("\U0001f4bb",        "Technology"),
-    "City and Directions":             ("\U0001f5fa\ufe0f", "City and Directions"),
-}
-
 
 # ── Grammar lesson categories (for lesson-picker navigation) ─────────────────
 # Each category covers a lesson-id range that matches the grammar curriculum.
@@ -551,9 +466,8 @@ def _render_lesson_dropdown_fallback(
     # after entering the lesson (2026-08-23). `df` is the already-loaded
     # native/target dataframe for the current language pair (same one
     # get_lesson()/get_vocab_lesson() slice by lesson_id everywhere else in
-    # this module) -- optional param so the one dead-code caller
-    # (_render_vocab_nav, unused since the Category→Topic nav was replaced
-    # by this flat picker, CLAUDE.md 2026-08-22) doesn't need updating too.
+    # this module) -- optional param, kept from when a second (since deleted,
+    # 2026-09-25) Category→Topic vocab navigator also called this.
     #
     # Skipped for Vocabulary (CEFR-J, engine.cefr_j_vocab_loader): unlike
     # Grammar/Phrasebook, its `native` column is only filled eagerly when
@@ -719,99 +633,3 @@ def _render_flat_wave_nav(
         )
         if clicked is not None:
             _start_grammar_lesson(clicked, cfg, native, target, user_id, lang_pair)
-
-def _render_vocab_nav(
-    df, cfg, db_path, lang_pair, native, target, user_id,
-    lessons, default_idx, resume_step, resume_msg, progress, counts_by_lid,
-):
-    """
-    Compact vocab picker: two dropdowns (Category → Topic) + horizontal wave
-    lesson path. Clicking a lesson card navigates via query params.
-    """
-    from engine.vocab_loader import get_vocab_nav_data
-
-    nav_data       = get_vocab_nav_data(str(db_path))
-    available_gids = set(lessons)
-
-    # ── Resume banner ─────────────────────────────────────────────────────────
-    if resume_msg:
-        st.info(resume_msg)
-
-    # ── Dropdown 1: Category ──────────────────────────────────────────────────
-    cat_names = [f'{c["icon"]} {c["name"]}' for c in _VOCAB_CATEGORIES]
-    cat_ids   = [c["id"] for c in _VOCAB_CATEGORIES]
-
-    prev_cat_id  = st.session_state.get("vocab_nav_cat", cat_ids[0])
-    prev_cat_idx = cat_ids.index(prev_cat_id) if prev_cat_id in cat_ids else 0
-
-    sel_cat_name = st.selectbox("Category", cat_names, index=prev_cat_idx,
-                                key="vnav_sel_category")
-    sel_cat_idx = cat_names.index(sel_cat_name)
-    sel_cat     = _VOCAB_CATEGORIES[sel_cat_idx]
-    sel_cat_id  = sel_cat["id"]
-    st.session_state["vocab_nav_cat"] = sel_cat_id
-
-    # ── Dropdown 2: Topic ─────────────────────────────────────────────────────
-    sheets_in_cat = [s for s in sel_cat["sheets"] if s in nav_data]
-    if not sheets_in_cat:
-        st.warning("No topics available for the selected language pair.")
-        return
-
-    topic_labels = []
-    for s in sheets_in_cat:
-        icon, label = _TOPIC_META.get(s, ("\U0001f4d6", s))
-        n = len(nav_data.get(s, []))
-        topic_labels.append(f"{icon} {label}  ({n} lessons)")
-
-    prev_sheet = st.session_state.get("vocab_nav_topic", sheets_in_cat[0])
-    if prev_sheet not in sheets_in_cat:
-        prev_sheet = sheets_in_cat[0]
-    prev_topic_idx = sheets_in_cat.index(prev_sheet)
-
-    sel_topic_label = st.selectbox(
-        "Topic", topic_labels, index=prev_topic_idx,
-        key=f"vnav_sel_topic_{sel_cat_id}",
-    )
-    sel_topic_idx = topic_labels.index(sel_topic_label)
-    sel_sheet     = sheets_in_cat[sel_topic_idx]
-    st.session_state["vocab_nav_topic"] = sel_sheet
-
-    # ── Wave component ────────────────────────────────────────────────────────
-    lessons_in = nav_data.get(sel_sheet, [])
-    radio_opts = [l for l in lessons_in if l["gid"] in available_gids]
-
-    if not radio_opts:
-        st.warning("No lessons available for this topic and language pair.")
-        return
-
-    default_gid = lessons[default_idx]
-    if default_gid not in {l["gid"] for l in radio_opts}:
-        default_gid = radio_opts[0]["gid"]
-
-    lesson_names_dict = {l["gid"]: l["name"] for l in radio_opts}
-    _vocab_lessons = [l["gid"] for l in radio_opts]
-
-    _vkey = f"{lang_pair}_v"
-    _vclicked = _render_wave_plotly(
-        lessons=_vocab_lessons,
-        lesson_names=lesson_names_dict,
-        lesson_counts=counts_by_lid,
-        default_lid=default_gid,
-        resume_step=resume_step,
-        key_suffix=_vkey,
-        show_lesson_image=False,
-    )
-    if _vclicked is not None:
-        _start_grammar_lesson(_vclicked, cfg, native, target, user_id, lang_pair)
-    else:
-        _render_lesson_dropdown_fallback(
-            lessons=_vocab_lessons,
-            lesson_names=lesson_names_dict,
-            default_lid=default_gid,
-            resume_step=resume_step,
-            cfg=cfg,
-            native=native,
-            target=target,
-            user_id=user_id,
-            lang_pair=lang_pair,
-        )

@@ -382,6 +382,33 @@ CREATE TABLE IF NOT EXISTS app_errors (
     created_at  TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 
+-- ── user_mistakes ────────────────────────────────────────────────────────────
+-- Persisted text of each grammar mistake the student made (2026-09-20).
+-- Before this, a detected mistake only ever lived in st.session_state (the
+-- immediate "review your errors" round, gone on page reload) plus a bare
+-- mastery/srs_state "wrong" ding -- the actual original/corrected text was
+-- never stored, so nothing could show "your recurring mistakes" or survive a
+-- refresh mid-review. One row per mistake. `resolved_at` is set once the
+-- student produces the same structure correctly in the error-drill step
+-- (grammar.py::_error_drill_step), so unresolved rows are the still-open
+-- weak spots. unit_id = the lesson the mistake was attributed to (see
+-- grammar.py::_record_mistake), may be NULL for an untracked session.
+CREATE TABLE IF NOT EXISTS user_mistakes (
+    id           SERIAL PRIMARY KEY,
+    user_id      TEXT NOT NULL,
+    target_lang  TEXT NOT NULL,
+    module       TEXT,
+    unit_id      TEXT,
+    phase        TEXT,               -- warmup | practice | expression | expression_roleplay | step8
+    topic_en     TEXT,
+    original     TEXT NOT NULL,
+    corrected    TEXT NOT NULL,
+    explanation  TEXT,
+    created_at   TIMESTAMPTZ NOT NULL DEFAULT now(),
+    resolved_at  TIMESTAMPTZ
+);
+CREATE INDEX IF NOT EXISTS idx_user_mistakes_user ON user_mistakes (user_id, target_lang, resolved_at);
+
 -- ── Row-Level Security ──────────────────────────────────────────────────────
 -- Supabase auto-publishes every table in `public` over its PostgREST API
 -- under the (non-secret) anon key -- without RLS, anyone with the project URL
@@ -408,3 +435,4 @@ ALTER TABLE lesson_schedule      ENABLE ROW LEVEL SECURITY;
 ALTER TABLE language_literacy    ENABLE ROW LEVEL SECURITY;
 ALTER TABLE user_feedback        ENABLE ROW LEVEL SECURITY;
 ALTER TABLE app_errors           ENABLE ROW LEVEL SECURITY;
+ALTER TABLE user_mistakes         ENABLE ROW LEVEL SECURITY;

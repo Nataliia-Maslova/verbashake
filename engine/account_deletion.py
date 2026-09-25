@@ -25,7 +25,7 @@ _USER_OWNED_TABLES = (
     "mastery", "srs_state", "lesson_pointer", "gamification",
     "user_prefs", "custom_phrases", "lesson_schedule",
     "subscriptions", "daily_feature_usage", "weekly_signup_gate",
-    "user_feedback",
+    "user_feedback", "user_mistakes", "language_literacy",
 )
 
 

@@ -43,6 +43,7 @@ import reading_app                  # noqa: E402
 import custom_app                   # noqa: E402
 import path_app                     # noqa: E402
 import search_app                   # noqa: E402
+import mistakes_app                 # noqa: E402
 from engine import auth_gate        # noqa: E402
 from engine import billing          # noqa: E402
 from engine import user_prefs       # noqa: E402
@@ -491,12 +492,27 @@ def _render_onboarding(user_id: str) -> None:
         # Also seed the per-(user, target_lang) answer (2026-09-20) -- this
         # is what engine.recommender._reading_gate_mode() actually reads now;
         # user_prefs.literacy_required above is kept only for backward
-        # compatibility/other reads. Only writes when the question was
-        # actually asked (None means "not asked" -- same-script pair at a
-        # real self-level -- and should stay unanswered, not silently
-        # recorded as False).
+        # compatibility/other reads. Writes when the question was actually
+        # asked (different-script pair), OR -- 2026-09-25, Natalia -- when it
+        # WASN'T asked (same script) but the student self-reported B1+: a
+        # confident B1 French learner was still getting the fixed 5-lesson
+        # reading-intro gate starting from Reading Lesson 1 (A1-level
+        # sound-spelling rules), same as an absolute beginner, because that
+        # gate reads the same True/False/None signal this writes -- treating
+        # "already knows this script well enough to be B1+ in it" as
+        # equivalent to "yes, I can already read" skips the forced intro
+        # (recommender._reading_gate_mode: False -> "skip" -> straight to
+        # the normal grammar/vocab mix). Reading content itself isn't lost --
+        # it keeps resurfacing later through get_next()'s own SRS-urgency
+        # term, just not force-fronted. True A1/A2 self-reports (or an
+        # unrated level) leave this None -- "not asked" -- same as before,
+        # so they still get the short intro; only a real question-not-asked
+        # AND a real B1+ self-report together produce this.
         if literacy_required is not None:
             user_prefs.set_language_literacy(user_id, target, literacy_required)
+        elif self_level in _recommender.CEFR_RANK and \
+                _recommender.CEFR_RANK[self_level] >= _recommender.CEFR_RANK["B1"]:
+            user_prefs.set_language_literacy(user_id, target, False)
         # Set session_state right after the profile save, BEFORE mastery
         # seeding below -- not after, like it used to be. Seeding used to
         # walk every module's topics one db.upsert() at a time (up to ~530
@@ -748,19 +764,21 @@ def render_launcher():
     # defined below, just unreachable, in case it's wanted again later.
 
     # ── Sidebar: streak/XP + account + subscription ──────────────────────────
+    _sb_native = st.session_state.get("launcher_native", "English")
     with st.sidebar:
         if user_id:
             sidebar_widget(user_id)
         st.markdown("---")
         if billing.is_paid(user_id):
-            st.markdown("⭐ **Premium**")
+            st.markdown(f"**{i18n.get(_sb_native, 'sidebar_premium')}**")
         else:
-            st.markdown("Free plan")
+            st.markdown(i18n.get(_sb_native, "sidebar_free_plan"))
             checkout_url = st.session_state.get("_checkout_url")
             if checkout_url:
-                st.link_button("Continue to checkout →", checkout_url, use_container_width=True)
-            elif st.button("⭐ Upgrade", use_container_width=True, type="primary",
-                           key="launcher_upgrade"):
+                st.link_button(i18n.get(_sb_native, "sidebar_continue_checkout_btn"),
+                               checkout_url, use_container_width=True)
+            elif st.button(i18n.get(_sb_native, "sidebar_upgrade_btn"), use_container_width=True,
+                           type="primary", key="launcher_upgrade"):
                 try:
                     st.session_state["_checkout_url"] = billing.create_checkout_session(
                         user_id, user_id, return_url=_app_url()
@@ -775,8 +793,9 @@ def render_launcher():
                     # browser, including other users viewing the same
                     # misconfigured deployment.
                     print(f"[app] checkout session error: {e}")
-                    st.error("Checkout unavailable right now — please try again in a moment.")
-        if st.button("Sign out", use_container_width=True, key="launcher_signout"):
+                    st.error(i18n.get(_sb_native, "checkout_unavailable_error"))
+        if st.button(i18n.get(_sb_native, "sidebar_signout_btn"), use_container_width=True,
+                     key="launcher_signout"):
             st.logout()
 
         # GDPR-style self-service account deletion (2026-09-17) -- for
@@ -1155,16 +1174,17 @@ def main():
         elif active == "phrasebook":
             grammar_app.main(module="phrasebook")
         elif active == "reading":
-            # Sync launcher target language -> reading language code (only if not yet set)
-            _TARGET_TO_RLANG = {
-                "English":   "en",
-                "Ukrainian": "uk",
-                "Spanish":   "es",
-                "Korean":    "ko",
-            }
-            _target = st.session_state.get("launcher_target", "English")
+            # Sync launcher target language -> reading language code (only if not yet set).
+            # Uses the canonical 14+ language map (was a local 4-language dict
+            # that silently sent every other target_lang -- Swedish, French... --
+            # to "en", pre-empting reading_app.render_setup()'s own identical
+            # default, so the 2026-09-20 "Reading trains English" fix never ran
+            # via this route; found live 2026-09-20).
             if "r_lang" not in st.session_state:
-                st.session_state["r_lang"] = _TARGET_TO_RLANG.get(_target, "en")
+                from engine import recommender as _recommender
+                _code = _recommender.LANG_TO_CODE.get(
+                    st.session_state.get("launcher_target", "English"), "en")
+                st.session_state["r_lang"] = _code if _code in reading_app.TTS_CONFIG else "en"
             reading_app.main()
         elif active == "custom":
             custom_app.main()
@@ -1172,6 +1192,8 @@ def main():
             path_app.main()
         elif active == "search":
             search_app.main()
+        elif active == "mistakes":
+            mistakes_app.main()
         else:
             # Unknown module - reset
             dark = st.session_state.get("_dark_mode", False)

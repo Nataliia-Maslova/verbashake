@@ -51,6 +51,28 @@ def _load_all() -> list[dict]:
         return list(csv.DictReader(f))
 
 
+def is_verb_row(text: str) -> bool:
+    """A language-specific verb row (engine/verb_form_topics.py): three short
+    ' - '-separated forms, e.g. 'hacer - hice - hecho'. Real example sentences
+    of the other target_grammar topics never look like this."""
+    parts = [p.strip() for p in str(text).split(" - ")]
+    return len(parts) == 3 and all(0 < len(p) <= 30 for p in parts) and not any(c in text for c in ".?!;:")
+
+
+def translate_for_native(text: str, target_lang: str, native_lang: str) -> str:
+    """translate_phrase for a target_grammar row. Verb rows go through
+    gemini.translate_verb_row, which keeps ALL THREE forms (infinitive / past /
+    participle, or imperfective / perfective / past) translated role by role, so
+    the student sees word by word what each form means -- a plain translate_phrase
+    of the row lost which form was which ('ir - fui - ido' -> 'йти - йшов - ішов')."""
+    from engine import gemini
+    if is_verb_row(text):
+        from engine.verb_form_topics import SPECS
+        sp = SPECS.get(target_lang, {})
+        return gemini.translate_verb_row(text, target_lang, native_lang, sp.get("pattern", ""), sp.get("example", ""))
+    return gemini.translate_phrase(text, target_lang, native_lang)
+
+
 def load_topic_drills(target_lang: str, topic_key: str, native_lang: str, n: int = 5) -> list[dict]:
     """
     Up to `n` random sentences for this topic, each as {"native": ..., "target": ...}
@@ -78,7 +100,7 @@ def load_topic_drills(target_lang: str, topic_key: str, native_lang: str, n: int
     for r in rows:
         target_text = r["sentence"]
         try:
-            native_text = gemini.translate_phrase(target_text, target_lang, native_lang)
+            native_text = translate_for_native(target_text, target_lang, native_lang)
         except gemini.PaidFeatureRequired:
             native_text = target_text
         except Exception:
@@ -173,12 +195,17 @@ def translate_rows_native(df: pd.DataFrame, target_lang: str, native_lang: str) 
         return df
     out = df.copy()
     from engine import gemini
-    for idx in out.index[mask]:
-        source_text = out.at[idx, "target"]
+    from engine.parallel import parallel_map
+
+    def _one(idx):
+        # Free tier / any failure: leave the target_text placeholder in
+        # `native`, same fallback everywhere else.
         try:
-            out.at[idx, "native"] = gemini.translate_phrase(source_text, target_lang, native_lang)
-        except gemini.PaidFeatureRequired:
-            pass  # leave the target_text placeholder -- free tier, same fallback everywhere else
+            return idx, translate_for_native(out.at[idx, "target"], target_lang, native_lang)
         except Exception:
-            pass
+            return idx, None
+
+    for idx, text in parallel_map(_one, list(out.index[mask])):
+        if text is not None:
+            out.at[idx, "native"] = text
     return out

@@ -6,6 +6,7 @@ from __future__ import annotations
 import time
 from dataclasses import dataclass, field
 from engine.scorer import evaluate
+from engine.parallel import parallel_map
 
 
 @dataclass
@@ -77,16 +78,27 @@ class LessonSession:
             if lang == "English":
                 self.df.loc[missing, col] = self.df.loc[missing, "source_en"]
                 continue
-            for idx in self.df.index[missing]:
+            # Concurrent, not one-by-one (engine/parallel.py: ~10 sequential
+            # Gemini calls made opening a lesson take ~25 s). Each worker
+            # returns (idx, text, paid_blocked) instead of touching self.df
+            # from a thread.
+            def _one(idx, lang=lang):
                 source_text = self.df.at[idx, "source_en"]
                 try:
-                    self.df.at[idx, col] = gemini.translate_phrase(
-                        source_text, "English", lang)
+                    return idx, gemini.translate_phrase(source_text, "English", lang), False
                 except gemini.PaidFeatureRequired:
-                    self.df.loc[missing, col] = self.df.loc[missing, "source_en"]
-                    break
+                    return idx, source_text, True
                 except Exception:
-                    self.df.at[idx, col] = source_text
+                    return idx, source_text, False
+
+            results = parallel_map(_one, list(self.df.index[missing]))
+            if any(blocked for _, _, blocked in results):
+                # Free tier / daily limit: same fallback as before -- English
+                # source text in the missing column for the whole lesson.
+                self.df.loc[missing, col] = self.df.loc[missing, "source_en"]
+            else:
+                for idx, text, _ in results:
+                    self.df.at[idx, col] = text
 
     # ── Step timing ──────────────────────────────────────────────────────
 

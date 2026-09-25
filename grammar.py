@@ -98,12 +98,14 @@ from engine.vocab_loader import (
     WORD_BANK_SHEETS,
 )
 from engine import cefr_j_vocab_loader as _cefrj_vocab
+from engine.verb_form_topics import ENGLISH_PIVOT_VERB_LESSONS
 from engine.session import LessonSession
 from engine.scorer  import evaluate
 from engine.tts     import get_audio_path
 from engine.stt      import transcribe_bytes, whisper_available
 from engine.gamification import on_step_complete, on_lesson_complete, sidebar_widget
 from engine import gemini as _gemini
+from engine import mistakes as _mistakes
 from engine import youtube_links
 from engine import recommender as _recommender
 from engine import user_prefs as _user_prefs
@@ -203,6 +205,11 @@ def _load_grammar(db_path, native_lang, target_lang, **kwargs):
     unchanged, exactly as before this function existed.
     """
     df = load_phrases(str(db_path), native_lang, target_lang)
+    if target_lang != "English":
+        # The 17 English verb-form lists (to bring - brought - brought...) only make
+        # sense for a student learning English; every other language gets its own
+        # verb-row lessons instead (engine/verb_form_topics.py, 2026-09-25).
+        df = df[~df["lesson_id"].isin(ENGLISH_PIVOT_VERB_LESSONS)]
     extra = _target_grammar_loader.build_grammar_lesson_rows(target_lang, native_lang)
     if extra.empty:
         return df
@@ -243,7 +250,14 @@ def _build_topics_map(df, cfg: dict, module: str, native: str, db_path) -> dict 
             topics_map[int(lid)] = f"{words_label} {start}–{end}"
         return topics_map
     if cfg["topics"]:
-        return cfg["topics"](str(db_path))
+        topics = cfg["topics"](str(db_path))
+        # Phrasebook names are built in the data layer as "<sheet> — Lesson N"
+        # (engine/vocab_loader.get_lesson_topics, no native-language access);
+        # localize the word here so a Russian UI doesn't show "— Lesson 1".
+        if module == "phrasebook" and topics:
+            _lw = i18n.get(native, "word_lesson")
+            topics = {k: v.replace(" — Lesson ", f" — {_lw} ") for k, v in topics.items()}
+        return topics
     return None
 
 
@@ -341,126 +355,19 @@ def audio_input(uid: str, label: str | None = None) -> bytes | None:
 
 
 
-def autoplaylist_html(audio_paths, pause_secs):
-    """JS component: plays a list of MP3s sequentially with custom pauses."""
-    srcs = []
-    for p in audio_paths:
-        if p and Path(p).exists():
-            with open(p, "rb") as f:
-                srcs.append("data:audio/mp3;base64," + base64.b64encode(f.read()).decode())
-        else:
-            srcs.append("")
-    srcs_js   = str(srcs).replace("'", '"')
-    pauses_js = str([round(s, 2) for s in pause_secs])
-    n = len(srcs)
-    return f"""
-<div style="background:#FFFFFF;border:1px solid #E8E2D8;border-radius:12px;padding:14px 18px;margin:8px 0;">
-  <div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap;">
-    <button id="pl-btn" onclick="plToggle()"
-      style="background:#ECEBFB;color:#4F46E5;border:1px solid #4F46E5;border-radius:8px;
-             padding:7px 18px;cursor:pointer;font-family:JetBrains Mono,monospace;font-size:.88rem;">
-      ▶ Play All
-    </button>
-    <span id="pl-stat" style="color:#7A7390;font-size:.8rem;font-family:JetBrains Mono,monospace;">ready</span>
-  </div>
-  <div id="pl-bar" style="margin-top:10px;display:flex;gap:4px;flex-wrap:wrap;"></div>
-</div>
-<script>
-(function(){{
-  const srcs={srcs_js}, pauses={pauses_js}, n={n};
-  let cur=-1, playing=false, aud=null, tmr=null;
-  const bar=document.getElementById('pl-bar');
-  for(let i=0;i<n;i++){{const d=document.createElement('div');d.id='dot-'+i;
-    d.style.cssText='width:10px;height:10px;border-radius:50%;background:#ECEBFB;transition:.2s;';
-    bar.appendChild(d);}}
-  function dot(i,c){{const d=document.getElementById('dot-'+i);if(!d)return;
-    d.style.background=c==='active'?'#4F46E5':c==='done'?'#1FB888':'#ECEBFB';}}
-  function stop(){{if(aud){{aud.pause();aud=null;}}if(tmr){{clearTimeout(tmr);tmr=null;}}
-    playing=false;cur=-1;document.getElementById('pl-btn').textContent='▶ Play All';
-    document.getElementById('pl-btn').style.color='#4F46E5';
-    document.getElementById('pl-stat').textContent='stopped';
-    for(let i=0;i<n;i++)dot(i,'');}}
-  function playIdx(i){{if(i>=n){{stop();document.getElementById('pl-stat').textContent='done ✓';return;}}
-    cur=i;playing=true;for(let j=0;j<i;j++)dot(j,'done');dot(i,'active');
-    document.getElementById('pl-stat').textContent='phrase '+(i+1)+'/'+n;
-    if(!srcs[i]){{tmr=setTimeout(()=>playIdx(i+1),pauses[i]*1000);return;}}
-    aud=new Audio(srcs[i]);
-    aud.onended=()=>{{dot(i,'done');tmr=setTimeout(()=>playIdx(i+1),pauses[i]*1000);}};
-    aud.onerror=()=>{{tmr=setTimeout(()=>playIdx(i+1),500);}};
-    aud.play().catch(()=>{{tmr=setTimeout(()=>playIdx(i+1),500);}});}}
-  window.plToggle=function(){{if(playing){{stop();}}else{{
-    document.getElementById('pl-btn').textContent='■ Stop';
-    document.getElementById('pl-btn').style.color='#FF7B6B';playIdx(0);}}}};
-}})();
-</script>
-"""
-
-def autoplaylist_html_with_highlight(audio_paths, pause_secs, uid="pl"):
-    """Autoplaylist that also updates a URL param so Python can highlight active phrase."""
-    srcs = []
-    for p in audio_paths:
-        if p and Path(p).exists():
-            with open(p, "rb") as f:
-                srcs.append("data:audio/mp3;base64," + base64.b64encode(f.read()).decode())
-        else:
-            srcs.append("")
-    srcs_js   = str(srcs).replace("'", '"')
-    pauses_js = str([round(s, 2) for s in pause_secs])
-    n = len(srcs)
-    return f"""
-<div style="background:#FFFFFF;border:1px solid #E8E2D8;border-radius:12px;padding:14px 18px;margin:8px 0;">
-  <div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap;">
-    <button id="pl-btn-{uid}" onclick="plToggle_{uid}()"
-      style="background:#ECEBFB;color:#4F46E5;border:1px solid #4F46E5;border-radius:8px;
-             padding:7px 18px;cursor:pointer;font-family:JetBrains Mono,monospace;font-size:.88rem;">
-      ▶ Play All
-    </button>
-    <span id="pl-stat-{uid}" style="color:#7A7390;font-size:.8rem;font-family:JetBrains Mono,monospace;">ready</span>
-  </div>
-  <div id="pl-bar-{uid}" style="margin-top:10px;display:flex;gap:4px;flex-wrap:wrap;"></div>
-</div>
-<script>
-(function(){{
-  const srcs={srcs_js},pauses={pauses_js},n={n},uid='{uid}';
-  let cur=-1,playing=false,aud=null,tmr=null;
-  const bar=document.getElementById('pl-bar-'+uid);
-  for(let i=0;i<n;i++){{const d=document.createElement('div');d.id='dot-'+uid+'-'+i;
-    d.style.cssText='width:10px;height:10px;border-radius:50%;background:#ECEBFB;transition:.2s;';
-    bar.appendChild(d);}}
-  function dot(i,c){{const d=document.getElementById('dot-'+uid+'-'+i);if(!d)return;
-    d.style.background=c==='active'?'#4F46E5':c==='done'?'#1FB888':'#ECEBFB';}}
-  function stop(){{if(aud){{aud.pause();aud=null;}}if(tmr){{clearTimeout(tmr);tmr=null;}}
-    playing=false;cur=-1;
-    document.getElementById('pl-btn-'+uid).textContent='▶ Play All';
-    document.getElementById('pl-btn-'+uid).style.color='#4F46E5';
-    document.getElementById('pl-stat-'+uid).textContent='done ✓';
-    for(let i=0;i<n;i++)dot(i,'done');}}
-  function playIdx(i){{
-    if(i>=n){{stop();return;}}
-    cur=i;playing=true;
-    for(let j=0;j<i;j++)dot(j,'done');dot(i,'active');
-    document.getElementById('pl-stat-'+uid).textContent='▶ phrase '+(i+1)+'/'+n;
-    // Notify parent frame of active index for row highlighting
-    try{{window.parent.postMessage({{type:'imlls_highlight',uid:uid,idx:i}},'*');}}catch(e){{}}
-    if(!srcs[i]){{tmr=setTimeout(()=>playIdx(i+1),pauses[i]*1000);return;}}
-    aud=new Audio(srcs[i]);
-    aud.onended=()=>{{dot(i,'done');tmr=setTimeout(()=>playIdx(i+1),pauses[i]*1000);}};
-    aud.onerror=()=>{{tmr=setTimeout(()=>playIdx(i+1),500);}};
-    aud.play().catch(()=>{{tmr=setTimeout(()=>playIdx(i+1),500);}});}}
-  window['plToggle_'+uid]=function(){{
-    if(playing){{stop();document.getElementById('pl-stat-'+uid).textContent='stopped';}}
-    else{{document.getElementById('pl-btn-'+uid).textContent='■ Stop';
-          document.getElementById('pl-btn-'+uid).style.color='#FF7B6B';playIdx(0);}}}};
-}})();
-</script>
-"""
-
 def autoplaylist_with_table(phrases, audio_paths, pause_secs, uid="pl",
-                            show_native=True, show_target=True):
+                            show_native=True, show_target=True, native_lang=None):
     """All-in-one component: phrase table + audio player inside the same iframe.
     The currently playing phrase row gets a bright highlight so the user can
     see exactly which phrase is being spoken."""
     import json as _json
+
+    # Player chrome text, localized (2026-09-25: "Play All"/"ready"/"done"/"stopped"/"Stop"
+    # were hardcoded English inside the JS, missed by every i18n pass because they weren't
+    # st.* calls). Read once here and handed to the script as T.
+    _nl = native_lang or st.session_state.get("launcher_native", "English")
+    _T = {k: i18n.get(_nl, f"player_{k}") for k in ("play_all", "ready", "done", "phrase", "stopped", "stop", "label")}
+    _T_js = _json.dumps(_T, ensure_ascii=False)
 
     # Build base64-encoded audio sources
     srcs = []
@@ -486,7 +393,7 @@ def autoplaylist_with_table(phrases, audio_paths, pause_secs, uid="pl",
         nat = _esc(p["native"]) if show_native else "—"
         tgt = _esc(p["target"]) if show_target else "—"
         rows_html += (
-            f'<div class="ph-row" id="row-{uid}-{i}">'
+            f'<div class="ph-row" id="row-{uid}-{i}" role="listitem">'
             f'  <span class="ph-num">{i+1:02d}</span>'
             f'  <span class="ph-nat">{nat}</span>'
             f'  <span class="ph-tgt">{tgt}</span>'
@@ -508,7 +415,7 @@ def autoplaylist_with_table(phrases, audio_paths, pause_secs, uid="pl",
   .ph-row:last-child {{ border-bottom:none; }}
   .ph-num {{ font-family:'JetBrains Mono',monospace; color:#2E27A8;
             font-size:.73rem; min-width:26px; }}
-  .ph-nat {{ color:#7A7390; flex:1; font-size:.93rem; }}
+  .ph-nat {{ color:#6A6380; flex:1; font-size:.93rem; }}
   .ph-tgt {{ color:#4B4564; flex:1; font-size:.93rem; font-weight:500; }}
   .ph-row.active {{
     background:#ECEBFB; border-left-color:#4F46E5;
@@ -527,7 +434,7 @@ def autoplaylist_with_table(phrases, audio_paths, pause_secs, uid="pl",
     font-family:'JetBrains Mono',monospace; font-size:.88rem;
   }}
   .pl-stat {{
-    color:#7A7390; font-size:.8rem; font-family:'JetBrains Mono',monospace;
+    color:#6A6380; font-size:.8rem; font-family:'JetBrains Mono',monospace;
     margin-left:12px;
   }}
   .pl-bar {{ margin-top:10px; display:flex; gap:4px; flex-wrap:wrap; }}
@@ -538,17 +445,17 @@ def autoplaylist_with_table(phrases, audio_paths, pause_secs, uid="pl",
 </style>
 
 <!-- Player FIRST so mobile users see the Play All button without scrolling -->
-<div class="pl-wrap">
-  <button id="pl-btn-{uid}" class="pl-btn" onclick="plToggle_{uid}()">▶ Play All</button>
-  <span id="pl-stat-{uid}" class="pl-stat">ready</span>
+<div class="pl-wrap" role="group" aria-label="{_T["label"]}">
+  <button id="pl-btn-{uid}" class="pl-btn" onclick="plToggle_{uid}()">{_T["play_all"]}</button>
+  <span id="pl-stat-{uid}" class="pl-stat" role="status" aria-live="polite">{_T["ready"]}</span>
   <div id="pl-bar-{uid}" class="pl-bar"></div>
 </div>
 
-<div class="ph-table">{rows_html}</div>
+<div class="ph-table" role="list">{rows_html}</div>
 
 <script>
 (function(){{
-  const srcs={srcs_js}, pauses={pauses_js}, n={n}, uid='{uid}';
+  const srcs={srcs_js}, pauses={pauses_js}, n={n}, uid='{uid}', T={_T_js};
   let cur=-1, playing=false, aud=null, tmr=null;
 
   // Build dots
@@ -573,6 +480,7 @@ def autoplaylist_with_table(phrases, audio_paths, pause_secs, uid="pl",
     if (cls === 'clear') {{ r.classList.remove('active','done'); return; }}
     r.classList.remove('active','done');
     r.classList.add(cls);
+    if (cls === 'active') r.setAttribute('aria-current','true'); else r.removeAttribute('aria-current');
   }}
   function clearAllRows() {{
     for (let i=0; i<n; i++) setRow(i, 'clear');
@@ -599,14 +507,14 @@ def autoplaylist_with_table(phrases, audio_paths, pause_secs, uid="pl",
     if (aud) {{ try {{ aud.pause(); }} catch(e) {{}} }}
     if (tmr) {{ clearTimeout(tmr); tmr = null; }}
     playing = false; cur = -1;
-    document.getElementById('pl-btn-'+uid).textContent = '▶ Play All';
+    document.getElementById('pl-btn-'+uid).textContent = T.play_all;
     document.getElementById('pl-btn-'+uid).style.color = '#4F46E5';
   }}
 
   function playIdx(i) {{
     if (i >= n) {{
       stop();
-      document.getElementById('pl-stat-'+uid).textContent = 'done ✓';
+      document.getElementById('pl-stat-'+uid).textContent = T.done;
       for (let j=0; j<n; j++) {{ dot(j,'done'); setRow(j,'done'); }}
       return;
     }}
@@ -614,7 +522,7 @@ def autoplaylist_with_table(phrases, audio_paths, pause_secs, uid="pl",
     // Mark previous as done, current as active
     for (let j=0; j<i; j++) {{ dot(j,'done'); setRow(j,'done'); }}
     dot(i, 'active'); setRow(i, 'active');
-    document.getElementById('pl-stat-'+uid).textContent = '▶ phrase ' + (i+1) + ' / ' + n;
+    document.getElementById('pl-stat-'+uid).textContent = '▶ ' + T.phrase + ' ' + (i+1) + ' / ' + n;
 
     if (!srcs[i]) {{
       tmr = setTimeout(function() {{ playIdx(i+1); }}, pauses[i] * 1000);
@@ -632,12 +540,12 @@ def autoplaylist_with_table(phrases, audio_paths, pause_secs, uid="pl",
   window['plToggle_'+uid] = function() {{
     if (playing) {{
       stop();
-      document.getElementById('pl-stat-'+uid).textContent = 'stopped';
+      document.getElementById('pl-stat-'+uid).textContent = T.stopped;
     }} else {{
       ensureAud();  // must run inside this user-gesture click handler
       clearAllRows();
       for (let i=0; i<n; i++) dot(i, '');
-      document.getElementById('pl-btn-'+uid).textContent = '■ Stop';
+      document.getElementById('pl-btn-'+uid).textContent = T.stop;
       document.getElementById('pl-btn-'+uid).style.color = '#FF7B6B';
       playIdx(0);
     }}
@@ -814,11 +722,12 @@ def do_score(session: LessonSession, audio: bytes, expected: str,
              lang: str, step: int, phrase_id: int = 0) -> dict | None:
     """Transcribe audio, score against expected, log with audio duration."""
     if not audio: return None
+    _native = session.state.native_lang or st.session_state.get("launcher_native", "English")
     if not whisper_available():
-        st.warning("Whisper not installed — install `openai-whisper` for voice scoring.")
+        st.warning(i18n.get(_native, "whisper_not_installed"))
         return None
     duration_ms = _audio_duration_ms(audio)
-    with st.spinner("Transcribing…"):
+    with st.spinner(i18n.get(_native, "transcribing_spinner")):
         text = transcribe_bytes(audio, language=lang)
     # Pass duration_ms so logger records actual recording length, not wall-clock
     result = session.score(text, expected, step=step, phrase_id=phrase_id,
@@ -1382,151 +1291,6 @@ def step7(session: LessonSession, tts_lang, wh_lang):
     return False
 
 
-# ═══════════════════════════════════════════════════════════════════════════
-# Lesson complete
-# ═══════════════════════════════════════════════════════════════════════════
-def _char_img_b64(character_key: str) -> str:
-    """Повертає base64 PNG персонажа або порожній рядок."""
-    from pathlib import Path as _Path
-    import base64 as _b64
-    p = ROOT / "assets" / "characters" / f"{character_key}.png"
-    if p.exists():
-        return _b64.b64encode(p.read_bytes()).decode()
-    return ""
-
-
-def render_complete(session: LessonSession):
-    # ── Визначаємо персонажа і фразу ─────────────────────────────────────────
-    from engine.characters import get_phrase as _get_phrase
-
-    # Мова
-    _nat_lang = session.state.native_lang or st.session_state.get("launcher_native", "English")
-
-    # Прогрес streak — потрібен щоб вибрати правильну категорію фрази
-    _streak = st.session_state.get("_cached_streak", 0)
-    _category = "on_streak" if _streak > 1 else "on_lesson_complete"
-
-    _char_data = _get_phrase("natalia", _category, lang=_nat_lang)
-    _phrase    = _char_data["phrase"] if _char_data else "Great work! Keep it up 🎉"
-    _char_name = _char_data["name"]   if _char_data else "Natalia"
-    _img_b64   = _char_img_b64("natalia")
-    _img_tag   = (
-        '<img src="data:image/png;base64,' + _img_b64 + '" '
-        'style="width:110px;height:110px;object-fit:cover;'
-        'border-radius:50%;border:3px solid var(--mova-mint);'
-        'box-shadow:0 4px 14px rgba(0,0,0,.15);margin-bottom:8px;" />'
-        if _img_b64 else
-        '<div style="font-size:4rem;margin-bottom:8px;">👩‍🏫</div>'
-    )
-
-    st.markdown(
-        '<div class="cbanner" style="padding:32px 36px;">'
-        '<div style="font-size:2.4rem;margin-bottom:6px;">🎉</div>'
-        '<h2 style="color:var(--mova-ink);margin:0 0 20px 0;">Lesson Complete!</h2>'
-        '<div style="display:flex;align-items:center;gap:22px;'
-        'background:rgba(255,255,255,.45);border-radius:14px;'
-        'padding:18px 22px;text-align:left;">'
-        '<div style="flex-shrink:0;text-align:center;">'
-        + _img_tag +
-        '<div style="font-size:.75rem;font-weight:600;color:#E65100;margin-top:2px;">'
-        + _char_name +
-        '</div></div>'
-        '<div style="font-size:1rem;color:#333;line-height:1.55;">'
-        '&#128172; ' + _phrase +
-        '</div></div></div>',
-        unsafe_allow_html=True,
-    )
-
-    # ── Зберігаємо прогрес (один раз) ────────────────────────────────────────
-    if not st.session_state.get("_progress_saved"):
-        session.complete()
-        st.session_state["_progress_saved"] = True
-        try:
-            _llang = _recommender.LANG_TO_CODE.get(
-                st.session_state.get("launcher_native", "English"), "en")
-            _lres  = on_lesson_complete(session.state.user_id, _llang)
-            _ltoasts = [f"🎉 Урок завершено! +{_lres['xp_earned']} XP бонус"]
-            if _lres.get("leveled_up"):
-                _ltoasts.append(f"⭐ Новий рівень {_lres['level_num']}: {_lres['level_name']}!")
-            for _bid, _bem, _bname, _bdesc in _lres.get("new_badges", []):
-                _ltoasts.append(f"{_bem} Бейдж «{_bname}»: {_bdesc}!")
-            streak = _lres.get("streak_current", 0)
-            st.session_state["_cached_streak"] = streak
-            if streak > 1:
-                _ltoasts.append(f"🔥 Серія {streak} {'день' if streak == 1 else 'днів'}!")
-            # Поліглот кожні 5 уроків — окремо під банером
-            _lessons_done = st.session_state.get("_total_lessons_done", 0) + 1
-            st.session_state["_total_lessons_done"] = _lessons_done
-            st.session_state["_pending_toasts"] = (
-                st.session_state.get("_pending_toasts", []) + _ltoasts
-            )
-        except Exception:
-            pass
-
-    module = _current_module()
-    c1, c2, c3 = st.columns(3)
-    with c1:
-        if st.button("🔄 Redo lesson", use_container_width=True, type="primary"):
-            st.session_state.pop("_progress_saved", None)
-            _clear_lesson()
-            # Reset adaptive index so the sequence starts from step 1 again
-            st.session_state.pop("_adaptive_lesson_id", None)
-            st.session_state["lesson_step"] = 1
-            st.rerun()
-    with c2:
-        # Custom mode has no fixed "next lesson" — show "Back to my phrases" instead
-        if module == "custom":
-            if st.button("📝 Back to my phrases", use_container_width=True):
-                st.session_state.pop("_progress_saved", None)
-                _clear_all()
-                st.session_state["active_module"] = "custom"
-                st.rerun()
-        elif st.button("▶ Next lesson", use_container_width=True):
-            # Load next lesson automatically — module-aware
-            sess   = st.session_state["session"]
-            state  = sess.state
-            cfg    = _module_config(_current_module())
-            try:
-                df_all    = cfg["load"](str(cfg["db_path"]), state.native_lang, state.target_lang)
-                lessons   = cfg["get_lessons"](df_all)
-                # Position-based, not lesson_id + 1 -- same fix as
-                # render_setup()'s resume banner: lesson_id isn't dense once
-                # target-grammar-path lessons (1000+) are spliced in.
-                next_id = (lessons[lessons.index(state.lesson_id) + 1]
-                           if state.lesson_id in lessons and lessons.index(state.lesson_id) + 1 < len(lessons)
-                           else None)
-                if next_id is not None:
-                    lang_pair = state.language_pair
-                    lesson_df = cfg["get_lesson"](df_all, next_id)
-                    st.session_state.pop("_progress_saved", None)
-                    _clear_lesson()
-                    # Clear adaptive so it reinitialises for the new lesson
-                    st.session_state.pop("_adaptive_lesson_id", None)
-                    from engine.recommender import unit_id_for
-                    _next_topic = None
-                    if cfg.get("lang_suffix") in ("vocab", "phrasebook"):
-                        _next_topic = _recommender.vocab_topic_for_lesson(
-                            next_id, state.target_lang, cfg["db_path"])
-                    st.session_state.update({
-                        "session":     LessonSession(state.user_id, lesson_df, next_id,
-                                                     state.native_lang, state.target_lang,
-                                                     language_pair=lang_pair,
-                                                     unit_id=unit_id_for(cfg.get("lang_suffix"), next_id, _next_topic)),
-                        "lesson_step": 1,
-                    })
-                    st.rerun()
-                else:
-                    st.info("This was the last lesson!")
-            except Exception as e:
-                st.error(f"Error loading next lesson: {e}")
-    with c3:
-        if st.button("📚 Choose lesson", use_container_width=True):
-            st.session_state.pop("_progress_saved", None)
-            _clear_all()
-            st.rerun()
-
-
-
 
 # ═══════════════════════════════════════════════════════════════════════════
 # Setup screen
@@ -1680,6 +1444,14 @@ def render_setup():
     resume_step   = 1   # which step to start at when "Start" is pressed
     resume_msg    = None
 
+    # Display number for banners: 1-based POSITION in this module's lesson
+    # list (what the sidebar's "Topic 6 / 981" already shows), never the raw
+    # lesson_id -- CEFR-J vocab ids are 100000+ and target-grammar-path
+    # grammar ids are 1000+, so "Resume Lesson 1104" / "Topic 100796" read
+    # as nonsense (found live 2026-09-20). Logic below keeps using raw ids.
+    def _pos(lid):
+        return lessons.index(lid) + 1 if lid in lessons else lid
+
     if progress:
         saved_lesson = progress["last_completed_lesson"]
         saved_step   = progress["last_step"]
@@ -1701,7 +1473,7 @@ def render_setup():
                 default_idx = lessons.index(next_lesson)
                 resume_step = 1
                 resume_msg  = i18n.get(native, "resume_continuing_msg").format(
-                    word=_word, lesson=next_lesson, prev=saved_lesson,
+                    word=_word, lesson=_pos(next_lesson), prev=_pos(saved_lesson),
                 )
             else:
                 st.success(i18n.get(native, "all_lessons_completed_msg").format(module=_module_label))
@@ -1711,7 +1483,7 @@ def render_setup():
                 default_idx = lessons.index(saved_lesson)
                 resume_step = max(1, min(8, saved_step))
                 resume_msg  = i18n.get(native, "resume_mid_lesson_msg").format(
-                    word=_word, lesson=saved_lesson, step=resume_step,
+                    word=_word, lesson=_pos(saved_lesson), step=resume_step,
                 )
     # Apply a pending "jump to recommended lesson" click from the banner below
     # (one-shot: popped so it doesn't stick past this render).
@@ -1774,19 +1546,19 @@ def render_setup():
                 # 2026-08-23; localized to all 14 UI languages per Natalia's
                 # follow-up request the same day).
                 if rec_lid < cur_lid:
-                    _reason = i18n.get(native, "rec_reason_revisit").format(word=_word_obl, lid=rec_lid)
+                    _reason = i18n.get(native, "rec_reason_revisit").format(word=_word_obl, lid=_pos(rec_lid))
                 else:
-                    _reason = i18n.get(native, "rec_reason_skip_ahead").format(word=_word_obl, lid=rec_lid)
+                    _reason = i18n.get(native, "rec_reason_skip_ahead").format(word=_word_obl, lid=_pos(rec_lid))
                 c_rec, c_btn = st.columns([5, 2])
                 with c_rec:
                     st.info(
                         i18n.get(native, "rec_banner_main").format(
-                            reason=_reason, level=lvl, word=_word_loc, cur_lid=cur_lid,
+                            reason=_reason, level=lvl, word=_word_loc, cur_lid=_pos(cur_lid),
                         )
                     )
                 with c_btn:
                     st.markdown("<div style='margin-top:1.6rem'></div>", unsafe_allow_html=True)
-                    _jump_label = i18n.get(native, "rec_jump_button").format(lid=rec_lid)
+                    _jump_label = i18n.get(native, "rec_jump_button").format(lid=_pos(rec_lid))
                     if st.button(_jump_label, use_container_width=True,
                                  key=f"jump_btn_{cfg['lang_suffix']}"):
                         st.session_state["_jump_recommended_lid"] = rec_lid
@@ -1795,7 +1567,7 @@ def render_setup():
     topics_map = _build_topics_map(df, cfg, module, native, db_path)
 
     # ── Grammar / Reading / Phrasebook / CEFR-J Vocabulary: flat wave nav ──
-    # Vocabulary's old hierarchical Category→Topic nav (_render_vocab_nav)
+    # Vocabulary's old hierarchical Category→Topic nav (deleted 2026-09-25)
     # only applied to Word Bank content, which CEFR-J has fully replaced for
     # every target_lang (CLAUDE.md 2026-08-22) -- CEFR-J has no thematic
     # categories to browse by (just a CEFR level), so it always uses the
@@ -1886,10 +1658,7 @@ def step8(session: LessonSession, tts_lang, wh_lang):
                                            p, _gemini.lang_name(gec_lang), native_lang)}
                                        for p in candidates]
                         st.session_state["s8_results"] = results
-                        session.score(raw, raw, step=8, phrase_id=0)
-                        _s8_errors = [e for r in results for e in r["correction"].get("errors", [])]
-                        if _s8_errors:
-                            _record_mistake(session, session.state.target_lang, _s8_errors)
+                        _record_step8_outcome(session, results)
                     except _gemini.PaidFeatureRequired:
                         _show_upsell("s8_voice")
 
@@ -1926,10 +1695,7 @@ def step8(session: LessonSession, tts_lang, wh_lang):
                                            p, _gemini.lang_name(gec_lang), native_lang)}
                                    for p in lines]
                     st.session_state["s8_results"] = results
-                    session.score(text_input, text_input, step=8, phrase_id=0)
-                    _s8_errors = [e for r in results for e in r["correction"].get("errors", [])]
-                    if _s8_errors:
-                        _record_mistake(session, session.state.target_lang, _s8_errors)
+                    _record_step8_outcome(session, results)
                 except _gemini.PaidFeatureRequired:
                     _show_upsell("s8_text")
 
@@ -1977,6 +1743,7 @@ def step8(session: LessonSession, tts_lang, wh_lang):
                                     err["original"], err["fixed"],
                                     err.get("explanation", ""), "step8",
                                     native_prompt=err.get("native_prompt", ""),
+                                    unit_ids=err.get("_units"),
                                 )
                     st.rerun()
                 show_character("ai_bot", "feedback", score=70, corrections=sum(
@@ -2018,17 +1785,20 @@ def _clear_lesson():
                           "warmup_","p3_","p4_","errors_")):
             del st.session_state[k]
 
-def _clear_all():
+def _clear_all(go_home: bool = False):
     _keep = {k: st.session_state[k] for k in
              ("launcher_user", "launcher_native", "launcher_target", "_dark_mode")
              if k in st.session_state}
     # Set by path_app.py::_launch_unit() when the lesson was opened from My
-    # Path (default) or from Search (return_module="search") -- routes back
-    # to whichever screen the student actually came from instead of always
-    # landing on My Path. Left unset by callers that explicitly want the
-    # top-level launcher (e.g. the sidebar's "Main menu" button) -- those
-    # rely on the else branch below, so don't default this to "path".
-    _return_module = st.session_state.get("_return_module")
+    # Path (default), Search (return_module="search") or My mistakes
+    # (return_module="mistakes") -- routes back to whichever screen the
+    # student actually came from instead of always landing on My Path.
+    # go_home=True (the sidebar's "Main menu" button) ignores it and lands on
+    # the top-level launcher, as the button's label says -- before
+    # 2026-09-20 that button only "worked" when _return_module happened to be
+    # unset, and otherwise silently sent the student back to the screen they
+    # came from instead. Don't default _return_module to "path" here.
+    _return_module = None if go_home else st.session_state.get("_return_module")
     for k in list(st.session_state):
         del st.session_state[k]
     st.session_state.update(_keep)
@@ -2186,50 +1956,100 @@ def _init_errors(phase_key: str) -> None:
 
 def _record_mistake(
     session: LessonSession, target_lang: str, errors: list[dict] | None = None,
+    phase: str = "",
 ) -> None:
     """
     Ding mastery/SRS after a detected grammar mistake, so the right lesson
     resurfaces for review later via My Path/get_next() (2026-09-06, Natalia:
-    schedule a future lesson for review on every mistake). Before this,
-    Warmup/Step 8/Practice/Open Question/Roleplay errors only ever lived in
-    _collect_error's session-only dict for the immediate retry loop and were
-    discarded once reviewed -- nothing wrote to mastery/srs_state.
+    schedule a future lesson for review on every mistake), and persist each
+    mistake's text to user_mistakes (2026-09-20) so it survives a page
+    reload and can later be shown/resolved.
 
     `errors`: the error dicts just returned by correct_grammar()/
     evaluate_warmup() (each may carry a "topic_en" guess, e.g. "Subject-verb
-    agreement") or a single-item list like [{"topic_en": ...}] for
+    agreement", plus original + corrected/fixed) or a single-item list like
+    [{"topic_en": ..., "original": ..., "corrected": ...}] for
     check_practice_answer's one guess. Each guess is classified against this
     module's real lesson topics (engine.gemini.classify_mistake_topics(),
     2026-09-06 — schedules review of the lesson the mistake is ACTUALLY
     about, e.g. a subject-verb-agreement slip made during an unrelated
     lesson dings the Present Simple lesson instead) rather than always
-    dinging whatever lesson the student happened to be in. Falls back to
-    dinging the CURRENT lesson (session.state.unit_id) once for the whole
-    batch when no guess classifies to a different lesson, classification is
-    unavailable (no `errors`, all guesses empty, free-tier limit hit,
-    transient failure), or the session isn't tracked at all — same
-    coarser behavior as before this parameter existed.
+    dinging whatever lesson the student happened to be in. An error whose
+    guess is missing or doesn't classify falls back to the CURRENT lesson
+    (session.state.unit_id) -- since 2026-09-20 per error, so one classified
+    error no longer causes its unclassified siblings to be dropped. Each
+    distinct lesson is dinged once per batch, however many errors map to it.
+
+    Each error dict is tagged IN PLACE with "_units" (the lesson unit_ids it
+    was attributed to) -- _collect_error passes that on so a successful
+    error-drill can credit the same lessons back (see _error_drill_step).
     """
     if not session.state.unit_id:
         return
 
-    matched_units: set[str] = set()
-    guesses = [e["topic_en"] for e in (errors or []) if e.get("topic_en")]
+    current = session.state.unit_id
+    module = _current_module()
+    errors = errors or []
+
+    guesses = [e["topic_en"] for e in errors if e.get("topic_en")]
+    classified: dict[str, str] = {}
     if guesses:
         try:
-            module = _current_module()
             candidates = _recommender.all_topics(target_lang, module=module)
             classified = _gemini.classify_mistake_topics(guesses, candidates)
-            for topic in classified.values():
-                unit = _recommender.lesson_for_topic(topic, target_lang, module=module)
-                if unit and unit["unit_id"] != session.state.unit_id:
-                    matched_units.add(unit["unit_id"])
+        except Exception:
+            classified = {}
+
+    topic_unit: dict[str, str | None] = {}
+    log_rows: list[dict] = []
+    dinged: set[str] = set()
+    for e in errors:
+        unit_id = current
+        topic = classified.get(e.get("topic_en") or "")
+        if topic:
+            if topic not in topic_unit:
+                try:
+                    u = _recommender.lesson_for_topic(topic, target_lang, module=module)
+                except Exception:
+                    u = None
+                topic_unit[topic] = u["unit_id"] if u else None
+            unit_id = topic_unit[topic] or current
+        e["_units"] = [unit_id]
+        dinged.add(unit_id)
+        log_rows.append({
+            "unit_id": unit_id, "phase": phase, "topic_en": e.get("topic_en"),
+            "original": e.get("original", ""),
+            "corrected": e.get("corrected") or e.get("fixed") or "",
+            "explanation": e.get("explanation", ""),
+        })
+
+    for unit_id in (dinged or {current}):
+        try:
+            _recommender.record_result(session.state.user_id, target_lang, unit_id, False)
         except Exception:
             pass
 
-    for unit_id in (matched_units or {session.state.unit_id}):
+    _mistakes.log_mistakes(session.state.user_id, target_lang, module, log_rows)
+
+
+def _record_step8_outcome(session: LessonSession, results: list[dict]) -> None:
+    """
+    Step 8 ("write your own sentences") outcome -> mastery/SRS + mistake log.
+    Errors found: _record_mistake (ding + persist). None found: one "correct"
+    for this lesson. This replaced `session.score(text, text)` (2026-09-20),
+    which compared the student's text to ITSELF -- always a pass -- so every
+    submit earned a free "correct" ding-of-credit on top of any mistake
+    penalty, and an all-wrong submission still counted as a success.
+    """
+    errors = [e for r in results for e in r["correction"].get("errors", [])]
+    if errors:
+        _record_mistake(session, session.state.target_lang, errors, phase="step8")
+    elif session.state.unit_id:
         try:
-            _recommender.record_result(session.state.user_id, target_lang, unit_id, False)
+            _recommender.record_result(
+                session.state.user_id, session.state.target_lang,
+                session.state.unit_id, True,
+            )
         except Exception:
             pass
 
@@ -2237,8 +2057,11 @@ def _record_mistake(
 def _collect_error(
     original: str, corrected: str, explanation: str,
     phase_key: str, native_prompt: str = "",
+    unit_ids: list[str] | None = None,
 ) -> None:
-    """Store one error silently during a phase for deferred review."""
+    """Store one error silently during a phase for deferred review.
+    `unit_ids` = the lessons _record_mistake attributed it to (the "_units"
+    tag on the error dict), kept so _error_drill_step can credit them back."""
     _init_errors(phase_key)
     if original.strip() != corrected.strip():
         st.session_state[f"errors_{phase_key}"].append({
@@ -2246,6 +2069,7 @@ def _collect_error(
             "corrected":     corrected,
             "explanation":   explanation,
             "native_prompt": native_prompt or corrected,
+            "unit_ids":      list(unit_ids or []),
         })
 
 
@@ -2325,6 +2149,21 @@ def _error_drill_step(
         found = st.session_state[result_key].get("errors", [])
         if not found:
             st.success(i18n.get(native_lang, "step8_no_errors"))
+            # Credit the lessons this mistake was attributed to, once per
+            # error (2026-09-20): before this, a flawless drill left mastery
+            # stuck at the "wrong" ding and the mistake row unresolved.
+            _credit_key = f"errdrill_credited_{phase_key}_{idx}"
+            if not st.session_state.get(_credit_key):
+                st.session_state[_credit_key] = True
+                _sess = st.session_state.get("session")
+                if _sess is not None:
+                    _uid, _tl = _sess.state.user_id, _sess.state.target_lang
+                    for _unit in err.get("unit_ids") or []:
+                        try:
+                            _recommender.record_result(_uid, _tl, _unit, True)
+                        except Exception:
+                            pass
+                    _mistakes.mark_resolved(_uid, _tl, err["original"], err["corrected"])
         else:
             for e in found:
                 st.markdown(f"~~{e['original']}~~ → **{e['fixed']}**")
@@ -2538,7 +2377,7 @@ def phase1_warmup(session: LessonSession, tts_lang: str, wh_lang: str) -> bool:
     # Generate question once per phase entry
     if "warmup_q" not in st.session_state:
         try:
-            with st.spinner("Generating warmup question…"):
+            with st.spinner(i18n.get(native_lang, "generating_warmup_spinner")):
                 st.session_state["warmup_q"] = _gemini.warmup_question(
                     level, target_lang, native_lang, bilingual=bilingual,
                 )
@@ -2573,8 +2412,8 @@ def phase1_warmup(session: LessonSession, tts_lang: str, wh_lang: str) -> bool:
 
     if mode == _voice_opt:
         audio = audio_input("warmup")
-        if audio and st.button("Submit", type="primary", key="warmup_submit"):
-            with st.spinner("Transcribing…"):
+        if audio and st.button(i18n.get(native_lang, "submit_btn"), type="primary", key="warmup_submit"):
+            with st.spinner(i18n.get(native_lang, "transcribing_spinner")):
                 answer = transcribe_bytes(audio, language=wh_lang)
             if answer:
                 st.markdown(f"**You said:** {answer}")
@@ -2582,12 +2421,12 @@ def phase1_warmup(session: LessonSession, tts_lang: str, wh_lang: str) -> bool:
         answer_text = st.text_input(
             i18n.get(native_lang, "answer_label"), key="warmup_text_input"
         )
-        if st.button("Submit", type="primary", key="warmup_text_submit"):
+        if st.button(i18n.get(native_lang, "submit_btn"), type="primary", key="warmup_text_submit"):
             answer = answer_text
 
     if answer:
         try:
-            with st.spinner("Evaluating…"):
+            with st.spinner(i18n.get(native_lang, "evaluating_spinner")):
                 result = _gemini.evaluate_warmup(
                     answer, st.session_state["warmup_q"]["target"],
                     target_lang, level, native_lang,
@@ -2597,14 +2436,15 @@ def phase1_warmup(session: LessonSession, tts_lang: str, wh_lang: str) -> bool:
             return False
         if result.get("feedback"):
             st.info(result["feedback"])
+        if result.get("errors"):
+            _record_mistake(session, target_lang, result["errors"], phase="warmup")
         for err in result.get("errors", []):
             _collect_error(
                 err["original"], err["corrected"],
                 err.get("explanation", ""), "warmup",
                 native_prompt=err.get("native_prompt", ""),
+                unit_ids=err.get("_units"),
             )
-        if result.get("errors"):
-            _record_mistake(session, target_lang, result["errors"])
         st.session_state["warmup_done"] = True
         st.rerun()
 
@@ -2910,11 +2750,11 @@ def phase3_practice(session: LessonSession, tts_lang: str, wh_lang: str) -> bool
                                 )
                             results.append(res)
                             if not res["correct"]:
-                                _collect_error(
-                                    student_ans, item["answer"],
-                                    res.get("feedback", ""), "practice",
-                                    native_prompt=item["question"],
-                                )
+                                _pm = {
+                                    "topic_en": res.get("topic_en"),
+                                    "original": student_ans, "corrected": item["answer"],
+                                    "explanation": res.get("feedback", ""),
+                                }
                                 # target_grammar already gets its own, richer
                                 # record_results() batch call below (per-topic
                                 # unit, not this lesson's own unit_id) -- every
@@ -2924,7 +2764,13 @@ def phase3_practice(session: LessonSession, tts_lang: str, wh_lang: str) -> bool
                                 # too, same as a wrong Phase 2 phrase already
                                 # does).
                                 if _ex_type != "target_grammar":
-                                    _record_mistake(session, target_lang, [{"topic_en": res.get("topic_en")}])
+                                    _record_mistake(session, target_lang, [_pm], phase="practice")
+                                _collect_error(
+                                    student_ans, item["answer"],
+                                    res.get("feedback", ""), "practice",
+                                    native_prompt=item["question"],
+                                    unit_ids=_pm.get("_units"),
+                                )
                             # target_grammar is the only Phase-3 test_type
                             # that writes to mastery/SRS (CLAUDE.md
                             # 2026-08-23) -- collected here and written once
@@ -3010,7 +2856,7 @@ def phase4_expression(session: LessonSession, tts_lang: str, wh_lang: str) -> bo
         seed = [p["target"] for p in session.phrases()]
         random.shuffle(seed)
         try:
-            with st.spinner("Generating speaking task..."):
+            with st.spinner(i18n.get(native_lang, "generating_speaking_task_spinner")):
                 st.session_state["p4_task"] = _gemini.generate_open_question(
                     topic, seed, level, target_lang, native_lang,
                     bilingual=st.session_state.get("p4_bilingual", False),
@@ -3106,44 +2952,45 @@ def phase4_expression(session: LessonSession, tts_lang: str, wh_lang: str) -> bo
         )
         if mode == _p4_text_opt:
             answer_text = st.text_area(i18n.get(native_lang, "write_answer"), key="p4_text")
-            if st.button("Submit & Chat with tutor", type="primary", key="p4_text_go"):
+            if st.button(i18n.get(native_lang, "submit_chat_tutor_btn"), type="primary", key="p4_text_go"):
                 if answer_text.strip():
                     st.session_state["p4_answer"] = answer_text.strip()
         else:
             audio = audio_input("p4_voice")
-            if audio and st.button("Submit voice", type="primary", key="p4_voice_go"):
-                with st.spinner("Transcribing..."):
+            if audio and st.button(i18n.get(native_lang, "submit_voice_btn"), type="primary", key="p4_voice_go"):
+                with st.spinner(i18n.get(native_lang, "transcribing_spinner")):
                     transcribed = transcribe_bytes(audio, language=wh_lang)
                 st.markdown(f"**You said:** {transcribed}")
                 st.session_state["p4_answer"] = transcribed
 
         if "p4_answer" in st.session_state and not st.session_state.get("p4_submitted"):
             try:
-                with st.spinner("Checking grammar..."):
+                with st.spinner(i18n.get(native_lang, "checking_grammar_spinner")):
                     correction = _gemini.correct_grammar(
                         st.session_state["p4_answer"], target_lang, native_lang
                     )
             except _gemini.PaidFeatureRequired:
                 _show_upsell("p4_correct")
                 return False
+            if correction.get("errors"):
+                _record_mistake(session, target_lang, correction["errors"], phase="expression")
             for err in correction.get("errors", []):
                 _collect_error(
                     err["original"], err["fixed"],
                     err.get("explanation", ""), "expression",
                     native_prompt=err.get("native_prompt", ""),
+                    unit_ids=err.get("_units"),
                 )
-            if correction.get("errors"):
-                _record_mistake(session, target_lang, correction["errors"])
-            st.caption("Grammar checked - errors saved for review.")
+            st.caption(i18n.get(native_lang, "grammar_checked_caption"))
             st.session_state["p4_submitted"] = True
             st.rerun()
 
     if st.session_state.get("p4_submitted"):
-        st.markdown("### Chat with your tutor")
-        st.caption("Continue in the target language. The tutor will gently correct you.")
+        st.markdown(f"### {i18n.get(native_lang, 'chat_with_tutor_header')}")
+        st.caption(i18n.get(native_lang, "chat_with_tutor_caption"))
 
         for msg in st.session_state.get("p4_chat_history", []):
-            role = "You" if msg["role"] == "user" else "Tutor"
+            role = i18n.get(native_lang, "chat_role_you") if msg["role"] == "user" else i18n.get(native_lang, "chat_role_tutor")
             st.markdown(f"**{role}:** {msg['parts'][0]}")
 
         _last_tutor = next(
@@ -3152,10 +2999,10 @@ def phase4_expression(session: LessonSession, tts_lang: str, wh_lang: str) -> bo
             ) if m["role"] == "model"),
             st.session_state.get("p4_task", {}).get("target", ""),
         )
-        user_input = st.chat_input("Your message...", key="p4_chat")
+        user_input = st.chat_input(i18n.get(native_lang, "chat_message_placeholder"), key="p4_chat")
         if user_input:
             try:
-                with st.spinner("Tutor is typing..."):
+                with st.spinner(i18n.get(native_lang, "tutor_typing_spinner")):
                     reply = _gemini.chat_with_tutor(
                         st.session_state["p4_chat_history"],
                         user_input, target_lang, level, native_lang,
@@ -3170,7 +3017,7 @@ def phase4_expression(session: LessonSession, tts_lang: str, wh_lang: str) -> bo
 
         st.markdown("---")
         if _phase_error_review("expression", wh_lang, target_lang, native_lang):
-            if st.button("Finish lesson", type="primary", key="p4_finish"):
+            if st.button(i18n.get(native_lang, "finish_lesson_btn"), type="primary", key="p4_finish"):
                 for k in ("p4_task", "p4_answer", "p4_chat_history", "p4_submitted"):
                     st.session_state.pop(k, None)
                 return True
@@ -3286,7 +3133,7 @@ def _phase4_roleplay(session: LessonSession, tts_lang: str, wh_lang: str) -> boo
             # the previous turn's already-sent recording on later reruns.
             audio = audio_input(f"p4rp_voice_{len(history)}")
             if audio and st.button(i18n.get(native_lang, "roleplay_send_btn"), type="primary", key="p4rp_voice_go"):
-                with st.spinner("Transcribing..."):
+                with st.spinner(i18n.get(native_lang, "transcribing_spinner")):
                     user_msg = transcribe_bytes(audio, language=wh_lang)
                 if user_msg:
                     st.markdown(f"**{i18n.get(native_lang, 'roleplay_you_label')}:** {user_msg}")
@@ -3315,14 +3162,16 @@ def _phase4_roleplay(session: LessonSession, tts_lang: str, wh_lang: str) -> boo
                         correction = _gemini.correct_grammar(
                             ". ".join(student_turns), target_lang, native_lang
                         )
+                    if correction.get("errors"):
+                        _record_mistake(session, target_lang, correction["errors"],
+                                        phase="expression_roleplay")
                     for err in correction.get("errors", []):
                         _collect_error(
                             err["original"], err["fixed"],
                             err.get("explanation", ""), "expression_roleplay",
                             native_prompt=err.get("native_prompt", ""),
+                            unit_ids=err.get("_units"),
                         )
-                    if correction.get("errors"):
-                        _record_mistake(session, target_lang, correction["errors"])
                 except _gemini.PaidFeatureRequired:
                     _show_upsell("p4rp_correct")
                     return False
@@ -3332,7 +3181,7 @@ def _phase4_roleplay(session: LessonSession, tts_lang: str, wh_lang: str) -> boo
 
     st.markdown("---")
     if _phase_error_review("expression_roleplay", wh_lang, target_lang, native_lang):
-        if st.button("Finish lesson", type="primary", key="p4rp_finish"):
+        if st.button(i18n.get(native_lang, "finish_lesson_btn"), type="primary", key="p4rp_finish"):
             for _k in ("p4rp_scenario", "p4rp_history", "p4rp_native_opener",
                        "p4rp_spoken_upto", "p4rp_ended", "p4rp_bilingual", "p4_top_mode"):
                 st.session_state.pop(_k, None)
@@ -3540,34 +3389,6 @@ def _render_content_discussion(target_lang: str, native_lang: str, level: str) -
             st.rerun()
 
 
-def phase5_summary(session: LessonSession) -> bool:
-    st.markdown("## Pidsumok urok")
-    st.success("Urok zavershenyi! Vsi pomylky vzhe opratsiuvano pislia kozhnoi fazy.")
-
-    state     = session.state
-    n_phrases = len(session.phrases())
-    col1, col2, col3 = st.columns(3)
-    with col1:
-        st.metric("Urok", f"#{state.lesson_id}")
-    with col2:
-        st.metric("Fraz opratsiuvano", n_phrases)
-    with col3:
-        best = getattr(state, "best_score", None)
-        if best is not None:
-            st.metric("Naikrashchyi rezultat", f"{int(best * 100)}%")
-
-    st.markdown("---")
-
-    try:
-        on_lesson_complete(state.user_id)
-    except Exception:
-        pass
-
-    if st.button("Back to main menu", type="primary", key="p5_done"):
-        return True
-    return False
-
-
 # =============================================================================
 
 STEPS = {1: step1, 2: step2, 3: step3, 4: step4, 5: step5, 6: step6, 7: step7, 8: step8}
@@ -3739,6 +3560,7 @@ def main(module: str = "grammar"):
             ("reading",    "🔤", i18n.get(_sb_native, "module_reading")),
             ("custom",     "📝", i18n.get(_sb_native, "module_custom")),
             ("search",     "🔍", i18n.get(_sb_native, "search_title")),
+            ("mistakes",   "✏️", i18n.get(_sb_native, "mistakes_title")),
         ]
         st.markdown(
             '<div style="font-size:.7rem;color:var(--mova-ink-3);'
@@ -3778,7 +3600,7 @@ def main(module: str = "grammar"):
         # content itself (_render_step_nav_inline below), not just reordered.
         if st.button(i18n.get(_sb_native, "main_menu"), use_container_width=True,
                      key="sb_home_top"):
-            _clear_all()
+            _clear_all(go_home=True)
             st.rerun()
 
         st.markdown("---")
@@ -3799,7 +3621,7 @@ def main(module: str = "grammar"):
             # -- Jump to lesson ----------------------------------------------------
             if module != "custom":
                 st.markdown("---")
-                st.caption("Jump to lesson")
+                st.caption(i18n.get(state.native_lang, "reading_jump_lesson"))
                 try:
                     _df_jmp = cfg["load"](str(cfg["db_path"]),
                                           state.native_lang, state.target_lang)
@@ -3992,8 +3814,8 @@ def main(module: str = "grammar"):
             # badges) — CLAUDE.md 2026-08-23: on_lesson_complete() existed
             # and worked (engine/gamification.py, same call reading_app.py
             # already makes live) but nothing in this Phase 1-5 flow ever
-            # called it -- its only callers here were render_complete() and
-            # phase5_summary(), both orphaned, unreachable from this
+            # called it -- its only callers here were the old render_complete() and
+            # phase5_summary() (both deleted 2026-09-25 as orphaned, unreachable from this
             # dispatch. Per-step XP (on_step_complete, Phase 2 above) still
             # fired fine; only the once-per-lesson bonus/streak/badge check
             # was silently dead -- almost certainly why the sidebar streak
@@ -4032,7 +3854,7 @@ def main(module: str = "grammar"):
                 # -- 2026-09-09, Наталья: "Video" screen used to dead-end at
                 # only "back to main menu". Position-based, not lesson_id+1
                 # -- same fix as render_setup()'s resume banner and the
-                # (dead-code, but already-correct) render_complete()'s own
+                # (since-deleted, but already-correct) render_complete()'s own
                 # "Next lesson" button: lesson_id isn't dense once
                 # target-grammar-path lessons (1000+) are spliced in.
                 _next_ok = False

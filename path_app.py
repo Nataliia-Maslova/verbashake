@@ -38,6 +38,7 @@ from engine import schedule as _schedule
 from engine import i18n
 from engine import user_prefs as _user_prefs
 from engine import literacy as _literacy
+from engine import mistakes as _mistakes
 
 ROOT        = Path(__file__).parent
 APP_IMG_DIR = ROOT / "static" / "app_images"
@@ -142,6 +143,17 @@ def _render_module_shortcuts(user: str, native: str, target: str) -> None:
             if st.button(btn_label, key=f"path_shortcut_{key}",
                          use_container_width=True):
                 _switch_module(key, user, native, target)
+
+
+def _render_mistakes_entry(user: str, native: str, target: str) -> None:
+    """One button to the "My mistakes" screen (mistakes_app.py), with the
+    open-mistake count when there is one. Not part of _SHORTCUT_MODULES --
+    that row is learning modules with artwork; this is a review view."""
+    n = _mistakes.counts(user, target)["open"] if user else 0
+    label = (i18n.get(native, "mistakes_entry_btn").format(n=n) if n
+             else i18n.get(native, "mistakes_entry_none"))
+    if st.button(label, key="path_mistakes_entry", use_container_width=True):
+        _switch_module("mistakes", user, native, target)
 
 
 def _render_literacy_prompt(user: str, native: str, target: str) -> None:
@@ -517,6 +529,7 @@ def main() -> None:
     # where the swipe strip used to live before it got replaced with these
     # plain buttons.
     _render_module_shortcuts(user, native, target)
+    _render_mistakes_entry(user, native, target)
 
     # ── Overall progress bar ─────────────────────────────────────────────────
     # Shows percentages only, not raw "done / total" counts -- the full catalog
@@ -565,7 +578,11 @@ def main() -> None:
     parsed = _recommender.parse_unit_id(unit["unit_id"])
     lid    = parsed["lesson_id"]
 
-    sub = f"{i18n.get(native, 'word_lesson')} {lid}"
+    try:
+        _num = _recommender.lesson_position(target, utype, lid) or lid
+    except Exception:
+        _num = lid
+    sub = f"{i18n.get(native, 'word_lesson')} {_num}"
     if unit.get("level"):
         sub += f" · {unit['level']}"
 
