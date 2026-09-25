@@ -14,7 +14,7 @@ Ukrainian,uk_cases_basic,A2,У мене є багато друзів.
 Ukrainian,uk_aspect_basic,A2,Кожного ранку я готую сніданок для родини.
 Ukrainian,uk_aspect_basic,A2,Вчора ввечері я приготував смачну вечерю.
 Ukrainian,uk_aspect_basic,A2,"Ми дивилися фільм, коли задзвонив телефон."
-Ukrainian,uk_aspect_basic,A2,Я вже подивився цей фільм і він мені дуже сподобався.
+Ukrainian,uk_aspect_basic,A2,"Я вже подивився цей фільм, і він мені дуже сподобався."
 Ukrainian,uk_aspect_basic,A2,"Він довго шукав свої окуляри, але не знайшов їх."
 Ukrainian,uk_aspect_basic,A2,Завтра я прочитаю нову книгу.
 Ukrainian,uk_aspect_past,B1,Кожного ранку я читав газети.
@@ -106,8 +106,8 @@ Russian,ru_participles,B2,"Книга, написанная известным �
 Russian,ru_participles,B2,"Вопросы, обсуждаемые на конференции, были очень важными."
 Russian,ru_participles,B2,"Закончив работу раньше срока, мы смогли поехать отдыхать."
 Polish,pl_gender_agreement,A1,To jest wysoki chłopiec.
-Polish,pl_gender_agreement,A1,Oni są dobrzy studenci.
-Polish,pl_gender_agreement,A1,Ona jest miła studentka.
+Polish,pl_gender_agreement,A1,To są dobrzy studenci.
+Polish,pl_gender_agreement,A1,To jest miła studentka.
 Polish,pl_gender_agreement,A1,To jest nowe auto.
 Polish,pl_gender_agreement,A1,Ten dom jest duży.
 Polish,pl_gender_agreement,A1,Mój pies jest mały.
@@ -236,10 +236,10 @@ French,fr_partitive,A2,Ils regardent des films à la télévision.
 French,fr_object_pronouns,B1,Je les lui ai données.
 French,fr_object_pronouns,B1,"Oui, je te le prête."
 French,fr_object_pronouns,B1,Nous les y mettons.
-French,fr_object_pronouns,B1,"Non, je ne les en ai pas prises."
+French,fr_object_pronouns,B1,"Non, je ne les lui ai pas données."
 French,fr_object_pronouns,B1,"Oui, je leur en ai parlé."
 French,fr_object_pronouns,B1,Il y en a beaucoup.
-French,fr_object_pronouns,B1,Le professeur le lui y a rendu.
+French,fr_object_pronouns,B1,Le professeur les leur a rendus.
 French,fr_object_pronouns,B1,"Oui, je t'y ai vu."
 French,fr_subjunctive_present,B1,Il faut que tu finisses ton travail avant de partir.
 French,fr_subjunctive_present,B1,Il est important que nous comprenions la leçon.
@@ -290,9 +290,9 @@ Portuguese,pt_ser_estar,A1,Você está cansado?
 Portuguese,pt_ser_estar,A1,Nós somos estudantes.
 Portuguese,pt_ser_estar,A1,A porta está aberta.
 Portuguese,pt_preterite_imperfect,A2,Eu lia um livro quando a minha amiga ligou.
-Portuguese,pt_preterite_imperfect,A2,"Ela ia à escola de autocarro, mas hoje foi a pé."
+Portuguese,pt_preterite_imperfect,A2,"Ela ia à escola de ônibus, mas hoje foi a pé."
 Portuguese,pt_preterite_imperfect,A2,A festa era divertida até que a música parou.
-Portuguese,pt_preterite_imperfect,A2,"Enquanto eu cozinhava, o meu irmão via televisão."
+Portuguese,pt_preterite_imperfect,A2,"Enquanto eu cozinhava, o meu irmão assistia à televisão."
 Portuguese,pt_preterite_imperfect,A2,"Nós morávamos em Lisboa, mas no ano passado nos mudamos para o Porto."
 Portuguese,pt_preterite_imperfect,A2,O tempo estava bom quando saímos de casa.
 Portuguese,pt_preterite_imperfect,A2,Ele estudava para o exame e depois foi dormir.
@@ -310,7 +310,7 @@ Portuguese,pt_personal_infinitive,B1,"Para nós entendermos a explicação, ela 
 Portuguese,pt_personal_infinitive,B1,"Antes de vocês saírem, fechem todas as janelas."
 Portuguese,pt_personal_infinitive,B1,"Depois de eu chegar em casa, vou preparar o jantar."
 Portuguese,pt_personal_infinitive,B1,Seria bom ele estudar mais para passar no exame.
-Portuguese,pt_personal_infinitive,B1,O médico recomendou eles fazerem mais exercícios físicos.
+Portuguese,pt_personal_infinitive,B1,O médico pediu para eles fazerem mais exercícios físicos.
 Portuguese,pt_personal_infinitive,B1,É essencial você aprender os verbos irregulares.
 Portuguese,pt_personal_infinitive,B1,"Para eles comprarem a casa, precisam de um bom empréstimo."
 Portuguese,pt_future_subjunctive,B2,"Quando eu chegar ao escritório, vou te ligar."
@@ -319,8 +319,8 @@ Portuguese,pt_future_subjunctive,B2,"Se você precisar de ajuda, por favor, me a
 Portuguese,pt_future_subjunctive,B2,"Quando nós formos à praia, vamos nadar muito."
 Portuguese,pt_future_subjunctive,B2,"Depois que ela souber a verdade, ela vai entender tudo."
 Portuguese,pt_future_subjunctive,B2,"Enquanto você estiver aqui, aproveite a festa."
-Portuguese,pt_future_subjunctive,B2,"Até que eles voltem, precisamos esperar um pouco mais."
-Portuguese,pt_future_subjunctive,B2,"Caso chova amanhã, ficaremos em casa lendo livros."
+Portuguese,pt_future_subjunctive,B2,"Enquanto eles não voltarem, precisamos esperar um pouco mais."
+Portuguese,pt_future_subjunctive,B2,"Se chover amanhã, ficaremos em casa lendo livros."
 Catalan,ca_gender_agreement,A1,El cotxe és blanc.
 Catalan,ca_gender_agreement,A1,La flor és blanca.
 Catalan,ca_gender_agreement,A1,El llibre és petit.
@@ -330,9 +330,9 @@ Catalan,ca_gender_agreement,A1,La poma és vermella.
 Catalan,ca_gender_agreement,A1,El menjar és bo.
 Catalan,ca_gender_agreement,A1,L'aigua és bona.
 Catalan,ca_pronominal_adverbs,A2,"Vas al parc? Sí, hi vaig cada dia."
-Catalan,ca_pronominal_adverbs,A2,"El meu llibre és a la taula. Sí, hi és."
+Catalan,ca_pronominal_adverbs,A2,"El teu llibre és a la taula? Sí, hi és."
 Catalan,ca_pronominal_adverbs,A2,"Penses en les vacances? Sí, hi penso molt."
-Catalan,ca_pronominal_adverbs,A2,"Estàs content amb el teu regal? Sí, hi estic molt content."
+Catalan,ca_pronominal_adverbs,A2,"Estàs content del teu regal? Sí, n'estic molt content."
 Catalan,ca_pronominal_adverbs,A2,"Tens molts amics? Sí, en tinc molts."
 Catalan,ca_pronominal_adverbs,A2,"Vols més cafè? No, gràcies, no en vull."
 Catalan,ca_pronominal_adverbs,A2,"Parles del partit d'ahir? Sí, en parlo."
@@ -342,7 +342,7 @@ Catalan,ca_subjunctive_present,B1,Cal que facis els deures avui.
 Catalan,ca_subjunctive_present,B1,M'agrada que siguis tan amable amb tothom.
 Catalan,ca_subjunctive_present,B1,Dubto que ella vingui a la festa.
 Catalan,ca_subjunctive_present,B1,És important que llegeixis les instruccions abans.
-Catalan,ca_subjunctive_present,B1,No vull que paris tan fort a la biblioteca.
+Catalan,ca_subjunctive_present,B1,No vull que parlis tan fort a la biblioteca.
 Catalan,ca_subjunctive_present,B1,Tinc por que plogui demà i no puguem sortir.
 Catalan,ca_subjunctive_present,B1,No crec que ell sàpiga la resposta correcta.
 German,de_gender_der_die_das,A1,Der Stuhl ist braun.
@@ -427,7 +427,7 @@ Dutch,nl_separable_verbs,A2,Hij eet zijn soep snel op.
 Dutch,nl_separable_verbs,A2,Wij gaan morgen vroeg weg.
 Dutch,nl_separable_verbs,A2,De kinderen ruimen hun speelgoed op.
 Dutch,nl_verb_clusters,B1,Ik hoop dat je morgen kunt komen.
-Dutch,nl_verb_clusters,B1,Hij zei dat hij moest werken tot laat.
+Dutch,nl_verb_clusters,B1,Hij zei dat hij tot laat moest werken.
 Dutch,nl_verb_clusters,B1,Wij vinden dat we meer moeten oefenen.
 Dutch,nl_verb_clusters,B1,Ze wist dat ze eerder had moeten gaan.
 Dutch,nl_verb_clusters,B1,Ik ben blij dat ik je heb kunnen helpen.
@@ -551,7 +551,7 @@ Chinese,zh_measure_words,A1,她有两本书。
 Chinese,zh_measure_words,A1,爸爸喝了三杯水。
 Chinese,zh_measure_words,A1,老师有四支笔。
 Chinese,zh_measure_words,A1,妈妈买了五个苹果。
-Chinese,zh_measure_words,A1,这是一个电脑。
+Chinese,zh_measure_words,A1,这是一台电脑。
 Chinese,zh_measure_words,A1,你有几件衣服？
 Chinese,zh_measure_words,A1,我喜欢两只小狗。
 Chinese,zh_aspect_markers,A2,我喝了水。
@@ -593,15 +593,15 @@ Chinese,zh_potential_directional,B2,请你帮我把笔拿过来。
 Chinese,zh_potential_directional,B2,他快步跑进教室。
 Chinese,zh_potential_directional,B2,门太小了，这张桌子搬不进去。
 Chinese,zh_potential_directional,B2,作业太多了，我今天晚上做不完。
-Chinese,zh_potential_directional,B2,老师让我们把书翻开到第一页。
-Romanian,ro_enclitic_article,A1,Masă este mare.
+Chinese,zh_potential_directional,B2,老师让我们把书翻到第一页。
+Romanian,ro_enclitic_article,A1,Masa este mare.
 Romanian,ro_enclitic_article,A1,Cartea este pe scaun.
 Romanian,ro_enclitic_article,A1,Fata citește.
 Romanian,ro_enclitic_article,A1,Băiatul are un măr.
 Romanian,ro_enclitic_article,A1,Casa este roșie.
 Romanian,ro_enclitic_article,A1,Mașina este rapidă.
 Romanian,ro_enclitic_article,A1,Pâinea este bună.
-Romanian,ro_enclitic_article,A1,Apă este rece.
+Romanian,ro_enclitic_article,A1,Apa este rece.
 Romanian,ro_neuter_gender,A1,Un tablou frumos este pe perete.
 Romanian,ro_neuter_gender,A1,Două tablouri frumoase sunt pe perete.
 Romanian,ro_neuter_gender,A1,Un telefon nou este scump.
@@ -762,22 +762,22 @@ Turkish,tr_possessive_suffixes,A2,Okulunuz büyük mü?
 Turkish,tr_possessive_suffixes,A2,Anneleri burada çalışıyor.
 Turkish,tr_possessive_suffixes,A2,Çantam ağır.
 Turkish,tr_possessive_suffixes,A2,Köpeği çok hızlı koşuyor.
-Turkish,tr_question_particle,A1,"Bu, elma mı?"
-Turkish,tr_question_particle,A1,"Sen, öğrenci misin?"
-Turkish,tr_question_particle,A1,"O, doktor mu?"
-Turkish,tr_question_particle,A1,"Bu, güzel mi?"
-Turkish,tr_question_particle,A1,"Sen, aç mısın?"
-Turkish,tr_question_particle,A1,"Ev, büyük mü?"
-Turkish,tr_question_particle,A1,"Bu, sıcak mı?"
-Turkish,tr_question_particle,A1,"O, öğretmen mi?"
-Turkish,tr_evidential_past,B1,Annem dün pasta yaptı. (I saw her)
-Turkish,tr_evidential_past,B1,Annem dün pasta yapmış. (Someone told me)
-Turkish,tr_evidential_past,B1,"Arkadaşım geçen hafta tatile gitti. (I know this for a fact, maybe I saw him go)"
-Turkish,tr_evidential_past,B1,Arkadaşım geçen hafta tatile gitmiş. (I heard it from someone else)
-Turkish,tr_evidential_past,B1,Çocuklar bahçede top oynadı. (I saw them playing)
-Turkish,tr_evidential_past,B1,Çocuklar bahçede top oynamış. (I saw the ball and infer they played)
-Turkish,tr_evidential_past,B1,"O, yeni bir araba aldı. (I witnessed the purchase)"
-Turkish,tr_evidential_past,B1,"O, yeni bir araba almış. (I heard he bought one)"
+Turkish,tr_question_particle,A1,Bu elma mı?
+Turkish,tr_question_particle,A1,Sen öğrenci misin?
+Turkish,tr_question_particle,A1,O doktor mu?
+Turkish,tr_question_particle,A1,Bu güzel mi?
+Turkish,tr_question_particle,A1,Sen aç mısın?
+Turkish,tr_question_particle,A1,Ev büyük mü?
+Turkish,tr_question_particle,A1,Bu sıcak mı?
+Turkish,tr_question_particle,A1,O öğretmen mi?
+Turkish,tr_evidential_past,B1,Annem dün pasta yaptı.
+Turkish,tr_evidential_past,B1,Annem dün pasta yapmış.
+Turkish,tr_evidential_past,B1,Arkadaşım geçen hafta tatile gitti.
+Turkish,tr_evidential_past,B1,Arkadaşım geçen hafta tatile gitmiş.
+Turkish,tr_evidential_past,B1,Çocuklar bahçede top oynadı.
+Turkish,tr_evidential_past,B1,Çocuklar bahçede top oynamış.
+Turkish,tr_evidential_past,B1,O yeni bir araba aldı.
+Turkish,tr_evidential_past,B1,O yeni bir araba almış.
 Turkish,tr_agglutinative_verbs,B1,Konuşamadım çünkü çok utandım.
 Turkish,tr_agglutinative_verbs,B1,"Gelemeyeceğim, işim var."
 Turkish,tr_agglutinative_verbs,B1,"Yazamayabilirim, kalemim yok."
@@ -790,7 +790,7 @@ Swedish,sv_en_ett_gender,A1,Jag har en stor katt.
 Swedish,sv_en_ett_gender,A1,Det är ett litet bord.
 Swedish,sv_en_ett_gender,A1,Hon äter en god pizza.
 Swedish,sv_en_ett_gender,A1,Vi ser ett gammalt hus.
-Swedish,sv_en_ett_gender,A1,Vill du ha en varm kaffe?
+Swedish,sv_en_ett_gender,A1,Vill du ha en varm smörgås?
 Swedish,sv_en_ett_gender,A1,De köper ett nytt äpple.
 Swedish,sv_en_ett_gender,A1,Han har en blå bil.
 Swedish,sv_en_ett_gender,A1,Det är ett roligt spel.
@@ -828,9 +828,345 @@ Swedish,sv_v2_word_order,B1,Här bor mina föräldrar.
 Swedish,sv_v2_word_order,B1,Snart börjar filmen.
 Swedish,sv_reflexive_possessive,B1,Hon glömde sin väska hemma.
 Swedish,sv_reflexive_possessive,B1,Pojken leker med sin nya boll.
-Swedish,sv_reflexive_possessive,B1,Vi tog med våra egna smörgåsar.
+Swedish,sv_reflexive_possessive,B1,Han tog med sig sina egna smörgåsar.
 Swedish,sv_reflexive_possessive,B1,De målade om sitt hus förra veckan.
-Swedish,sv_reflexive_possessive,B1,Jag älskar min hund väldigt mycket.
+Swedish,sv_reflexive_possessive,B1,Hon älskar sin hund väldigt mycket.
 Swedish,sv_reflexive_possessive,B1,Han tvättade sin bil på lördagen.
 Swedish,sv_reflexive_possessive,B1,Katterna slickar sina tassar rena.
-Swedish,sv_reflexive_possessive,B1,Du måste ta hand om din familj.
+Swedish,sv_reflexive_possessive,B1,Jonas träffade Erik och hans fru.
+Spanish,es_verb_rows_1,A2,ser - fui - sido
+Spanish,es_verb_rows_1,A2,ir - fui - ido
+Spanish,es_verb_rows_1,A2,estar - estuve - estado
+Spanish,es_verb_rows_1,A2,tener - tuve - tenido
+Spanish,es_verb_rows_1,A2,poder - pude - podido
+Spanish,es_verb_rows_1,A2,decir - dije - dicho
+Spanish,es_verb_rows_1,A2,ver - vi - visto
+Spanish,es_verb_rows_1,A2,dar - di - dado
+Spanish,es_verb_rows_2,B1,hacer - hice - hecho
+Spanish,es_verb_rows_2,B1,querer - quise - querido
+Spanish,es_verb_rows_2,B1,venir - vine - venido
+Spanish,es_verb_rows_2,B1,poner - puse - puesto
+Spanish,es_verb_rows_2,B1,saber - supe - sabido
+Spanish,es_verb_rows_2,B1,oír - oí - oído
+Spanish,es_verb_rows_2,B1,salir - salí - salido
+Spanish,es_verb_rows_2,B1,traer - traje - traído
+Spanish,es_verb_rows_3,B1,caber - cupe - cabido
+Spanish,es_verb_rows_3,B1,conducir - conduje - conducido
+Spanish,es_verb_rows_3,B1,conocer - conocí - conocido
+Spanish,es_verb_rows_3,B1,haber - hube - habido
+Spanish,es_verb_rows_3,B1,leer - leí - leído
+Spanish,es_verb_rows_3,B1,pensar - pensé - pensado
+Spanish,es_verb_rows_3,B1,pedir - pedí - pedido
+Spanish,es_verb_rows_3,B1,sentir - sentí - sentido
+French,fr_verb_rows_1,A2,être - je suis - été
+French,fr_verb_rows_1,A2,avoir - j'ai - eu
+French,fr_verb_rows_1,A2,aller - je vais - allé
+French,fr_verb_rows_1,A2,venir - je viens - venu
+French,fr_verb_rows_1,A2,voir - je vois - vu
+French,fr_verb_rows_1,A2,pouvoir - je peux - pu
+French,fr_verb_rows_1,A2,vouloir - je veux - voulu
+French,fr_verb_rows_1,A2,savoir - je sais - su
+French,fr_verb_rows_2,B1,prendre - je prends - pris
+French,fr_verb_rows_2,B1,dire - je dis - dit
+French,fr_verb_rows_2,B1,faire - je fais - fait
+French,fr_verb_rows_2,B1,mettre - je mets - mis
+French,fr_verb_rows_2,B1,devoir - je dois - dû
+French,fr_verb_rows_2,B1,lire - je lis - lu
+French,fr_verb_rows_2,B1,écrire - j'écris - écrit
+French,fr_verb_rows_2,B1,connaître - je connais - connu
+French,fr_verb_rows_3,B1,croire - je crois - cru
+French,fr_verb_rows_3,B1,ouvrir - j'ouvre - ouvert
+French,fr_verb_rows_3,B1,boire - je bois - bu
+French,fr_verb_rows_3,B1,vivre - je vis - vécu
+French,fr_verb_rows_3,B1,recevoir - je reçois - reçu
+French,fr_verb_rows_3,B1,courir - je cours - couru
+French,fr_verb_rows_3,B1,perdre - je perds - perdu
+French,fr_verb_rows_3,B1,dormir - je dors - dormi
+German,de_verb_rows_1,A2,sein - war - gewesen
+German,de_verb_rows_1,A2,haben - hatte - gehabt
+German,de_verb_rows_1,A2,werden - wurde - geworden
+German,de_verb_rows_1,A2,können - konnte - gekonnt
+German,de_verb_rows_1,A2,müssen - musste - gemusst
+German,de_verb_rows_1,A2,sagen - sagte - gesagt
+German,de_verb_rows_1,A2,machen - machte - gemacht
+German,de_verb_rows_1,A2,geben - gab - gegeben
+German,de_verb_rows_2,B1,essen - aß - gegessen
+German,de_verb_rows_2,B1,fahren - fuhr - gefahren
+German,de_verb_rows_2,B1,finden - fand - gefunden
+German,de_verb_rows_2,B1,fliegen - flog - geflogen
+German,de_verb_rows_2,B1,gehen - ging - gegangen
+German,de_verb_rows_2,B1,gewinnen - gewann - gewonnen
+German,de_verb_rows_2,B1,halten - hielt - gehalten
+German,de_verb_rows_2,B1,helfen - half - geholfen
+German,de_verb_rows_3,B1,trinken - trank - getrunken
+German,de_verb_rows_3,B1,wissen - wusste - gewusst
+German,de_verb_rows_3,B1,schlafen - schlief - geschlafen
+German,de_verb_rows_3,B1,treffen - traf - getroffen
+German,de_verb_rows_3,B1,ziehen - zog - gezogen
+German,de_verb_rows_3,B1,waschen - wusch - gewaschen
+German,de_verb_rows_3,B1,verlieren - verlor - verloren
+German,de_verb_rows_3,B1,sitzen - saß - gesessen
+Italian,it_verb_rows_1,A2,essere - sono - stato
+Italian,it_verb_rows_1,A2,avere - ho - avuto
+Italian,it_verb_rows_1,A2,andare - vado - andato
+Italian,it_verb_rows_1,A2,dire - dico - detto
+Italian,it_verb_rows_1,A2,venire - vengo - venuto
+Italian,it_verb_rows_1,A2,dare - do - dato
+Italian,it_verb_rows_1,A2,potere - posso - potuto
+Italian,it_verb_rows_1,A2,volere - voglio - voluto
+Italian,it_verb_rows_2,B1,bere - bevo - bevuto
+Italian,it_verb_rows_2,B1,conoscere - conosco - conosciuto
+Italian,it_verb_rows_2,B1,dovere - devo - dovuto
+Italian,it_verb_rows_2,B1,leggere - leggo - letto
+Italian,it_verb_rows_2,B1,mettere - metto - messo
+Italian,it_verb_rows_2,B1,nascere - nasco - nato
+Italian,it_verb_rows_2,B1,prendere - prendo - preso
+Italian,it_verb_rows_2,B1,sapere - so - saputo
+Italian,it_verb_rows_3,B1,vedere - vedo - visto
+Italian,it_verb_rows_3,B1,rimanere - rimango - rimasto
+Italian,it_verb_rows_3,B1,scrivere - scrivo - scritto
+Italian,it_verb_rows_3,B1,aprire - apro - aperto
+Italian,it_verb_rows_3,B1,vivere - vivo - vissuto
+Italian,it_verb_rows_3,B1,offrire - offro - offerto
+Italian,it_verb_rows_3,B1,decidere - decido - deciso
+Italian,it_verb_rows_3,B1,chiedere - chiedo - chiesto
+Portuguese,pt_verb_rows_1,A2,ser - fui - sido
+Portuguese,pt_verb_rows_1,A2,ir - fui - ido
+Portuguese,pt_verb_rows_1,A2,ter - tive - tido
+Portuguese,pt_verb_rows_1,A2,estar - estive - estado
+Portuguese,pt_verb_rows_1,A2,dar - dei - dado
+Portuguese,pt_verb_rows_1,A2,ver - vi - visto
+Portuguese,pt_verb_rows_1,A2,vir - vim - vindo
+Portuguese,pt_verb_rows_1,A2,pôr - pus - posto
+Portuguese,pt_verb_rows_2,B1,dizer - disse - dito
+Portuguese,pt_verb_rows_2,B1,fazer - fiz - feito
+Portuguese,pt_verb_rows_2,B1,saber - soube - sabido
+Portuguese,pt_verb_rows_2,B1,trazer - trouxe - trazido
+Portuguese,pt_verb_rows_2,B1,ouvir - ouvi - ouvido
+Portuguese,pt_verb_rows_2,B1,ler - li - lido
+Portuguese,pt_verb_rows_2,B1,pedir - pedi - pedido
+Portuguese,pt_verb_rows_2,B1,sair - saí - saído
+Portuguese,pt_verb_rows_3,B1,caber - coube - cabido
+Portuguese,pt_verb_rows_3,B1,conhecer - conheci - conhecido
+Portuguese,pt_verb_rows_3,B1,crer - cri - crido
+Portuguese,pt_verb_rows_3,B1,haver - houve - havido
+Portuguese,pt_verb_rows_3,B1,manter - mantive - mantido
+Portuguese,pt_verb_rows_3,B1,perder - perdi - perdido
+Portuguese,pt_verb_rows_3,B1,poder - pude - podido
+Portuguese,pt_verb_rows_3,B1,querer - quis - querido
+Catalan,ca_verb_rows_1,A2,ser - sóc - estat
+Catalan,ca_verb_rows_1,A2,anar - vaig - anat
+Catalan,ca_verb_rows_1,A2,tenir - tinc - tingut
+Catalan,ca_verb_rows_1,A2,venir - vinc - vingut
+Catalan,ca_verb_rows_1,A2,dir - dic - dit
+Catalan,ca_verb_rows_1,A2,fer - faig - fet
+Catalan,ca_verb_rows_1,A2,poder - puc - pogut
+Catalan,ca_verb_rows_1,A2,voler - vull - volgut
+Catalan,ca_verb_rows_2,B1,estar - estic - estat
+Catalan,ca_verb_rows_2,B1,haver - he - hagut
+Catalan,ca_verb_rows_2,B1,saber - sé - sabut
+Catalan,ca_verb_rows_2,B1,veure - veig - vist
+Catalan,ca_verb_rows_2,B1,donar - dono - donat
+Catalan,ca_verb_rows_2,B1,prendre - prenc - pres
+Catalan,ca_verb_rows_2,B1,sentir - sento - sentit
+Catalan,ca_verb_rows_2,B1,viure - visc - viscut
+Catalan,ca_verb_rows_3,B1,conèixer - conec - conegut
+Catalan,ca_verb_rows_3,B1,creure - crec - cregut
+Catalan,ca_verb_rows_3,B1,escriure - escric - escrit
+Catalan,ca_verb_rows_3,B1,obrir - obro - obert
+Catalan,ca_verb_rows_3,B1,patir - pateixo - patit
+Catalan,ca_verb_rows_3,B1,resoldre - resolc - resolt
+Catalan,ca_verb_rows_3,B1,romandre - romanc - romàs
+Catalan,ca_verb_rows_3,B1,treure - trec - tret
+Dutch,nl_verb_rows_1,A2,zijn - was - geweest
+Dutch,nl_verb_rows_1,A2,hebben - had - gehad
+Dutch,nl_verb_rows_1,A2,lopen - liep - gelopen
+Dutch,nl_verb_rows_1,A2,kunnen - kon - gekund
+Dutch,nl_verb_rows_1,A2,moeten - moest - gemoeten
+Dutch,nl_verb_rows_1,A2,willen - wilde/wou - gewild
+Dutch,nl_verb_rows_1,A2,gaan - ging - gegaan
+Dutch,nl_verb_rows_1,A2,komen - kwam - gekomen
+Dutch,nl_verb_rows_2,B1,doen - deed - gedaan
+Dutch,nl_verb_rows_2,B1,zien - zag - gezien
+Dutch,nl_verb_rows_2,B1,staan - stond - gestaan
+Dutch,nl_verb_rows_2,B1,geven - gaf - gegeven
+Dutch,nl_verb_rows_2,B1,weten - wist - geweten
+Dutch,nl_verb_rows_2,B1,denken - dacht - gedacht
+Dutch,nl_verb_rows_2,B1,vinden - vond - gevonden
+Dutch,nl_verb_rows_2,B1,vragen - vroeg - gevraagd
+Dutch,nl_verb_rows_3,B1,brengen - bracht - gebracht
+Dutch,nl_verb_rows_3,B1,helpen - hielp - geholpen
+Dutch,nl_verb_rows_3,B1,eten - at - gegeten
+Dutch,nl_verb_rows_3,B1,liggen - lag - gelegen
+Dutch,nl_verb_rows_3,B1,drinken - dronk - gedronken
+Dutch,nl_verb_rows_3,B1,blijven - bleef - gebleven
+Dutch,nl_verb_rows_3,B1,lezen - las - gelezen
+Dutch,nl_verb_rows_3,B1,schrijven - schreef - geschreven
+Swedish,sv_verb_rows_1,A2,vara - var - varit
+Swedish,sv_verb_rows_1,A2,ha - hade - haft
+Swedish,sv_verb_rows_1,A2,bli - blev - blivit
+Swedish,sv_verb_rows_1,A2,kunna - kunde - kunnat
+Swedish,sv_verb_rows_1,A2,vilja - ville - velat
+Swedish,sv_verb_rows_1,A2,få - fick - fått
+Swedish,sv_verb_rows_1,A2,säga - sade/sa - sagt
+Swedish,sv_verb_rows_1,A2,komma - kom - kommit
+Swedish,sv_verb_rows_2,B1,binda - band - bundit
+Swedish,sv_verb_rows_2,B1,bjuda - bjöd - bjudit
+Swedish,sv_verb_rows_2,B1,bära - bar - burit
+Swedish,sv_verb_rows_2,B1,dra - drog - dragit
+Swedish,sv_verb_rows_2,B1,dricka - drack - druckit
+Swedish,sv_verb_rows_2,B1,falla - föll - fallit
+Swedish,sv_verb_rows_2,B1,finna - fann - funnit
+Swedish,sv_verb_rows_2,B1,flyga - flög - flugit
+Swedish,sv_verb_rows_3,B1,brista - brast - brustit
+Swedish,sv_verb_rows_3,B1,bryta - bröt - brutit
+Swedish,sv_verb_rows_3,B1,bita - bet - bitit
+Swedish,sv_verb_rows_3,B1,böra - borde - bort
+Swedish,sv_verb_rows_3,B1,dö - dog - dött
+Swedish,sv_verb_rows_3,B1,fara - for - farit
+Swedish,sv_verb_rows_3,B1,flyta - flöt - flutit
+Swedish,sv_verb_rows_3,B1,frysa - frös - frusit
+Romanian,ro_verb_rows_1,A2,a fi - sunt - fost
+Romanian,ro_verb_rows_1,A2,a avea - am - avut
+Romanian,ro_verb_rows_1,A2,a merge - merg - mers
+Romanian,ro_verb_rows_1,A2,a veni - vin - venit
+Romanian,ro_verb_rows_1,A2,a zice - zic - zis
+Romanian,ro_verb_rows_1,A2,a vrea - vreau - vrut
+Romanian,ro_verb_rows_1,A2,a da - dau - dat
+Romanian,ro_verb_rows_1,A2,a sta - stau - stat
+Romanian,ro_verb_rows_2,B1,a ști - știu - știut
+Romanian,ro_verb_rows_2,B1,a bea - beau - băut
+Romanian,ro_verb_rows_2,B1,a putea - pot - putut
+Romanian,ro_verb_rows_2,B1,a tăcea - tac - tăcut
+Romanian,ro_verb_rows_2,B1,a începe - încep - început
+Romanian,ro_verb_rows_2,B1,a face - fac - făcut
+Romanian,ro_verb_rows_2,B1,a plânge - plâng - plâns
+Romanian,ro_verb_rows_2,B1,a scrie - scriu - scris
+Romanian,ro_verb_rows_3,B1,a pune - pun - pus
+Romanian,ro_verb_rows_3,B1,a vedea - văd - văzut
+Romanian,ro_verb_rows_3,B1,a reține - rețin - reținut
+Romanian,ro_verb_rows_3,B1,a rupe - rup - rupt
+Romanian,ro_verb_rows_3,B1,a sparge - sparg - spart
+Romanian,ro_verb_rows_3,B1,a ședea - șed - șezut
+Romanian,ro_verb_rows_3,B1,a trimite - trimit - trimis
+Romanian,ro_verb_rows_3,B1,a trage - trag - tras
+Russian,ru_verb_rows_1,A2,говорить - сказать - сказал
+Russian,ru_verb_rows_1,A2,открывать - открыть - открыл
+Russian,ru_verb_rows_1,A2,понимать - понять - понял
+Russian,ru_verb_rows_1,A2,смотреть - посмотреть - посмотрел
+Russian,ru_verb_rows_1,A2,видеть - увидеть - увидел
+Russian,ru_verb_rows_1,A2,хотеть - захотеть - захотел
+Russian,ru_verb_rows_1,A2,давать - дать - дал
+Russian,ru_verb_rows_1,A2,брать - взять - взял
+Russian,ru_verb_rows_2,B1,думать - подумать - подумал
+Russian,ru_verb_rows_2,B1,идти - пойти - пошёл
+Russian,ru_verb_rows_2,B1,писать - написать - написал
+Russian,ru_verb_rows_2,B1,жить - прожить - прожил
+Russian,ru_verb_rows_2,B1,делать - сделать - сделал
+Russian,ru_verb_rows_2,B1,читать - прочитать - прочитал
+Russian,ru_verb_rows_2,B1,спрашивать - спросить - спросил
+Russian,ru_verb_rows_2,B1,отвечать - ответить - ответил
+Russian,ru_verb_rows_3,B1,бежать - побежать - побежал
+Russian,ru_verb_rows_3,B1,верить - поверить - поверил
+Russian,ru_verb_rows_3,B1,встречать - встретить - встретил
+Russian,ru_verb_rows_3,B1,дарить - подарить - подарил
+Russian,ru_verb_rows_3,B1,ездить - съездить - съездил
+Russian,ru_verb_rows_3,B1,забывать - забыть - забыл
+Russian,ru_verb_rows_3,B1,закрывать - закрыть - закрыл
+Russian,ru_verb_rows_3,B1,играть - сыграть - сыграл
+Ukrainian,uk_verb_rows_1,A2,робити - зробити - зробив
+Ukrainian,uk_verb_rows_1,A2,починати - почати - почав
+Ukrainian,uk_verb_rows_1,A2,обирати - обрати - обрав
+Ukrainian,uk_verb_rows_1,A2,давати - дати - дав
+Ukrainian,uk_verb_rows_1,A2,брати - взяти - взяв
+Ukrainian,uk_verb_rows_1,A2,їсти - з'їсти - з'їв
+Ukrainian,uk_verb_rows_1,A2,пити - випити - випив
+Ukrainian,uk_verb_rows_1,A2,бачити - побачити - побачив
+Ukrainian,uk_verb_rows_2,B1,іти - піти - пішов
+Ukrainian,uk_verb_rows_2,B1,говорити - сказати - сказав
+Ukrainian,uk_verb_rows_2,B1,знаходити - знайти - знайшов
+Ukrainian,uk_verb_rows_2,B1,купувати - купити - купив
+Ukrainian,uk_verb_rows_2,B1,читати - прочитати - прочитав
+Ukrainian,uk_verb_rows_2,B1,писати - написати - написав
+Ukrainian,uk_verb_rows_2,B1,розуміти - зрозуміти - зрозумів
+Ukrainian,uk_verb_rows_2,B1,відкривати - відкрити - відкрив
+Ukrainian,uk_verb_rows_3,B1,допомагати - допомогти - допоміг
+Ukrainian,uk_verb_rows_3,B1,зустрічати - зустріти - зустрів
+Ukrainian,uk_verb_rows_3,B1,відповідати - відповісти - відповів
+Ukrainian,uk_verb_rows_3,B1,просити - попросити - попросив
+Ukrainian,uk_verb_rows_3,B1,співати - заспівати - заспівав
+Ukrainian,uk_verb_rows_3,B1,закривати - закрити - закрив
+Ukrainian,uk_verb_rows_3,B1,чути - почути - почув
+Ukrainian,uk_verb_rows_3,B1,дякувати - подякувати - подякував
+Polish,pl_verb_rows_1,A2,mówić - powiedzieć - powiedział
+Polish,pl_verb_rows_1,A2,iść - pójść - poszedł
+Polish,pl_verb_rows_1,A2,widzieć - zobaczyć - zobaczył
+Polish,pl_verb_rows_1,A2,dawać - dać - dał
+Polish,pl_verb_rows_1,A2,robić - zrobić - zrobił
+Polish,pl_verb_rows_1,A2,zaczynać - zacząć - zaczął
+Polish,pl_verb_rows_1,A2,otwierać - otworzyć - otworzył
+Polish,pl_verb_rows_1,A2,zamykać - zamknąć - zamknął
+Polish,pl_verb_rows_2,B1,kupować - kupić - kupił
+Polish,pl_verb_rows_2,B1,pisać - napisać - napisał
+Polish,pl_verb_rows_2,B1,czytać - przeczytać - przeczytał
+Polish,pl_verb_rows_2,B1,brać - wziąć - wziął
+Polish,pl_verb_rows_2,B1,jeść - zjeść - zjadł
+Polish,pl_verb_rows_2,B1,pić - wypić - wypił
+Polish,pl_verb_rows_2,B1,poznawać - poznać - poznał
+Polish,pl_verb_rows_2,B1,uczyć się - nauczyć się - nauczył się
+Polish,pl_verb_rows_3,B1,gotować - ugotować - ugotował
+Polish,pl_verb_rows_3,B1,myć - umyć - umył
+Polish,pl_verb_rows_3,B1,płacić - zapłacić - zapłacił
+Polish,pl_verb_rows_3,B1,słuchać - posłuchać - posłuchał
+Polish,pl_verb_rows_3,B1,spać - pospać - pospał
+Polish,pl_verb_rows_3,B1,stać - postać - postał
+Polish,pl_verb_rows_3,B1,szukać - poszukać - poszukał
+Polish,pl_verb_rows_3,B1,wracać - wrócić - wrócił
+Czech,cs_verb_rows_1,A2,přicházet - přijít - přišel
+Czech,cs_verb_rows_1,A2,dívat se - podívat se - podíval se
+Czech,cs_verb_rows_1,A2,brát - vzít - vzal
+Czech,cs_verb_rows_1,A2,dávat - dát - dal
+Czech,cs_verb_rows_1,A2,mluvit - promluvit - promluvil
+Czech,cs_verb_rows_1,A2,vidět - uvidět - uviděl
+Czech,cs_verb_rows_1,A2,dozvídat se - dozvědět se - dozvěděl se
+Czech,cs_verb_rows_1,A2,říkat - říct - řekl
+Czech,cs_verb_rows_2,B1,číst - přečíst - přečetl
+Czech,cs_verb_rows_2,B1,psát - napsat - napsal
+Czech,cs_verb_rows_2,B1,kupovat - koupit - koupil
+Czech,cs_verb_rows_2,B1,jíst - sníst - snědl
+Czech,cs_verb_rows_2,B1,pít - vypít - vypil
+Czech,cs_verb_rows_2,B1,platit - zaplatit - zaplatil
+Czech,cs_verb_rows_2,B1,ptát se - zeptat se - zeptal se
+Czech,cs_verb_rows_2,B1,pomáhat - pomoct - pomohl
+Czech,cs_verb_rows_3,B1,nacházet - najít - našel
+Czech,cs_verb_rows_3,B1,učit se - naučit se - naučil se
+Czech,cs_verb_rows_3,B1,zavírat - zavřít - zavřel
+Czech,cs_verb_rows_3,B1,otevírat - otevřít - otevřel
+Czech,cs_verb_rows_3,B1,dostávat - dostat - dostal
+Czech,cs_verb_rows_3,B1,čekat - počkat - počkal
+Czech,cs_verb_rows_3,B1,začínat - začít - začal
+Czech,cs_verb_rows_3,B1,končit - skončit - skončil
+Bulgarian,bg_verb_rows_1,A2,чета - прочета - прочетох
+Bulgarian,bg_verb_rows_1,A2,идвам - дойда - дойдох
+Bulgarian,bg_verb_rows_1,A2,ставам - стана - станах
+Bulgarian,bg_verb_rows_1,A2,влизам - вляза - влязох
+Bulgarian,bg_verb_rows_1,A2,излизам - изляза - излязох
+Bulgarian,bg_verb_rows_1,A2,отивам - отида - отидох
+Bulgarian,bg_verb_rows_1,A2,казвам - кажа - казах
+Bulgarian,bg_verb_rows_1,A2,питам - попитам - попитах
+Bulgarian,bg_verb_rows_2,B1,давам - дам - дадох
+Bulgarian,bg_verb_rows_2,B1,виждам - видя - видях
+Bulgarian,bg_verb_rows_2,B1,вървя - тръгна - тръгнах
+Bulgarian,bg_verb_rows_2,B1,говоря - поговоря - поговорих
+Bulgarian,bg_verb_rows_2,B1,работя - поработя - поработих
+Bulgarian,bg_verb_rows_2,B1,разбирам - разбера - разбрах
+Bulgarian,bg_verb_rows_2,B1,искам - поискам - поисках
+Bulgarian,bg_verb_rows_2,B1,започвам - започна - започнах
+Bulgarian,bg_verb_rows_3,B1,плащам - платя - платих
+Bulgarian,bg_verb_rows_3,B1,гледам - погледна - погледнах
+Bulgarian,bg_verb_rows_3,B1,купувам - купя - купих
+Bulgarian,bg_verb_rows_3,B1,уча - науча - научих
+Bulgarian,bg_verb_rows_3,B1,пиша - напиша - написах
+Bulgarian,bg_verb_rows_3,B1,свалям - сваля - свалих
+Bulgarian,bg_verb_rows_3,B1,взимам - взема - взех
+Bulgarian,bg_verb_rows_3,B1,отварям - отворя - отворих

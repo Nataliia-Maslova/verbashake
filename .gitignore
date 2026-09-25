@@ -12,3 +12,6 @@ __pycache__/
 .vscode/
 venv/
 .DS_Store
+# regenerable intermediates of scripts/review_translations.py / verify_review.py
+data/review/translation_review.jsonl
+data/review/to_apply.json
