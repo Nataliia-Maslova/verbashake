@@ -460,3 +460,51 @@ def test_audio_player_html_uses_localized_strings_and_readable_grey():
     html = grammar.autoplaylist_with_table([{"native": "a", "target": "b"}], [""], [1.0], uid="t", native_lang="Ukrainian")
     assert "Відтворити все" in html and 'aria-live="polite"' in html
     assert "#7A7390" not in html   # was 4.2:1 on white
+
+
+# ---------------------------------------------------------------------------
+# 11. translate_verb_row fallback (2026-09-25): a malformed model answer must not be
+#     cached under the VERBROW key, and the plain translation is used instead.
+# ---------------------------------------------------------------------------
+
+def test_translate_verb_row_retries_then_falls_back_without_caching(monkeypatch):
+    from engine import gemini
+
+    class Resp:
+        def __init__(self, t): self.text = t
+
+    calls = {"gen": 0, "saved": []}
+
+    class FakeModel:
+        def generate_content(self, prompt):
+            calls["gen"] += 1
+            return Resp("only one part")          # never three parts
+
+    raw = gemini.translate_verb_row
+    while hasattr(raw, "__wrapped__"):
+        raw = raw.__wrapped__
+    monkeypatch.setattr(gemini, "_configure", lambda: None)
+    monkeypatch.setattr(gemini, "_model", lambda *a, **k: FakeModel())
+    monkeypatch.setattr(gemini, "_translation_from_db", lambda *a, **k: None)
+    monkeypatch.setattr(gemini, "_save_translation_to_db", lambda *a, **k: calls["saved"].append(a))
+    monkeypatch.setattr(gemini, "translate_phrase", lambda row, f, t: "PLAIN:" + row)
+    assert raw("ir - fui - ido", "Spanish", "Ukrainian") == "PLAIN:ir - fui - ido"
+    assert calls["gen"] == 2 and calls["saved"] == []
+
+
+def test_translate_verb_row_caches_a_well_formed_answer(monkeypatch):
+    from engine import gemini
+
+    class Resp:
+        def __init__(self, t): self.text = t
+
+    saved = []
+    raw = gemini.translate_verb_row
+    while hasattr(raw, "__wrapped__"):
+        raw = raw.__wrapped__
+    monkeypatch.setattr(gemini, "_configure", lambda: None)
+    monkeypatch.setattr(gemini, "_model", lambda *a, **k: type("M", (), {"generate_content": lambda s, p: Resp("йти - я пішов - пішовший")})())
+    monkeypatch.setattr(gemini, "_translation_from_db", lambda *a, **k: None)
+    monkeypatch.setattr(gemini, "_save_translation_to_db", lambda *a, **k: saved.append(a))
+    assert raw("ir - fui - ido", "Spanish", "Ukrainian") == "йти - я пішов - пішовший"
+    assert len(saved) == 1 and saved[0][0].startswith("VERBROW::")

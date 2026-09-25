@@ -1631,25 +1631,29 @@ def translate_verb_row(row: str, from_lang: str, to_lang: str, pattern: str = ""
         return cached
     _configure()
     role = f" The three parts are, in order: {pattern}. Example row: {example}." if pattern else ""
-    result = _safe_text(_model(_LITE).generate_content(
-        f"The {from_lang} row below lists three forms of ONE verb, separated by ' - '.{role}\n"
-        f"Translate it into {to_lang}, keeping exactly three parts separated by ' - ', each the closest {to_lang} "
-        f"equivalent of the SAME ROLE and of THIS verb's meaning (the infinitive tells you which verb it is -- e.g. Spanish "
-        f"'fui' in the row 'ir - fui - ido' is a form of ir 'to go', so 'я пішов', not 'I was'): "
-        f"(1) infinitive -> {to_lang} infinitive; (2) the finite form -> the {to_lang} form of the same tense AND the same "
-        f"person, with the personal pronoun for that person (e.g. 'я пішов', 'він пішов'); (3) the participle -> the most "
-        f"natural {to_lang} equivalent of that participle (a past/passive participle where {to_lang} has one, e.g. "
-        f"'зроблений'; for an intransitive verb with no good participle, use the past form followed by '(part.)'). "
-        f"When {to_lang} marks aspect, translate a completed-action past (preterite, Perfekt, passé composé, pretérito "
-        f"perfeito) with the PERFECTIVE past ('я зробив', not 'я робив'). "
-        f"For imperfective/perfective rows keep imperfective -> imperfective, perfective -> perfective, past -> past. "
-        f"If {to_lang} cannot mark a distinction that {from_lang} makes (e.g. Spanish ser vs estar), add a very short note "
-        f"in parentheses after the first part. Return ONLY the translated row.\n\nRow: {row}"
-    ))
-    if result.count(" - ") != 2:            # keep the structure, otherwise fall back to the plain translation
-        result = translate_phrase.__wrapped__.__wrapped__(row, from_lang, to_lang) if hasattr(translate_phrase, "__wrapped__") else result
-    _save_translation_to_db(key, from_lang, to_lang, result)
-    return result
+    for _attempt in range(2):
+        result = _safe_text(_model(_LITE).generate_content(
+            f"The {from_lang} row below lists three forms of ONE verb, separated by ' - '.{role}\n"
+            f"Translate it into {to_lang}, keeping exactly three parts separated by ' - ', each the closest {to_lang} "
+            f"equivalent of the SAME ROLE and of THIS verb's meaning (the infinitive tells you which verb it is -- e.g. Spanish "
+            f"'fui' in the row 'ir - fui - ido' is a form of ir 'to go', so 'я пішов', not 'I was'): "
+            f"(1) infinitive -> {to_lang} infinitive; (2) the finite form -> the {to_lang} form of the same tense AND the same "
+            f"person, with the personal pronoun for that person (e.g. 'я пішов', 'він пішов'); (3) the participle -> the most "
+            f"natural {to_lang} equivalent of that participle (a past/passive participle where {to_lang} has one, e.g. "
+            f"'зроблений'; for an intransitive verb with no good participle, use the past form followed by '(part.)'). "
+            f"When {to_lang} marks aspect, translate a completed-action past (preterite, Perfekt, passé composé, pretérito "
+            f"perfeito) with the PERFECTIVE past ('я зробив', not 'я робив'). "
+            f"For imperfective/perfective rows keep imperfective -> imperfective, perfective -> perfective, past -> past. "
+            f"If {to_lang} cannot mark a distinction that {from_lang} makes (e.g. Spanish ser vs estar), add a very short note "
+            f"in parentheses after the first part. Return ONLY the translated row.\n\nRow: {row}"
+        ))
+        if result.count(" - ") == 2:   # exactly three parts
+            _save_translation_to_db(key, from_lang, to_lang, result)
+            return result
+    # Two malformed answers: fall back to the plain translation but do NOT cache it under the
+    # VERBROW key (a structure-less answer must not be served forever), and go through the public,
+    # quota-gated translate_phrase instead of unwrapping its decorators by hand.
+    return translate_phrase(row, from_lang, to_lang)
 
 
 @_gated("translate_phrase", 300)
