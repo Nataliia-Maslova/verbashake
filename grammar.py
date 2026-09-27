@@ -2374,8 +2374,15 @@ def phase1_warmup(session: LessonSession, tts_lang: str, wh_lang: str) -> bool:
         disabled="warmup_q" in st.session_state,
     )
 
-    # Generate question once per phase entry
+    # Generate question on demand, not automatically on lesson open (Natalia,
+    # 2026-09-27: every open of the Warmup step used to fire a live Gemini
+    # call immediately, even for a student who hadn't decided how they want
+    # to answer yet, or who just wanted to glance at the lesson first) — the
+    # button below is the only trigger; nothing calls warmup_question() until
+    # the student explicitly asks for a question.
     if "warmup_q" not in st.session_state:
+        if not st.button(i18n.get(native_lang, "warmup_generate_btn"), type="primary", key="warmup_generate"):
+            return False
         try:
             with st.spinner(i18n.get(native_lang, "generating_warmup_spinner")):
                 st.session_state["warmup_q"] = _gemini.warmup_question(
