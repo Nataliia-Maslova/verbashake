@@ -671,7 +671,7 @@ TARGET_GRAMMAR_PATHS: dict[str, list[dict]] = {
 from engine.verb_form_topics import build_topics as _build_verb_topics  # noqa: E402
 _CODES = {"Spanish": "es", "French": "fr", "German": "de", "Italian": "it", "Portuguese": "pt", "Catalan": "ca",
           "Dutch": "nl", "Swedish": "sv", "Romanian": "ro", "Russian": "ru", "Ukrainian": "uk", "Polish": "pl",
-          "Czech": "cs", "Bulgarian": "bg"}
+          "Czech": "cs", "Bulgarian": "bg", "Turkish": "tr", "Japanese": "ja", "Korean": "ko"}
 for _lang, _topics in _build_verb_topics(_CODES).items():
     TARGET_GRAMMAR_PATHS.setdefault(_lang, []).extend(_topics)
 

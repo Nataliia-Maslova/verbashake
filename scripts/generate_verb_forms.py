@@ -14,19 +14,18 @@ from engine import gemini, verb_form_topics as vf  # noqa: E402
 OUT = ROOT / "data" / "target_grammar_drills.csv"
 CODES = {"Spanish": "es", "French": "fr", "German": "de", "Italian": "it", "Portuguese": "pt", "Catalan": "ca",
          "Dutch": "nl", "Swedish": "sv", "Romanian": "ro", "Russian": "ru", "Ukrainian": "uk", "Polish": "pl",
-         "Czech": "cs", "Bulgarian": "bg"}
+         "Czech": "cs", "Bulgarian": "bg", "Turkish": "tr", "Japanese": "ja", "Korean": "ko"}
 
 
 def _ask(prompt):
     return gemini._parse_json(gemini._model(gemini._FLASH).generate_content(prompt).text, fallback=None)
 
 
-def gen_group(lang, sp, g, used):
-    kind = ("the most frequent IRREGULAR verbs" if sp["kind"] == "irregular"
-            else "very frequent everyday verbs, each as an imperfective/perfective PAIR")
-    prompt = (f"Write a learner reference list in {lang}: exactly {vf.ROWS_PER_GROUP} rows, one per verb, using {kind}. "
+def gen_group(lang, sp, g, n_groups, used):
+    prompt = (f"Write a learner reference list in {lang}: exactly {vf.ROWS_PER_GROUP} rows, one per verb, using "
+             f"{sp['what']}. "
              f"Each row has exactly three parts separated by ' - ' in this pattern: {sp['pattern']}. Example row: {sp['example']}\n"
-             f"This is set {g} of {vf.GROUPS}: set 1 = the very most common verbs, later sets = next most common. "
+             f"This is set {g} of {n_groups}: set 1 = the very most common verbs, later sets = next most common. "
              f"Do NOT reuse these verbs already used: {sorted(used) or 'none'}.\n"
              "All forms must be standard, correct and exactly as a native dictionary/grammar would give them. "
              'Return JSON only: an array of row strings.')
@@ -55,17 +54,19 @@ def verify(lang, sp, rows):
 
 def run_lang(lang, done):
     sp, code, out, used = vf.SPECS[lang], CODES[lang], [], set()
-    for g in range(1, vf.GROUPS + 1):
+    n_groups = sp.get("groups", vf.GROUPS)
+    levels = sp.get("levels", vf.GROUP_LEVELS)
+    for g in range(1, n_groups + 1):
         key = vf.topic_key(code, g)
         if key in done: continue
         for attempt in range(3):
-            rows = gen_group(lang, sp, g, used)
+            rows = gen_group(lang, sp, g, n_groups, used)
             if rows and len(rows) == vf.ROWS_PER_GROUP: break
         else:
             print("FAILED", lang, g, flush=True); continue
         rows = verify(lang, sp, rows)
         for r in rows: used.add(r.split(" - ")[0].strip())
-        out += [(lang, key, vf.GROUP_LEVELS[g - 1], r) for r in rows]
+        out += [(lang, key, levels[g - 1], r) for r in rows]
         print("ok", lang, g, rows[:2], flush=True)
     return out
 

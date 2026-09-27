@@ -1055,14 +1055,34 @@ def main():
 
     # 🌙 Dark mode — tokens.css already ships a full [data-theme="dark"]
     # palette (design review, 2026-08-23: it just had nothing that ever set
-    # the attribute activating it). Session-only, not persisted per-user --
-    # a nice-to-have toggle, not worth a DB round-trip. st.markdown can't run
-    # a <script> tag (browsers don't execute script from innerHTML), so the
-    # attribute is set via components.html's iframe -> window.parent, the
-    # same pattern already used elsewhere in this app (grammar.py's audio
-    # player) for reaching into the real page from a component.
+    # the attribute activating it). st.markdown can't run a <script> tag
+    # (browsers don't execute script from innerHTML), so the attribute is
+    # set via components.html's iframe -> window.parent, the same pattern
+    # already used elsewhere in this app (grammar.py's audio player) for
+    # reaching into the real page from a component.
+    #
+    # Persisted per-user in user_prefs (2026-09-27, Natalia's request):
+    # this used to be session_state-only, which meant a direct ?module=...
+    # URL (a fresh Streamlit session, not a button-triggered rerun) silently
+    # reset it back to light — session_state starts empty for a brand new
+    # connection. current_user_id() works before auth_gate.check_and_gate()
+    # runs (it's just st.user.is_logged_in, no gate needed), so this can
+    # hydrate before the toggle widget below is even created — same
+    # "hydrate once per session, guarded flag" shape as launcher_native/
+    # launcher_target (_prefs_loaded) and the timezone (client_tz.py).
+    _dm_user_id = auth_gate.current_user_id()
+    if _dm_user_id and not st.session_state.get("_dark_mode_loaded"):
+        _saved_dark = user_prefs.get_dark_mode(_dm_user_id)
+        if _saved_dark is not None:
+            st.session_state["_dark_mode"] = _saved_dark
+        st.session_state["_dark_mode_loaded"] = True
+        st.session_state["_dark_mode_saved_value"] = st.session_state.get("_dark_mode", False)
+
     with st.sidebar:
         _dark = st.toggle("🌙 Dark mode", key="_dark_mode")
+    if _dm_user_id and st.session_state.get("_dark_mode_saved_value") != _dark:
+        user_prefs.save_dark_mode(_dm_user_id, _dark)
+        st.session_state["_dark_mode_saved_value"] = _dark
     import streamlit.components.v1 as _components
     # Setting the data-theme attribute alone wasn't enough: .stApp's
     # background never actually switched even though --mova-surface's

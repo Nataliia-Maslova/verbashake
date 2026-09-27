@@ -381,7 +381,8 @@ def test_target_grammar_lesson_ids_globally_unique():
 
 def test_verb_row_topics_have_eight_three_part_rows_without_repeated_verbs():
     from engine.verb_form_topics import SPECS, ROWS_PER_GROUP, GROUPS
-    for lang in SPECS:
+    for lang, sp in SPECS.items():
+        n_groups = sp.get("groups", GROUPS)  # Turkish overrides to 1 (mini set, 2026-09-27)
         infs = []
         for t in target_grammar_paths.paths_for_language(lang):
             if "_verb_rows_" not in t["key"]:
@@ -392,7 +393,7 @@ def test_verb_row_topics_have_eight_three_part_rows_without_repeated_verbs():
                 parts = r["target"].split(" - ")
                 assert len(parts) == 3, r["target"]
                 infs.append(parts[0].strip())
-        assert len(infs) == ROWS_PER_GROUP * GROUPS and len(set(infs)) == len(infs), lang
+        assert len(infs) == ROWS_PER_GROUP * n_groups and len(set(infs)) == len(infs), lang
 
 
 def test_english_verb_lists_hidden_for_other_targets_but_kept_for_english():

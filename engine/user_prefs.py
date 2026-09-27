@@ -88,6 +88,37 @@ def save_timezone(user_id: str, tz_name: str) -> None:
         pass
 
 
+def get_dark_mode(user_id: str) -> bool | None:
+    """Saved dark-mode preference, or None if never toggled yet / DB
+    unavailable (app.py falls back to False, same as before this existed).
+
+    CLAUDE.md 2026-09-27: the toggle used to be session_state-only ("not
+    persisted per-user — a nice-to-have toggle, not worth a DB round-trip"),
+    which meant a direct ?module=... URL (a fresh Streamlit session, not a
+    button-triggered rerun) silently reset it. Natalia asked to fix this —
+    same pattern as get_timezone/get_prefs, read once at the same
+    session_state hydration gate in app.py::main()."""
+    if not user_id:
+        return None
+    try:
+        row = db.fetch_one(
+            "SELECT dark_mode FROM user_prefs WHERE user_id = :uid", {"uid": user_id},
+        )
+        return row["dark_mode"] if row else None
+    except Exception:
+        return None
+
+
+def save_dark_mode(user_id: str, value: bool) -> None:
+    """Best-effort save, same fail-silent convention as save_timezone()."""
+    if not user_id:
+        return
+    try:
+        db.upsert("user_prefs", keys={"user_id": user_id}, values={"dark_mode": value})
+    except Exception:
+        pass
+
+
 def get_language_literacy(user_id: str, target_lang: str) -> bool | None:
     """Per-(user, target_lang) literacy answer, or None if this target_lang
     has never been asked about yet (or DB unavailable) — see schema.sql's

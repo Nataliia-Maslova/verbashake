@@ -1624,28 +1624,41 @@ def translate_verb_row(row: str, from_lang: str, to_lang: str, pattern: str = ""
     asks for the closest equivalent of each ROLE in to_lang. Shares
     translate_phrase's daily quota and phrase_translations cache ("VERBROW::"
     prefix, so it can't collide with a plain-phrase entry).
+
+    2026-09-27: generalized away from a hardcoded (infinitive / finite+pronoun
+    / participle) role triad -- that shape is Romance/Slavic-specific and
+    silently wrong for the ja/ko/tr rows added the same day (Japanese's third
+    form is a te-form, not a participle; Korean/Turkish's third form is a
+    finite past, not a participle). The role LABELS now come straight from
+    the language's own `pattern` string (already split by " - " for every
+    spec in engine/verb_form_topics.py) instead of being assumed by position.
     """
     key = f"VERBROW::{row}"
     cached = _translation_from_db(key, from_lang, to_lang)
     if cached is not None:
         return cached
     _configure()
-    role = f" The three parts are, in order: {pattern}. Example row: {example}." if pattern else ""
+    roles = [p.strip() for p in pattern.split(" - ")] if pattern.count(" - ") == 2 else None
+    role = (f" In {from_lang}, the three parts play these roles, in order: (1) {roles[0]}; (2) {roles[1]}; "
+            f"(3) {roles[2]}. Example row: {example}.") if roles else ""
     for _attempt in range(2):
         result = _safe_text(_model(_LITE).generate_content(
             f"The {from_lang} row below lists three forms of ONE verb, separated by ' - '.{role}\n"
-            f"Translate it into {to_lang}, keeping exactly three parts separated by ' - ', each the closest {to_lang} "
-            f"equivalent of the SAME ROLE and of THIS verb's meaning (the infinitive tells you which verb it is -- e.g. Spanish "
-            f"'fui' in the row 'ir - fui - ido' is a form of ir 'to go', so 'я пішов', not 'I was'): "
-            f"(1) infinitive -> {to_lang} infinitive; (2) the finite form -> the {to_lang} form of the same tense AND the same "
-            f"person, with the personal pronoun for that person (e.g. 'я пішов', 'він пішов'); (3) the participle -> the most "
-            f"natural {to_lang} equivalent of that participle (a past/passive participle where {to_lang} has one, e.g. "
-            f"'зроблений'; for an intransitive verb with no good participle, use the past form followed by '(part.)'). "
-            f"When {to_lang} marks aspect, translate a completed-action past (preterite, Perfekt, passé composé, pretérito "
-            f"perfeito) with the PERFECTIVE past ('я зробив', not 'я робив'). "
-            f"For imperfective/perfective rows keep imperfective -> imperfective, perfective -> perfective, past -> past. "
-            f"If {to_lang} cannot mark a distinction that {from_lang} makes (e.g. Spanish ser vs estar), add a very short note "
-            f"in parentheses after the first part. Return ONLY the translated row.\n\nRow: {row}"
+            f"Translate it into {to_lang}, keeping exactly three parts separated by ' - '. For EACH part, give the "
+            f"{to_lang} form that plays the closest ANALOGOUS grammatical role for the SAME verb -- a role-for-role "
+            f"match, not a generic word-for-word translation (the first part tells you which verb this is; e.g. "
+            f"Spanish 'fui' in the row 'ir - fui - ido' is a form of ir 'to go', so its {to_lang} equivalent must "
+            f"also mean 'go', not 'be'). If the source part encodes a specific person/number (e.g. 'yo', 'io', "
+            f"'(er)', '(o)'), make sure the {to_lang} equivalent conveys the same person/number, adding a "
+            f"pronoun/subject word if {to_lang} needs one to disambiguate (many languages' past tenses do, e.g. "
+            f"Slavic 'я пішов'). If {to_lang} genuinely has no form playing that exact role (e.g. no participle, "
+            f"or it doesn't inflect by person at all), give the closest natural equivalent instead of forcing an "
+            f"unnatural form, optionally with a short parenthetical after that part noting the mismatch. "
+            f"When {to_lang} marks aspect, translate a completed-action past (preterite, Perfekt, passé composé, "
+            f"pretérito perfeito) with the PERFECTIVE past ('я зробив', not 'я робив'); for imperfective/perfective "
+            f"source rows keep imperfective -> imperfective, perfective -> perfective, past -> past. "
+            f"If {to_lang} cannot mark a distinction that {from_lang} makes (e.g. Spanish ser vs estar), add a very "
+            f"short note in parentheses after the first part. Return ONLY the translated row.\n\nRow: {row}"
         ))
         if result.count(" - ") == 2:   # exactly three parts
             _save_translation_to_db(key, from_lang, to_lang, result)

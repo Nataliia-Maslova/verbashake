@@ -11,8 +11,15 @@ through the normal target_grammar machinery (lesson_id >= 1075, locked to the
 language, native side translated lazily). The English-pivot lessons are hidden
 for every target language except English (ENGLISH_PIVOT_VERB_LESSONS).
 
-Not covered (already have their own dedicated topics): Turkish, Japanese
-(ja_verb_groups/ja_te_form), Korean (ko_irregular_verbs), Chinese.
+Turkish/Japanese/Korean added 2026-09-27 (Natalia: "ja/ko full sets, tr a
+mini set, zh skip"). Chinese verbs don't conjugate at all (no tense/person
+inflection, just aspect particles 了/过/着 and the 把-construction) -- those
+already have their own topics in target_grammar_paths.py, so there is no
+"three forms of one verb" triad to build for Chinese; it stays uncovered on
+purpose, not by oversight. Turkish verbs are almost entirely regular by
+suffix -- the one small, genuinely irregular pocket is the aorist tense for
+a closed set of monosyllabic stems (gel- -> gelir, not the expected regular
+-er/-ar), so Turkish gets ONE set of 8 rows instead of 3.
 """
 from __future__ import annotations
 
@@ -25,40 +32,99 @@ ROWS_PER_GROUP = 8
 GROUPS = 3
 GROUP_LEVELS = ["A2", "B1", "B1"]
 
-# (language, first lesson_id, kind, form pattern, example row, title stem, gloss stem)
-# lesson ids are PERMANENT (see target_grammar_paths docstring): 3 consecutive per language.
+# Each spec: base_id (first of its PERMANENT, consecutive lesson_ids -- see
+# target_grammar_paths docstring), pattern (the row's 3 roles, in the
+# language's OWN terminology -- also what gemini.translate_verb_row shows the
+# model so it knows what each part means), example, title/gloss (for the
+# picker), what (fed to scripts/generate_verb_forms.py's prompt to describe
+# which verbs to pick), and optional groups/levels overriding the
+# GROUPS/GROUP_LEVELS defaults above (Turkish only needs 1 set, not 3).
 _SPECS = [
-    ("Spanish",    1105, "irregular", "infinitivo - pretérito indefinido (yo) - participio", "hacer - hice - hecho",
-     "Verbos irregulares", "Irregular verbs: infinitive - preterite - participle"),
-    ("French",     1108, "irregular", "infinitif - présent (je) - participe passé", "faire - je fais - fait",
-     "Verbes irréguliers", "Irregular verbs: infinitive - present - past participle"),
-    ("German",     1111, "irregular", "Infinitiv - Präteritum (er) - Partizip II", "gehen - ging - gegangen",
-     "Unregelmäßige Verben", "Strong/irregular verbs: infinitive - preterite - participle"),
-    ("Italian",    1114, "irregular", "infinito - presente (io) - participio passato", "fare - faccio - fatto",
-     "Verbi irregolari", "Irregular verbs: infinitive - present - past participle"),
-    ("Portuguese", 1117, "irregular", "infinitivo - pretérito perfeito (eu) - particípio", "fazer - fiz - feito",
-     "Verbos irregulares", "Irregular verbs: infinitive - preterite - participle"),
-    ("Catalan",    1120, "irregular", "infinitiu - present (jo) - participi", "fer - faig - fet",
-     "Verbs irregulars", "Irregular verbs: infinitive - present - participle"),
-    ("Dutch",      1123, "irregular", "infinitief - onvoltooid verleden tijd (enkelvoud) - voltooid deelwoord", "gaan - ging - gegaan",
-     "Onregelmatige werkwoorden", "Irregular verbs: infinitive - past - participle"),
-    ("Swedish",    1126, "irregular", "infinitiv - preteritum - supinum", "gå - gick - gått",
-     "Oregelbundna verb", "Irregular verbs: infinitive - past - supine"),
-    ("Romanian",   1129, "irregular", "infinitiv - prezent (eu) - participiu", "a face - fac - făcut",
-     "Verbe neregulate", "Irregular verbs: infinitive - present - participle"),
-    ("Russian",    1132, "aspect", "несовершенный вид - совершенный вид - прошедшее время (м. р., совершенный вид)", "делать - сделать - сделал",
-     "Глагольные пары по виду", "Aspect pairs: imperfective - perfective - past"),
-    ("Ukrainian",  1135, "aspect", "недоконаний вид - доконаний вид - минулий час (ч. р., доконаний вид)", "робити - зробити - зробив",
-     "Видові пари дієслів", "Aspect pairs: imperfective - perfective - past"),
-    ("Polish",     1138, "aspect", "czasownik niedokonany - czasownik dokonany - czas przeszły (r. męski, dokonany)", "robić - zrobić - zrobił",
-     "Pary aspektowe czasowników", "Aspect pairs: imperfective - perfective - past"),
-    ("Czech",      1141, "aspect", "nedokonavé sloveso - dokonavé sloveso - minulý čas (m. r., dokonavé)", "dělat - udělat - udělal",
-     "Vidové dvojice sloves", "Aspect pairs: imperfective - perfective - past"),
-    ("Bulgarian",  1144, "aspect", "несвършен вид - свършен вид - минало свършено време (1 л., ед. ч.)", "правя - направя - направих",
-     "Глаголни двойки по вид", "Aspect pairs: imperfective - perfective - aorist"),
+    dict(lang="Spanish", base_id=1105, pattern="infinitivo - pretérito indefinido (yo) - participio",
+         example="hacer - hice - hecho", title="Verbos irregulares",
+         gloss="Irregular verbs: infinitive - preterite - participle",
+         what="the most frequent IRREGULAR verbs"),
+    dict(lang="French", base_id=1108, pattern="infinitif - présent (je) - participe passé",
+         example="faire - je fais - fait", title="Verbes irréguliers",
+         gloss="Irregular verbs: infinitive - present - past participle",
+         what="the most frequent IRREGULAR verbs"),
+    dict(lang="German", base_id=1111, pattern="Infinitiv - Präteritum (er) - Partizip II",
+         example="gehen - ging - gegangen", title="Unregelmäßige Verben",
+         gloss="Strong/irregular verbs: infinitive - preterite - participle",
+         what="the most frequent IRREGULAR verbs"),
+    dict(lang="Italian", base_id=1114, pattern="infinito - presente (io) - participio passato",
+         example="fare - faccio - fatto", title="Verbi irregolari",
+         gloss="Irregular verbs: infinitive - present - participle",
+         what="the most frequent IRREGULAR verbs"),
+    dict(lang="Portuguese", base_id=1117, pattern="infinitivo - pretérito perfeito (eu) - particípio",
+         example="fazer - fiz - feito", title="Verbos irregulares",
+         gloss="Irregular verbs: infinitive - preterite - participle",
+         what="the most frequent IRREGULAR verbs"),
+    dict(lang="Catalan", base_id=1120, pattern="infinitiu - present (jo) - participi",
+         example="fer - faig - fet", title="Verbs irregulars",
+         gloss="Irregular verbs: infinitive - present - participle",
+         what="the most frequent IRREGULAR verbs"),
+    dict(lang="Dutch", base_id=1123, pattern="infinitief - onvoltooid verleden tijd (enkelvoud) - voltooid deelwoord",
+         example="gaan - ging - gegaan", title="Onregelmatige werkwoorden",
+         gloss="Irregular verbs: infinitive - past - participle",
+         what="the most frequent IRREGULAR verbs"),
+    dict(lang="Swedish", base_id=1126, pattern="infinitiv - preteritum - supinum",
+         example="gå - gick - gått", title="Oregelbundna verb",
+         gloss="Irregular verbs: infinitive - past - supine",
+         what="the most frequent IRREGULAR verbs"),
+    dict(lang="Romanian", base_id=1129, pattern="infinitiv - prezent (eu) - participiu",
+         example="a face - fac - făcut", title="Verbe neregulate",
+         gloss="Irregular verbs: infinitive - present - participle",
+         what="the most frequent IRREGULAR verbs"),
+    dict(lang="Russian", base_id=1132,
+         pattern="несовершенный вид - совершенный вид - прошедшее время (м. р., совершенный вид)",
+         example="делать - сделать - сделал", title="Глагольные пары по виду",
+         gloss="Aspect pairs: imperfective - perfective - past",
+         what="very frequent everyday verbs, each as an imperfective/perfective PAIR"),
+    dict(lang="Ukrainian", base_id=1135,
+         pattern="недоконаний вид - доконаний вид - минулий час (ч. р., доконаний вид)",
+         example="робити - зробити - зробив", title="Видові пари дієслів",
+         gloss="Aspect pairs: imperfective - perfective - past",
+         what="very frequent everyday verbs, each as an imperfective/perfective PAIR"),
+    dict(lang="Polish", base_id=1138,
+         pattern="czasownik niedokonany - czasownik dokonany - czas przeszły (r. męski, dokonany)",
+         example="robić - zrobić - zrobił", title="Pary aspektowe czasowników",
+         gloss="Aspect pairs: imperfective - perfective - past",
+         what="very frequent everyday verbs, each as an imperfective/perfective PAIR"),
+    dict(lang="Czech", base_id=1141,
+         pattern="nedokonavé sloveso - dokonavé sloveso - minulý čas (m. r., dokonavé)",
+         example="dělat - udělat - udělal", title="Vidové dvojice sloves",
+         gloss="Aspect pairs: imperfective - perfective - past",
+         what="very frequent everyday verbs, each as an imperfective/perfective PAIR"),
+    dict(lang="Bulgarian", base_id=1144,
+         pattern="несвършен вид - свършен вид - минало свършено време (1 л., ед. ч.)",
+         example="правя - направя - направих", title="Глаголни двойки по вид",
+         gloss="Aspect pairs: imperfective - perfective - aorist",
+         what="very frequent everyday verbs, each as an imperfective/perfective PAIR"),
+    dict(lang="Turkish", base_id=1147, groups=1, levels=["A2"],
+         pattern="mastar - geniş zaman (o) - di'li geçmiş (o)",
+         example="gitmek - gider - gitti", title="Düzensiz geniş zaman",
+         gloss="Irregular aorist: infinitive - aorist (he/she/it) - simple past (he/she/it)",
+         what=("the small, closed set of TRUE irregular-aorist Turkish verbs -- monosyllabic stems "
+               "that take -ir/-ır in the aorist instead of the expected regular -er/-ar (e.g. gel- -> "
+               "gelir, not 'geler'; the past form is fully regular and included just for context)")),
+    dict(lang="Japanese", base_id=1148,
+         pattern="辞書形 - ます形 - て形",
+         example="食べる - 食べます - 食べて", title="動詞の活用",
+         gloss="Verb conjugation: dictionary form - polite present (masu-form) - te-form",
+         what=("common verbs spanning all three conjugation classes -- godan/u-verbs, ichidan/ru-verbs, "
+               "and the two irregular verbs する and 来る -- so every set mixes classes rather than "
+               "drilling only one")),
+    dict(lang="Korean", base_id=1151,
+         pattern="사전형 - 정중체 현재형 - 과거형",
+         example="먹다 - 먹어요 - 먹었어요", title="동사 활용",
+         gloss="Verb conjugation: dictionary form - polite present (-아요/-어요) - past (-았/었어요)",
+         what=("common verbs, with AT LEAST HALF of each set drawn from the four irregular-stem classes "
+               "that cause most learner errors: ㅂ-irregular (e.g. 덥다), ㄷ-irregular (e.g. 듣다), "
+               "르-irregular (e.g. 다르다), ㅅ-irregular (e.g. 낫다)")),
 ]
 
-SPECS = {s[0]: {"base_id": s[1], "kind": s[2], "pattern": s[3], "example": s[4], "title": s[5], "gloss": s[6]} for s in _SPECS}
+SPECS = {s["lang"]: s for s in _SPECS}
 
 
 def topic_key(lang_code: str, group: int) -> str:
@@ -70,17 +136,20 @@ def build_topics(lang_codes: dict[str, str]) -> dict[str, list[dict]]:
     out: dict[str, list[dict]] = {}
     for lang, sp in SPECS.items():
         code = lang_codes[lang]
+        n_groups = sp.get("groups", GROUPS)
+        levels = sp.get("levels", GROUP_LEVELS)
         topics = []
-        for g in range(1, GROUPS + 1):
-            what = ("most frequent irregular verbs" if sp["kind"] == "irregular"
-                    else "most frequent everyday verbs as imperfective/perfective pairs")
+        for g in range(1, n_groups + 1):
+            suffix = f" ({g})" if n_groups > 1 else ""
+            set_note = f" Set {g} of {n_groups}." if n_groups > 1 else ""
+            gloss_suffix = f" (set {g}/{n_groups})" if n_groups > 1 else ""
             topics.append({
-                "key": topic_key(code, g), "level": GROUP_LEVELS[g - 1],
+                "key": topic_key(code, g), "level": levels[g - 1],
                 "lesson_id": sp["base_id"] + g - 1, "category": "past",
-                "title": f"{sp['title']} ({g})",
-                "gloss_en": f"{sp['gloss']} (set {g}/{GROUPS})",
-                "description": (f"A list of the {what} in {lang}, one row per verb in the form "
-                                f"'{sp['pattern']}' (e.g. {sp['example']}). Set {g} of {GROUPS}."),
+                "title": f"{sp['title']}{suffix}",
+                "gloss_en": f"{sp['gloss']}{gloss_suffix}",
+                "description": (f"A list of {sp['what']} in {lang}, one row per verb in the form "
+                                f"'{sp['pattern']}' (e.g. {sp['example']}).{set_note}"),
             })
         out[lang] = topics
     return out

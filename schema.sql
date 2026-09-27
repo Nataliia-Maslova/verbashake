@@ -261,6 +261,10 @@ ALTER TABLE user_prefs ADD COLUMN IF NOT EXISTS literacy_required BOOLEAN;
 -- (2026-09-07: was comparing the schedule badge against the SERVER's own
 -- clock, wrong whenever server and student aren't in the same timezone).
 ALTER TABLE user_prefs ADD COLUMN IF NOT EXISTS timezone           TEXT;
+-- Dark-mode toggle (2026-09-27): was session_state-only, so a direct
+-- ?module=... URL (a fresh session, not a button rerun) silently reset it
+-- back to light. See engine/user_prefs.py::get_dark_mode/save_dark_mode.
+ALTER TABLE user_prefs ADD COLUMN IF NOT EXISTS dark_mode          BOOLEAN;
 
 -- ── custom_phrases ───────────────────────────────────────────────────────────
 -- "My Phrases" user-created lessons (2026-08-28, replacing the CSV-file
