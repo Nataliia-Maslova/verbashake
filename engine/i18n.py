@@ -145,6 +145,7 @@ STRINGS = {
         "submit_btn": "Submit",
         "evaluating_spinner": "Evaluating…",
         "generating_warmup_spinner": "Generating warmup question…",
+        "generating_reading_passage_spinner": "Generating reading passage…",
         "generating_speaking_task_spinner": "Generating speaking task…",
         "submit_chat_tutor_btn": "Submit & Chat with tutor",
         "submit_voice_btn": "Submit voice",
@@ -435,6 +436,8 @@ STRINGS = {
         "pq_you_wrote":        " — you wrote: *{answer}*",
         # Phase labels
         "phase_warmup":    "Warmup",
+        "phase_reading":   "Reading",
+        "phase_reading_locked_help": "Finish the Reading step first",
         "phase_material":  "New Material",
         "phase_practice":  "Practice",
         "phase_speaking":  "Speaking",
@@ -636,6 +639,7 @@ STRINGS = {
         "submit_btn": "Надіслати",
         "evaluating_spinner": "Оцінюємо…",
         "generating_warmup_spinner": "Генеруємо питання розминки…",
+        "generating_reading_passage_spinner": "Генеруємо текст для читання…",
         "generating_speaking_task_spinner": "Генеруємо завдання для розмови…",
         "submit_chat_tutor_btn": "Надіслати й почати чат із викладачем",
         "submit_voice_btn": "Надіслати голос",
@@ -887,6 +891,8 @@ STRINGS = {
         "pq_you_wrote":        " — ти написав(-ла): *{answer}*",
         # Phase labels
         "phase_warmup":    "Розминка",
+        "phase_reading":   "Читання",
+        "phase_reading_locked_help": "Спочатку заверши крок «Читання»",
         "phase_material":  "Новий матеріал",
         "phase_practice":  "Практика",
         "phase_speaking":  "Висловлювання",

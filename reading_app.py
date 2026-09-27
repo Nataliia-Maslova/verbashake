@@ -1668,6 +1668,108 @@ def _render_step_nav_inline(step: int) -> None:
                 st.rerun()
 
 
+# ═══════════════════════════════════════════════════════════════════════════
+#  Embedded reading step — used by grammar.py's mandatory "Читання" phase
+# ═══════════════════════════════════════════════════════════════════════════
+
+def _render_embedded_ai_passage(user_id: str, native_lang: str, target_lang: str) -> bool:
+    """
+    AI-generated reading passage, embedded in grammar.py's mandatory
+    "Читання" phase for a language whose curated reading_lessons.xlsx track
+    has no more (or no) content to introduce (2026-09-27). Ephemeral, like
+    the standalone module's own "AI reading practice" fallback (render_setup,
+    CLAUDE.md 2026-08-27) -- not written to mastery/SRS, there's no catalog
+    row to write it against. Gated behind an explicit button, same reasoning
+    as today's Warmup fix: don't fire a live Gemini call just because this
+    step rendered.
+    """
+    from engine import gemini as _gemini
+    level = _recommender.current_level(user_id, target_lang) or "A1"
+    key = f"er_ai_passage_{target_lang}_{level}"
+    st.caption(_ui("ai_reading_intro"))
+    if key not in st.session_state:
+        if not st.button("✨ " + _ui("ai_reading_generate"), type="primary", key="er_ai_gen"):
+            return False
+        try:
+            with st.spinner(i18n.get(native_lang, "generating_reading_passage_spinner")):
+                st.session_state[key] = _gemini.generate_reading_passage(
+                    target_lang=target_lang, native_lang=native_lang, level=level,
+                )
+        except _gemini.PaidFeatureRequired:
+            _show_upsell_reading("er_ai")
+            return False
+
+    passage = st.session_state[key]
+    st.markdown(f"**{passage.get('title', '')}**")
+    for s in passage.get("sentences", []):
+        st.write(s.get("target", ""))
+        with st.expander("🌐", expanded=False):
+            st.caption(s.get("native", ""))
+
+    if st.button(_ui("continue"), type="primary", use_container_width=True, key="er_ai_continue"):
+        return True
+    return False
+
+
+def render_embedded_reading_step(user_id: str, native_lang: str, target_lang: str) -> bool:
+    """
+    One reading lesson's step-loop (1-5), with none of the standalone
+    module's own chrome (sidebar module-nav, jump-to-lesson, lesson-complete
+    banner) -- for grammar.py's mandatory "Читання" phase inserted between
+    Warmup and New Material (2026-09-27, Natalia: "чтение тренировать
+    после разминки до нового материала... алгоритму нужно будет подбирать
+    урок по чтению"). Reuses do_step1..5 and the exact same progress-writing
+    path (_save_step_progress/_log_score -> save_pointer/record_result) the
+    standalone module uses -- completing it here IS real Reading-module
+    progress, not a separate ephemeral copy, per Natalia's decision.
+
+    Deliberately reuses the real "r_*" session-state keys (r_lang, r_lesson,
+    r_user, r_rows, r_step) that do_step1..5/_save_step_progress/_log_score
+    already read, rather than inventing a parallel namespace -- do_step3's
+    own per-step scratch keys (s3_idx/s3_scores) are ALSO used verbatim by
+    grammar.py's own Phase 2 step 3, so clear_step_state() is called on
+    every step advance here exactly like the standalone module's own main()
+    does, guaranteeing no stale reading-step state bleeds into grammar's
+    own step loop once this phase hands off to "Новий матеріал".
+
+    Returns True once done (curated lesson finished, or the AI-passage
+    fallback was shown once curated content is exhausted / doesn't exist
+    for this language) -- grammar.py then unlocks "Новий матеріал".
+    """
+    lang_code = _recommender.LANG_TO_CODE.get(target_lang)
+    unit = _recommender.next_reading_unit(user_id, target_lang) if lang_code else None
+
+    if unit is None:
+        return _render_embedded_ai_passage(user_id, native_lang, target_lang)
+
+    lesson_id = _recommender.parse_unit_id(unit["unit_id"])["lesson_id"]
+
+    if st.session_state.get("r_lesson") != lesson_id or "r_rows" not in st.session_state:
+        df = load(str(DB_PATH), lang=lang_code, native_lang=native_lang)
+        st.session_state["r_rows"]   = df[df["lesson_id"] == lesson_id].reset_index(drop=True)
+        st.session_state["r_lesson"] = lesson_id
+        st.session_state["r_step"]   = 1
+        clear_step_state()
+
+    st.session_state["r_lang"] = lang_code
+    st.session_state["r_user"] = user_id
+
+    step = st.session_state["r_step"]
+    _save_step_progress(lesson_id, 99 if step > 5 else step, user_id)
+
+    if step > 5:
+        return True
+
+    fn = {1: do_step1, 2: do_step2, 3: do_step3, 4: do_step4, 5: do_step5}[step]
+    done = fn(st.session_state["r_rows"])
+    _render_step_nav_inline(step)
+    if done:
+        clear_step_state()
+        st.session_state["r_step"] = step + 1
+        st.rerun()
+    return False
+
+
 def main():
     _inject_css()
     if not DB_PATH.exists():

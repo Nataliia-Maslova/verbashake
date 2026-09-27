@@ -438,6 +438,28 @@ def _reading_frontier_units(user_id: str, target_lang: str, limit: int) -> list[
     return (unseen if unseen else units)[:limit]
 
 
+def next_reading_unit(user_id: str, target_lang: str) -> dict | None:
+    """
+    Public wrapper around _reading_frontier_units for embedding ONE reading
+    lesson inside another module's flow (grammar.py's mandatory "Читання"
+    step between Warmup and New Material, 2026-09-27 -- Natalia: "чтение
+    тренировать после разминки до нового материала... алгоритму нужно
+    будет подбирать урок по чтению"). Returns None when this language has
+    no reading catalog at all, OR when every reading unit already has an
+    srs_state row (the curated track is fully exhausted) -- both cases the
+    caller falls back to a live AI-generated passage instead, per Natalia's
+    "always show this step" decision. Deliberately does NOT reuse
+    _reading_frontier_units' own "nothing unseen left -> return unit #1
+    again" fallback (that's tuned for get_next()'s background-review
+    scoring, not for "is there real new content to introduce").
+    """
+    done, total = _reading_progress(user_id, target_lang)
+    if total == 0 or done >= total:
+        return None
+    units = _reading_frontier_units(user_id, target_lang, limit=1)
+    return units[0] if units else None
+
+
 def grammar_neighbor(target_lang: str, lesson_id: int, direction: int) -> dict | None:
     """
     The grammar lesson immediately before (direction=-1, "Easier") or after

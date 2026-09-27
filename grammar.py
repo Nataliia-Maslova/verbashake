@@ -1371,7 +1371,13 @@ def render_setup():
                                                      _qp_lid, _qp_native, _qp_target,
                                                      language_pair=_qp_lp,
                                                      unit_id=unit_id_for(cfg.get("lang_suffix"), _qp_lid, _qp_topic)),
-                        "lesson_step": 1,
+                        "lesson_step":       1,
+                        # Same reset as the sidebar "Jump to lesson" handler
+                        # below -- this deep-link path (wave-nav clicks, direct
+                        # ?vnav_lesson= URLs) can also fire while a different
+                        # lesson is already mid-session.
+                        "lesson_phase":      1,
+                        "reading_step_done": False,
                         "tts_lang":    TTS_LANG.get(_qp_target, "en"),
                         "wh_lang":     WHISPER_LANG.get(_qp_target),
                         "lang_pair":   _qp_lp,
@@ -3679,7 +3685,17 @@ def main(module: str = "grammar"):
                                     language_pair=_lp,
                                     unit_id=unit_id_for(cfg.get("lang_suffix"), _jump_lid, _jump_topic),
                                 ),
-                                "lesson_step": 1,
+                                "lesson_step":       1,
+                                # Jumping to a different lesson mid-session used
+                                # to leave lesson_phase/reading_step_done at
+                                # whatever they were for the OLD lesson (2026-09-27
+                                # review, while wiring the mandatory Читання phase)
+                                # -- harmless before that phase existed (every tab
+                                # was freely reachable anyway), but would have let
+                                # the new lesson's "Новий матеріал" unlock without
+                                # ever going through ITS OWN reading step.
+                                "lesson_phase":      1,
+                                "reading_step_done": False,
                                 "tts_lang":    TTS_LANG.get(state.target_lang, "en"),
                                 "wh_lang":     WHISPER_LANG.get(state.target_lang),
                                 "lang_pair":   _lp,
@@ -3702,14 +3718,26 @@ def main(module: str = "grammar"):
 
     # ── Phase header ──────────────────────────────────────────────────────
     _nl = st.session_state.get("launcher_native", "English")
+    # Phase 2 ("Читання") inserted 2026-09-27 (Natalia: "чтение тренировать
+    # после разминки до нового материала") -- everything from Material on
+    # shifted by one; see phase_reading_done's docstring below for why.
     _PHASE_LABELS = {
         1: i18n.get(_nl, "phase_warmup"),
-        2: i18n.get(_nl, "phase_material"),
-        3: i18n.get(_nl, "phase_practice"),
-        4: i18n.get(_nl, "phase_speaking"),
-        5: i18n.get(_nl, "phase_video"),
+        2: i18n.get(_nl, "phase_reading"),
+        3: i18n.get(_nl, "phase_material"),
+        4: i18n.get(_nl, "phase_practice"),
+        5: i18n.get(_nl, "phase_speaking"),
+        6: i18n.get(_nl, "phase_video"),
     }
     _phase = st.session_state.get("lesson_phase", 1)
+    # Reading is mandatory, not skippable (Natalia was explicit: unlike
+    # Warmup's Skip button, this step should actually be gone through, not
+    # bypassed) -- "Новий матеріал" (and everything after it, since you can't
+    # reach Practice/Speaking/Video without passing through Material first
+    # in the normal flow anyway) stays locked until it's done. Reading/
+    # Warmup themselves are never locked -- a student can always go back and
+    # replay what they've already finished.
+    _reading_done = bool(st.session_state.get("reading_step_done"))
     # Clickable phase navigation. Scoped font-size cut for this row only --
     # some translated single-word labels ("Висловлювання") are long enough
     # that the global button font-size (--mova-fs-body, 15px bold) makes
@@ -3735,7 +3763,10 @@ def main(module: str = "grammar"):
                 if k == _phase:
                     st.markdown(f"**{v}**", help=None)
                 else:
-                    if st.button(v, key=f"phase_nav_{k}", use_container_width=True):
+                    _locked = k >= 3 and not _reading_done
+                    if st.button(("🔒 " if _locked else "") + v, key=f"phase_nav_{k}",
+                                 use_container_width=True, disabled=_locked,
+                                 help=i18n.get(_nl, "phase_reading_locked_help") if _locked else None):
                         st.session_state["lesson_phase"] = k
                         st.rerun()
 
@@ -3746,13 +3777,25 @@ def main(module: str = "grammar"):
             st.rerun()
         return
 
-    # ── Phase 2: Novyi material (existing 8-step flow) ────────────────────
+    # ── Phase 2: Chytannia (embedded reading, one lesson) ──────────────────
     if _phase == 2:
+        st.markdown(f"## 🔤 {i18n.get(_nl, 'phase_reading')}")
+        import reading_app
+        if reading_app.render_embedded_reading_step(
+            sess.state.user_id, sess.state.native_lang, sess.state.target_lang,
+        ):
+            st.session_state["reading_step_done"] = True
+            st.session_state["lesson_phase"] = 3
+            st.rerun()
+        return
+
+    # ── Phase 3: Novyi material (existing 8-step flow) ────────────────────
+    if _phase == 3:
         step = st.session_state["lesson_step"]
 
         if step > 8 or sess.state.lesson_complete:
             _save_step_progress(sess, 99)
-            st.session_state["lesson_phase"] = 3
+            st.session_state["lesson_phase"] = 4
             st.session_state["lesson_step"]  = 1
             st.rerun()
             return
@@ -3799,22 +3842,22 @@ def main(module: str = "grammar"):
                 st.rerun()
         return
 
-    # ── Phase 3: Praktyka ─────────────────────────────────────────────────────
-    if _phase == 3:
-        if phase3_practice(sess, tts, wh):
-            st.session_state["lesson_phase"] = 4
-            st.rerun()
-        return
-
-    # ── Phase 4: Vyslovliuvannia ──────────────────────────────────────────────
+    # ── Phase 4: Praktyka ─────────────────────────────────────────────────────
     if _phase == 4:
-        if phase4_expression(sess, tts, wh):
+        if phase3_practice(sess, tts, wh):
             st.session_state["lesson_phase"] = 5
             st.rerun()
         return
 
-    # ── Phase 5: YouTube Video ────────────────────────────────────────────────
+    # ── Phase 5: Vyslovliuvannia ──────────────────────────────────────────────
     if _phase == 5:
+        if phase4_expression(sess, tts, wh):
+            st.session_state["lesson_phase"] = 6
+            st.rerun()
+        return
+
+    # ── Phase 6: YouTube Video ────────────────────────────────────────────────
+    if _phase == 6:
         _p5_action = phase5_video(sess)
         if _p5_action:
             # Whole-lesson gamification (bonus XP, streak, lessons_completed,
@@ -3886,8 +3929,9 @@ def main(module: str = "grammar"):
                                 language_pair=_pstate.language_pair,
                                 unit_id=unit_id_for(cfg.get("lang_suffix"), _next_id, _next_topic),
                             ),
-                            "lesson_step":  1,
-                            "lesson_phase": 1,
+                            "lesson_step":       1,
+                            "lesson_phase":      1,
+                            "reading_step_done": False,
                         })
                         if _ltoasts:
                             st.session_state["_pending_toasts"] = _ltoasts

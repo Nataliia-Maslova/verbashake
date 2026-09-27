@@ -283,6 +283,25 @@ def test_difficulty_to_cefr_covers_full_1_to_6_range():
         assert d in recommender.DIFFICULTY_TO_CEFR
 
 
+def test_next_reading_unit_picks_first_lesson_for_a_fresh_user():
+    # engine.recommender.next_reading_unit -- backs grammar.py's mandatory
+    # "Читання" phase (2026-09-27). A never-seen user gets the very first
+    # reading lesson of the language's own catalog, not an arbitrary one.
+    unit = recommender.next_reading_unit("__test_never_seen_user__", "French")
+    assert unit is not None
+    assert recommender.parse_unit_id(unit["unit_id"])["lesson_id"] == 1
+
+
+def test_next_reading_unit_none_when_no_catalog_or_exhausted(monkeypatch):
+    # Both branches feed grammar.py's AI-passage fallback -- a language with
+    # no reading track at all (total==0) and one this user has fully
+    # completed (done>=total) must behave identically to the caller.
+    monkeypatch.setattr(recommender, "_reading_progress", lambda uid, lang: (0, 0))
+    assert recommender.next_reading_unit("anyone", "Klingon") is None
+    monkeypatch.setattr(recommender, "_reading_progress", lambda uid, lang: (30, 30))
+    assert recommender.next_reading_unit("anyone", "French") is None
+
+
 def test_schedule_today_status_survives_midnight_crossing():
     # Regression test for the 2026-09-23 fix: a late-evening slot (e.g.
     # Monday 23:45) whose +-TOLERANCE_MINUTES grace window crosses into the
