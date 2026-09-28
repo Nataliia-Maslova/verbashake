@@ -18,7 +18,10 @@ rapidfuzz>=3.6.0
 numpy>=1.26.0
 gspread>=6.0.0
 google-auth>=2.0.0
-SQLAlchemy>=2.0.0
+# Pinned <2.1: SQLAlchemy 2.1 switched the default driver for plain "postgresql://" URLs from
+# psycopg2 to psycopg (v3), which isn't installed -> ModuleNotFoundError on every DB call after a
+# redeploy picked up 2.1.1 (2026-09-28). App is tested on 2.0.x with psycopg2-binary.
+SQLAlchemy>=2.0.0,<2.1
 psycopg2-binary>=2.9.0
 stripe>=10.0.0
 google-genai>=1.0.0
