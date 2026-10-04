@@ -2232,7 +2232,7 @@ def translate_verb_row(row: str, from_lang: str, to_lang: str, pattern: str = ""
     roles = [p.strip() for p in pattern.split(" - ")] if pattern.count(" - ") == 2 else None
     role = (f" In {from_lang}, the three parts play these roles, in order: (1) {roles[0]}; (2) {roles[1]}; "
             f"(3) {roles[2]}. Example row: {example}.") if roles else ""
-    for _attempt in range(3):
+    for _attempt in range(2):
         result = _safe_text(_model(_LITE).generate_content(
             f"The {from_lang} row below lists three forms of ONE verb, separated by ' - '.{role}\n"
             f"Translate it into {to_lang}, keeping exactly three parts separated by ' - '. For EACH part, give the "
