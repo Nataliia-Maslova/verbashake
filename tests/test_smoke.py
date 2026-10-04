@@ -85,9 +85,10 @@ def test_grammar_loader_all_sample_pairs(native, target):
     assert df["target"].astype(str).str.strip().eq("").sum() == 0
 
 
-def test_grammar_loader_all_182_lessons_present_for_english_ukrainian():
+def test_grammar_loader_all_190_lessons_present_for_english_ukrainian():
+    # 182 original + 183-190 tense lessons (2026-10-04)
     df = loader.load_phrases(DB_PATH, "English", "Ukrainian")
-    assert sorted(df["lesson_id"].unique()) == list(range(1, 183))
+    assert sorted(df["lesson_id"].unique()) == list(range(1, 191))
 
 
 def test_vocab_loader_word_bank_and_phrasebook_partition_cleanly():
@@ -528,3 +529,289 @@ def test_translate_verb_row_caches_a_well_formed_answer(monkeypatch):
     monkeypatch.setattr(gemini, "_save_translation_to_db", lambda *a, **k: saved.append(a))
     assert raw("ir - fui - ido", "Spanish", "Ukrainian") == "йти - я пішов - пішовший"
     assert len(saved) == 1 and saved[0][0].startswith("VERBROW::")
+
+
+# ── Practice: situation / find_mistake / explanation grading (2026-10-04) ──
+
+def _capture_prompt_model(monkeypatch, reply: str):
+    from engine import gemini
+
+    class Resp:
+        def __init__(self, t): self.text = t
+
+    seen = {"prompts": []}
+
+    class FakeModel:
+        def generate_content(self, prompt):
+            seen["prompts"].append(prompt)
+            return Resp(reply)
+
+    monkeypatch.setattr(gemini, "_configure", lambda: None)
+    monkeypatch.setattr(gemini, "_model", lambda *a, **k: FakeModel())
+    return seen
+
+
+def _raw(fn):
+    while hasattr(fn, "__wrapped__"):
+        fn = fn.__wrapped__
+    return fn
+
+
+def test_find_mistake_prompt_quotes_past_mistakes_and_asks_for_correct_items(monkeypatch):
+    from engine import gemini
+    seen = _capture_prompt_model(monkeypatch, '{"instructions": "", "items": []}')
+    _raw(gemini.generate_practice_test)(
+        "B1", "Present Perfect", "English", "Ukrainian", "find_mistake",
+        phrases=[{"target": "I have lived here.", "native": "Я тут живу."}],
+        past_mistakes=["I have seen him yesterday."],
+    )
+    p = seen["prompts"][0]
+    assert "«I have seen him yesterday.»" in p
+    assert "FULLY CORRECT" in p and "is_correct" in p
+    assert "5–6 items" in p
+
+
+def test_situation_prompt_names_native_language(monkeypatch):
+    from engine import gemini
+    seen = _capture_prompt_model(monkeypatch, '{"instructions": "", "items": []}')
+    _raw(gemini.generate_practice_test)("B1", "Tenses", "English", "Ukrainian", "situation")
+    p = seen["prompts"][0]
+    assert "native language (Ukrainian)" in p and "___" in p
+    assert "past_mistakes" not in p and "made mistakes like these" not in p
+
+
+def test_check_answer_grades_explanation_separately(monkeypatch):
+    from engine import gemini
+    seen = _capture_prompt_model(
+        monkeypatch, '{"correct": true, "feedback": "ok", "why_feedback": "right"}',
+    )
+    res = _raw(gemini.check_practice_answer)(
+        "Situation\nI ___ English for years.", "have been learning",
+        "I have been learning English for years.", "English", "Ukrainian",
+        explanation="started in the past and still going",
+    )
+    assert res["why_feedback"] == "right"
+    p = seen["prompts"][0]
+    assert "«started in the past and still going»" in p and "why_feedback" in p
+
+
+def test_check_answer_without_explanation_asks_no_why(monkeypatch):
+    from engine import gemini
+    seen = _capture_prompt_model(monkeypatch, '{"correct": true, "feedback": "ok"}')
+    _raw(gemini.check_practice_answer)("Q", "a", "a", "English", "Ukrainian")
+    assert "why_feedback" not in seen["prompts"][0]
+
+
+def test_check_answer_claims_correct_replaces_student_text(monkeypatch):
+    from engine import gemini
+    seen = _capture_prompt_model(monkeypatch, '{"correct": true, "feedback": "ok"}')
+    _raw(gemini.check_practice_answer)(
+        "She has just left.", "", "She has just left.", "English", "Ukrainian",
+        claims_correct=True,
+    )
+    assert "says this sentence has no mistake" in seen["prompts"][0]
+
+
+def test_practice_i18n_keys_resolve_everywhere():
+    from engine import i18n
+    keys = ["situation_type", "find_mistake_type", "situation_desc", "multiple_choice_desc",
+            "find_mistake_desc", "other_exercises", "why_label", "no_mistake_checkbox",
+            "corrected_sentence_label", "find_mistake_missed", "pair_type", "pair_desc", "dialogue_type", "dialogue_desc", "dialogue_check_btn", "dialogue_no_errors", "dialogue_no_questions", "roleplay_story_label",
+            "episode_title", "episode_intro", "episode_title_label", "episode_title_placeholder", "episode_desc_label",
+            "episode_prepare_btn", "episode_spinner", "episode_new_btn", "episode_before_header",
+            "episode_prediction_header", "episode_vocab_header", "episode_after_header"]
+    for lang in i18n.LANG_TO_CODE:
+        for k in keys:
+            v = i18n.get(lang, k)
+            assert v and v != k, (lang, k)
+        assert i18n.get(lang, "no_mistake_checkbox").startswith("✓"), lang
+
+
+def test_drop_ambiguous_items_removes_flagged_and_keeps_minimum(monkeypatch):
+    from engine import gemini
+    items = [{"question": f"q{i}", "answer": "a", "is_correct": False} for i in range(4)]
+    _capture_prompt_model(monkeypatch, '{"flagged": [1, 3]}')
+    kept = gemini._drop_ambiguous_items("find_mistake", items, "English")
+    assert [it["question"] for it in kept] == ["q0", "q2"]
+    # would leave < 2 items -> original list kept
+    _capture_prompt_model(monkeypatch, '{"flagged": [0, 1, 2]}')
+    assert gemini._drop_ambiguous_items("find_mistake", items, "English") == items
+    # bools are not indices
+    _capture_prompt_model(monkeypatch, '{"flagged": [true]}')
+    assert len(gemini._drop_ambiguous_items("multiple_choice", items, "English")) == 4
+
+
+def test_drop_ambiguous_items_survives_model_failure(monkeypatch):
+    from engine import gemini
+
+    class Boom:
+        def generate_content(self, p): raise RuntimeError("timeout")
+    monkeypatch.setattr(gemini, "_model", lambda *a, **k: Boom())
+    items = [{"question": "q", "answer": "a", "options": ["a", "b"]}] * 3
+    assert gemini._drop_ambiguous_items("multiple_choice", items, "English") == items
+
+
+def test_drop_ambiguous_items_keeps_one_correct_sentence(monkeypatch):
+    from engine import gemini
+    items = [{"question": "w0", "is_correct": False}, {"question": "ok", "is_correct": True},
+             {"question": "w2", "is_correct": False}, {"question": "w3", "is_correct": False}]
+    _capture_prompt_model(monkeypatch, '{"flagged": [1]}')
+    kept = gemini._drop_ambiguous_items("find_mistake", items, "English")
+    assert any(it["is_correct"] for it in kept) and len(kept) == 4
+
+
+# ── "Пара" Practice exercise (2026-10-04) ──
+
+def test_lesson_pairs_reference_real_lessons_and_are_unique():
+    import pandas as pd
+    from engine import lesson_pairs
+    lids = set(pd.read_excel(ROOT / "data" / "imlls_database_with_titles.xlsx", sheet_name="lessons")["lesson_id"])
+    seen = set()
+    for a, b, contrast in lesson_pairs.PAIRS:
+        assert a in lids and b in lids and a != b, (a, b)
+        assert frozenset((a, b)) not in seen, (a, b)
+        seen.add(frozenset((a, b)))
+        assert contrast
+
+
+def test_lesson_pairs_partners_both_directions_and_english_only():
+    from engine import lesson_pairs
+    assert (115, lesson_pairs.partners_for(161, "English")[0][1]) in lesson_pairs.partners_for(161, "English")
+    assert any(lid == 161 for lid, _ in lesson_pairs.partners_for(115, "English"))
+    assert lesson_pairs.partners_for(161, "Ukrainian") == []
+
+
+def test_generate_contrast_pair_filters_bad_items(monkeypatch):
+    from engine import gemini
+    reply = ('{"items": ['
+             '{"question": "I ___ him yesterday.", "options": ["saw", "have seen"], "answer": "saw", "lesson": "A"},'
+             '{"question": "I ___ him.", "options": ["saw", "have seen"], "answer": "seen", "lesson": "B"},'
+             '{"question": "I ___ never been.", "options": ["have", "had"], "answer": "have", "lesson": "C"},'
+             '{"question": "I ___ there.", "options": ["have been", "went"], "answer": "have been", "lesson": "B"}]}')
+    _capture_prompt_model(monkeypatch, reply)
+    monkeypatch.setattr(gemini, "_drop_ambiguous_items", lambda t, items, lang: items)
+    out = _raw(gemini.generate_contrast_pair)(
+        "B1", "Past Simple", [{"target": "I went."}], "Present Perfect", [{"target": "I have gone."}],
+        "Past Simple vs Present Perfect", "English", "Ukrainian",
+    )
+    assert [it["lesson"] for it in out["items"]] == ["A", "B"]
+
+
+# ── "Діалог з уточненнями" (2026-10-04) ──
+
+def test_dialogue_followup_isolates_answer_and_asks_for_other_form(monkeypatch):
+    from engine import gemini
+    seen = _capture_prompt_model(monkeypatch, '{"form": "Past Simple", "target": "When did you go?", "native": "Коли?"}')
+    out = _raw(gemini.dialogue_followup)(
+        "Have you ever been to Spain?", "Yes, I have.", "Present Perfect", "B1", "English", "Ukrainian",
+    )
+    assert out["target"] == "When did you go?"
+    p = seen["prompts"][0]
+    assert "«Yes, I have.»" in p and "NOT be the lesson's own form" in p
+
+
+def test_dialogue_followup_raises_on_empty_reply(monkeypatch):
+    import pytest
+    from engine import gemini
+    _capture_prompt_model(monkeypatch, '{}')
+    with pytest.raises(ValueError):
+        _raw(gemini.dialogue_followup)("Q?", "A.", "t", "B1", "English", "Ukrainian")
+
+
+def test_dialogue_questions_trimmed_to_n(monkeypatch):
+    from engine import gemini
+    _capture_prompt_model(monkeypatch, '{"questions": [{"target": "a?"}, {"target": ""}, {"target": "b?"}, {"target": "c?"}, {"target": "d?"}]}')
+    out = _raw(gemini.generate_dialogue_questions)("B1", "t", [], "English", "Ukrainian")
+    assert [q["target"] for q in out["questions"]] == ["a?", "b?", "c?"]
+
+
+def test_classify_mistake_topics_sees_error_examples_and_current_lesson(monkeypatch):
+    from engine import gemini
+    seen = _capture_prompt_model(monkeypatch, "[1]")
+    out = _raw(gemini.classify_mistake_topics)(
+        ["Subject-verb agreement"], ["Singular vs plural", "Habits — third person"],
+        details=["«it look» → «it looks»"],
+        topic_examples={"Habits — third person": "She works every day."},
+        current_topic="Habits — third person",
+    )
+    assert out == {"Subject-verb agreement": "Habits — third person"}
+    p = seen["prompts"][0]
+    assert "«it look» → «it looks»" in p and "She works every day." in p and 'lesson "Habits — third person"' in p
+
+
+def test_mistake_topic_context_drops_verb_form_lists(monkeypatch):
+    import grammar
+    monkeypatch.setattr(grammar._recommender, "all_topics", lambda lang, module: [
+        "Past actions in sentences", "Verb forms reference — group 4", "Habits — third person"])
+    cands, examples = grammar._mistake_topic_context.__wrapped__("English", "Ukrainian")
+    assert "Verb forms reference — group 4" not in cands
+    assert "Past actions in sentences" in cands and examples.get("Habits — third person")
+
+
+def test_story_roleplay_prompt_uses_lesson_topic():
+    from engine import gemini
+    sys_p = gemini._tutor_system_instruction("English", "B1", "Ukrainian", "story", lesson_topic="Past Simple")
+    assert "Past Simple" in sys_p and "plot twist" in sys_p and "Twist:" in sys_p  # the "never write a label" rule
+    assert "English only" in sys_p
+    # other scenarios unaffected by lesson_topic
+    cafe = gemini._tutor_system_instruction("English", "B1", "Ukrainian", "cafe", lesson_topic="Past Simple")
+    assert "barista" in cafe and "Past Simple" not in cafe
+
+
+# ── Video: lesson around an episode (2026-10-04) ──
+
+def test_episode_lesson_without_description_forbids_plot_guessing(monkeypatch):
+    from engine import gemini
+    seen = _capture_prompt_model(monkeypatch, '{"before": {"questions": [{"target": "q?"}], "prediction": {"target": "p?"}, '
+                                 '"vocab": [{"word": "w", "native": "n"}, {"word": ""}]}, "after": {"questions": [{"target": "a?"}, {}]}}')
+    out = _raw(gemini.generate_episode_lesson)("Ted Lasso S1E9", "", "B2", "English", "Ukrainian")
+    p = seen["prompts"][0]
+    assert "«Ted Lasso S1E9»" in p and "you know ONLY the title" in p and "Do NOT mention any plot events" in p
+    assert [v["word"] for v in out["before"]["vocab"]] == ["w"] and len(out["after"]["questions"]) == 1
+
+
+def test_episode_lesson_with_description_quotes_it(monkeypatch):
+    from engine import gemini
+    seen = _capture_prompt_model(monkeypatch, '{}')
+    out = _raw(gemini.generate_episode_lesson)("Friends", "Ross is jealous.", "B1", "English", "Ukrainian")
+    assert "«Ross is jealous.»" in seen["prompts"][0] and "appear in the description" in seen["prompts"][0]
+    assert out["after"]["questions"] == []
+
+
+# ── New tense lessons 183-190 + curriculum order (2026-10-04) ──
+
+def test_new_tense_lessons_present_in_every_language_pair():
+    from engine.loader import load_phrases
+    for native, target in [("Ukrainian", "English"), ("Spanish", "German"), ("Korean", "French"), ("Swedish", "Turkish")]:
+        df = load_phrases(str(ROOT / "data" / "imlls_database_with_titles.xlsx"), native, target)
+        counts = df[df["lesson_id"].between(183, 190)].groupby("lesson_id").size().to_dict()
+        assert counts == {lid: 8 for lid in range(183, 191)}, (native, target, counts)
+
+
+def test_curriculum_order_places_new_lessons_after_their_anchor():
+    from engine.curriculum_order import sort_lessons
+    order = sort_lessons(list(range(1, 191)))
+    assert order.index(183) == order.index(83) + 1          # going to after will
+    assert order[order.index(138) + 1: order.index(138) + 6] == [184, 178, 175, 180, 139]
+    assert order[order.index(165) + 1: order.index(165) + 12] == [185, 186, 176, 179, 187, 174, 177, 188, 189, 190, 166]
+    assert order.index(181) == order.index(159) + 1 and order.index(182) == order.index(170) + 1
+    assert order[-1] == 173                                  # nothing left dangling at the end
+    assert sorted(order) == list(range(1, 191))
+
+
+def test_every_language_path_lesson_is_placed_next_to_a_real_lesson():
+    from engine import target_grammar_paths as t
+    from engine.curriculum_order import PLACE_AFTER, sort_lessons
+    base = set(range(1, 191))
+    for lang in t.TARGET_GRAMMAR_PATHS:
+        own = {x["lesson_id"] for x in t.paths_for_language(lang)}
+        for lid in own:
+            assert lid in PLACE_AFTER, (lang, lid)
+            # the chain ends in a base lesson or another lesson of the SAME language
+            a = PLACE_AFTER[lid]
+            while a in PLACE_AFTER and a not in base:
+                assert a in own, (lang, lid, a)
+                a = PLACE_AFTER[a]
+            assert a in base, (lang, lid, a)
+        order = sort_lessons(base | own)
+        assert order[-1] == 173, (lang, order[-5:])   # none left at the end

@@ -114,7 +114,10 @@ def get_lesson(df: pd.DataFrame, lesson_id: int) -> pd.DataFrame:
 
 
 def get_available_lessons(df: pd.DataFrame) -> list[int]:
-    return sorted(df["lesson_id"].unique().tolist())
+    # Curriculum order, not raw id order — lessons added later sit next to
+    # the lessons they belong with (engine/curriculum_order.py).
+    from engine.curriculum_order import sort_lessons
+    return sort_lessons(df["lesson_id"].unique().tolist())
 
 
 _TOPIC_COL_FOR_LANG = {lang: f"topic_{code}" for lang, code in LANG_COLUMNS.items()}

@@ -23,6 +23,7 @@ import threading
 from datetime import date, timedelta
 
 from engine import db
+from engine.curriculum_order import order_key
 
 # Re-exported so callers that used to import this from engine.curriculum don't
 # need a second import.
@@ -395,7 +396,7 @@ def _grammar_frontier_unit(user_id: str, target_lang: str,
         except Exception:
             return 0
 
-    units.sort(key=_lid)
+    units.sort(key=lambda u: order_key(_lid(u)))
     mastery = _mastery_map(user_id, target_lang)
     for u in units:
         topic = _mastery_topic(u["topic"])
@@ -477,7 +478,7 @@ def grammar_neighbor(target_lang: str, lesson_id: int, direction: int) -> dict |
     units = _candidates(target_lang, module="grammar")
     if not units:
         return None
-    units.sort(key=lambda u: parse_unit_id(u["unit_id"])["lesson_id"])
+    units.sort(key=lambda u: order_key(parse_unit_id(u["unit_id"])["lesson_id"]))
     ids = [parse_unit_id(u["unit_id"])["lesson_id"] for u in units]
     try:
         idx = ids.index(lesson_id)
@@ -910,7 +911,7 @@ def lesson_position(target_lang: str, module: str, lesson_id: int) -> int | None
             ids.append(parse_unit_id(u["unit_id"])["lesson_id"])
         except Exception:
             continue
-    ids = sorted(set(ids))
+    ids = sorted(set(ids), key=order_key) if module == "grammar" else sorted(set(ids))
     return ids.index(lesson_id) + 1 if lesson_id in ids else None
 
 
@@ -932,6 +933,32 @@ def lesson_levels(module: str) -> dict[int, str]:
             out[parse_unit_id(r["unit_id"])["lesson_id"]] = r["level"]
         except Exception:
             continue
+    return out
+
+
+def passed_grammar_lessons(user_id: str, target_lang: str, lesson_ids: list[int]) -> dict[int, float]:
+    """
+    {lesson_id: mastery} for those of `lesson_ids` the student has passed —
+    mastery for the lesson's topic at/above GRAMMAR_ADVANCE_THRESHOLD, the same
+    "done enough to move past" bar _grammar_frontier_unit() uses. Used by the
+    "Пара" Practice exercise (engine.lesson_pairs) to offer only partner
+    lessons the student has actually been through. Best-effort: {} on failure.
+    """
+    if not user_id or not lesson_ids:
+        return {}
+    try:
+        rows = db.fetch_all(
+            "SELECT unit_id, topic FROM content_units WHERE unit_id = ANY(:uids)",
+            {"uids": [f"grammar:{lid}" for lid in lesson_ids]},
+        )
+        mastery = _mastery_map(user_id, target_lang)
+    except Exception:
+        return {}
+    out: dict[int, float] = {}
+    for r in rows:
+        m = mastery.get(("grammar", _mastery_topic(r["topic"])))
+        if m and m["score"] >= GRAMMAR_ADVANCE_THRESHOLD:
+            out[parse_unit_id(r["unit_id"])["lesson_id"]] = m["score"]
     return out
 
 

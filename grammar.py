@@ -114,6 +114,7 @@ from engine.picker import _render_flat_wave_nav
 from engine import i18n
 from engine import target_grammar_paths as _target_grammar_paths
 from engine import target_grammar_loader as _target_grammar_loader
+from engine import lesson_pairs as _lesson_pairs
 from engine.character_widget import show_character
 
 _FULL_SEQ = [1, 2, 3, 4, 5, 6, 7, 8]
@@ -1960,6 +1961,30 @@ def _init_errors(phase_key: str) -> None:
         st.session_state[f"errors_{phase_key}"] = []
 
 
+@st.cache_data(show_spinner=False)
+def _mistake_topic_context(target_lang: str, native_lang: str) -> tuple[list[str], dict[str, str]]:
+    """
+    Grammar candidate topics + one example sentence each, for
+    gemini.classify_mistake_topics (2026-10-04). Verb-form LIST lessons are
+    left out — "to sell - sold", "hacer - hice - hecho" — they aren't a
+    grammar point a mistake can be "about", and with bare titles they used
+    to swallow most classifications ("Verb forms reference — group 4" got 9
+    of 18 test mistakes).
+    """
+    candidates = _recommender.all_topics(target_lang, module="grammar")
+    df = _load_grammar(str(_module_config("grammar")["db_path"]), native_lang, target_lang)
+    examples: dict[str, str] = {}
+    skip: set[str] = set()
+    for lid, rows in df.groupby("lesson_id"):
+        topic = rows["topic_en"].iloc[0]
+        example = str(rows["target"].iloc[0])
+        if lid in ENGLISH_PIVOT_VERB_LESSONS or _target_grammar_loader.is_verb_row(example):
+            skip.add(topic)
+        elif topic not in examples:
+            examples[topic] = example
+    return [t for t in candidates if t not in skip], examples
+
+
 def _record_mistake(
     session: LessonSession, target_lang: str, errors: list[dict] | None = None,
     phase: str = "",
@@ -1997,12 +2022,28 @@ def _record_mistake(
     module = _current_module()
     errors = errors or []
 
-    guesses = [e["topic_en"] for e in errors if e.get("topic_en")]
+    # One entry per distinct guess, with the actual error it came from —
+    # the classifier needs to see what was corrected, not just a label.
+    guesses: list[str] = []
+    details: list[str] = []
+    for e in errors:
+        g = e.get("topic_en")
+        if g and g not in guesses:
+            guesses.append(g)
+            fixed = e.get("corrected") or e.get("fixed") or ""
+            details.append(f"«{e.get('original', '')}» → «{fixed}»" if e.get("original") else "")
     classified: dict[str, str] = {}
     if guesses:
         try:
-            candidates = _recommender.all_topics(target_lang, module=module)
-            classified = _gemini.classify_mistake_topics(guesses, candidates)
+            if module == "grammar":
+                candidates, examples = _mistake_topic_context(target_lang, session.state.native_lang)
+                current_topic = get_grammar_topics(session.df, native_lang="English").get(session.state.lesson_id)
+            else:
+                candidates, examples, current_topic = _recommender.all_topics(target_lang, module=module), {}, None
+            classified = _gemini.classify_mistake_topics(
+                guesses, candidates, details=details,
+                topic_examples=examples, current_topic=current_topic,
+            )
         except Exception:
             classified = {}
 
@@ -2038,7 +2079,7 @@ def _record_mistake(
     _mistakes.log_mistakes(session.state.user_id, target_lang, module, log_rows)
 
 
-def _record_step8_outcome(session: LessonSession, results: list[dict]) -> None:
+def _record_step8_outcome(session: LessonSession, results: list[dict], phase: str = "step8") -> None:
     """
     Step 8 ("write your own sentences") outcome -> mastery/SRS + mistake log.
     Errors found: _record_mistake (ding + persist). None found: one "correct"
@@ -2049,7 +2090,7 @@ def _record_step8_outcome(session: LessonSession, results: list[dict]) -> None:
     """
     errors = [e for r in results for e in r["correction"].get("errors", [])]
     if errors:
-        _record_mistake(session, session.state.target_lang, errors, phase="step8")
+        _record_mistake(session, session.state.target_lang, errors, phase=phase)
     elif session.state.unit_id:
         try:
             _recommender.record_result(
@@ -2500,6 +2541,154 @@ def _extra_practice_phrases(
         return []
 
 
+def _render_followup_dialogue(
+    ex: dict, ex_idx: int, session: LessonSession, topic: str, level: str,
+    tts_lang: str, wh_lang: str,
+) -> str | None:
+    """
+    "Діалог з уточненнями" (2026-10-04, Наталья's own lesson technique):
+    3 personal questions on the lesson's form; after each answer one
+    follow-up that needs a DIFFERENT form (gemini.dialogue_followup), so the
+    student keeps switching forms instead of repeating one. Voice or text,
+    like Phase 4 roleplay. No correction mid-dialogue — at the end all
+    answers go through correct_grammar once (same as the roleplay review),
+    mistakes into the usual review + «Мої помилки», no mistakes = one
+    "correct" for this lesson (_record_step8_outcome).
+
+    Returns "upsell" if a gated call hit the paywall, else None.
+    """
+    native_lang = session.state.native_lang
+    target_lang = session.state.target_lang
+    questions = ex["test"].get("questions", [])
+    if not questions:
+        st.warning(i18n.get(native_lang, "dialogue_no_questions"))
+        return None
+    turns = ex.setdefault("turns", [{**questions[0], "kind": "main", "answer": None}])
+    show_native = _recommender.CEFR_RANK.get(level, 0) <= _recommender.CEFR_RANK["A2"]
+    tutor = i18n.get(native_lang, "chat_role_tutor")
+    you = i18n.get(native_lang, "roleplay_you_label")
+
+    for t in turns:
+        st.markdown(f"**{tutor}:** {t['target']}")
+        if show_native and t.get("native"):
+            st.caption(f"🌐 {t['native']}")
+        if t["answer"] is not None:
+            st.markdown(f"**{you}:** {t['answer']}")
+
+    current = turns[-1]
+    if current["answer"] is None:
+        ap = get_audio_path(current["target"], tts_lang)
+        if ap:
+            st.audio(ap)
+        _opt_text, _opt_voice = i18n.get(native_lang, "text_opt"), i18n.get(native_lang, "voice_opt")
+        mode = st.radio(
+            i18n.get(native_lang, "mode_label"), [_opt_text, _opt_voice],
+            horizontal=True, key=f"p3_dlg{ex_idx}_mode",
+        )
+        reply: str | None = None
+        n = len(turns)
+        if mode == _opt_text:
+            typed = st.text_input(i18n.get(native_lang, "write_answer"), key=f"p3_dlg{ex_idx}_t{n}")
+            if st.button(i18n.get(native_lang, "roleplay_send_btn"), type="primary",
+                         key=f"p3_dlg{ex_idx}_send{n}") and typed.strip():
+                reply = typed.strip()
+        else:
+            audio = audio_input(f"p3_dlg{ex_idx}_v{n}")
+            if audio and st.button(i18n.get(native_lang, "roleplay_send_btn"), type="primary",
+                                   key=f"p3_dlg{ex_idx}_vsend{n}"):
+                with st.spinner(i18n.get(native_lang, "transcribing_spinner")):
+                    reply = transcribe_bytes(audio, language=wh_lang)
+        if reply:
+            current["answer"] = reply
+            main_idx = sum(1 for t in turns if t["kind"] == "main") - 1
+            if current["kind"] == "main":
+                try:
+                    with st.spinner("..."):
+                        fu = _gemini.dialogue_followup(
+                            current["target"], reply, topic, level, target_lang, native_lang,
+                        )
+                    turns.append({"target": fu["target"], "native": fu.get("native", ""),
+                                  "kind": "followup", "answer": None})
+                except _gemini.PaidFeatureRequired:
+                    current["answer"] = None
+                    _show_upsell(f"p3_dlg{ex_idx}_fu")
+                    return "upsell"
+                except Exception:
+                    # No follow-up this time — just go on to the next question.
+                    if main_idx + 1 < len(questions):
+                        turns.append({**questions[main_idx + 1], "kind": "main", "answer": None})
+            elif main_idx + 1 < len(questions):
+                turns.append({**questions[main_idx + 1], "kind": "main", "answer": None})
+            st.rerun()
+        return None
+
+    # Every question answered: one grammar check over all answers.
+    if not ex["checked"]:
+        if st.button(i18n.get(native_lang, "dialogue_check_btn"), type="primary",
+                     key=f"p3_dlg{ex_idx}_check"):
+            answers = [t["answer"] for t in turns if t["answer"]]
+            try:
+                with st.spinner(i18n.get(native_lang, "checking_grammar_spinner")):
+                    correction = _gemini.correct_grammar(" ".join(answers), target_lang, native_lang)
+            except _gemini.PaidFeatureRequired:
+                _show_upsell(f"p3_dlg{ex_idx}_check_up")
+                return "upsell"
+            errors = correction.get("errors", [])
+            _record_step8_outcome(session, [{"correction": correction}], phase="practice")
+            for err in errors:
+                _collect_error(
+                    err["original"], err["fixed"], err.get("explanation", ""), "practice",
+                    native_prompt=err.get("native_prompt", ""), unit_ids=err.get("_units"),
+                )
+            ex["results"] = errors
+            ex["checked"] = True
+            st.rerun()
+        return None
+
+    if not ex["results"]:
+        st.success(i18n.get(native_lang, "dialogue_no_errors"))
+    for err in ex["results"]:
+        st.markdown(f"❌ ~~{err['original']}~~ → **{err['fixed']}**")
+        if err.get("explanation"):
+            st.caption(err["explanation"])
+    return None
+
+
+def _pair_for_lesson(session: LessonSession, target_lang: str) -> dict | None:
+    """
+    The confusable, already-passed lesson for the "Пара" exercise
+    (engine.lesson_pairs + recommender.passed_grammar_lessons), or None.
+    With several passed partners, the one with the lowest mastery wins —
+    it needs the reinforcement most. Cached per lesson in session_state so
+    the Practice screen doesn't hit the DB on every rerun.
+    """
+    key = f"p3_pair_{target_lang}_{session.state.lesson_id}"
+    if key not in st.session_state:
+        partners = _lesson_pairs.partners_for(session.state.lesson_id, target_lang)
+        passed = _recommender.passed_grammar_lessons(
+            session.state.user_id, target_lang, [lid for lid, _ in partners],
+        ) if partners else {}
+        best = min(
+            ((lid, c) for lid, c in partners if lid in passed),
+            key=lambda lc: passed[lc[0]], default=None,
+        )
+        st.session_state[key] = {"lesson_id": best[0], "contrast": best[1]} if best else None
+    return st.session_state[key]
+
+
+def _recent_lesson_mistakes(session: LessonSession, target_lang: str, n: int = 3) -> list[str]:
+    """
+    The student's own still-open wrong sentences for THIS lesson (engine.
+    mistakes), newest first — fed to the find_mistake generator so it can
+    rebuild the same error pattern. Best-effort: [] on any failure.
+    """
+    try:
+        rows = _mistakes.open_mistakes(session.state.user_id, target_lang, limit=50)
+    except Exception:
+        return []
+    return [r["original"] for r in rows if r.get("unit_id") == session.state.unit_id][:n]
+
+
 def phase3_practice(session: LessonSession, tts_lang: str, wh_lang: str) -> bool:
     """
     Gemini generates a short test (fill-in-blank / multiple choice / translation).
@@ -2558,17 +2747,30 @@ def phase3_practice(session: LessonSession, tts_lang: str, wh_lang: str) -> bool
     # Generate button. Order (multiple choice, fill-in-the-blank,
     # translation first) preserved from the old selectbox default
     # (CLAUDE.md, 2026-08-23 — Наталья's requested order).
-    _test_types = ["multiple_choice", "fill_in_blank", "translation"]
-    # Grammar-book sentence transformation (active/passive, statement/
-    # question, reported speech...) only makes sense as a GRAMMAR drill —
-    # works in any target language, unlike construction_drill which needs
-    # cefr_wordlist's English-only pool (CLAUDE.md, 2026-08-22).
+    # 2026-10-04, Наталья (from her own tutoring lessons): in Grammar the
+    # main path is now three exercises in a fixed order — situation -> "why?",
+    # multiple choice with deliberately similar forms, find the mistake.
+    # They make the student CHOOSE between competing forms instead of
+    # re-translating the lesson phrases (Steps 6-8 already do that), so
+    # translation and context-free fill_in_blank are dropped from Grammar.
+    # The remaining Grammar-only drills move into a collapsed "Other
+    # exercises" block. Vocab/Phrasebook keep the old trio unchanged.
+    # "Пара" (4th) only when this lesson has a confusable partner the
+    # student has already passed (engine.lesson_pairs).
+    _pair = _pair_for_lesson(session, target_lang) if module == "grammar" else None
     if module == "grammar":
-        _test_types.append("sentence_transformation")
-    if _drill_available:
-        _test_types.append("construction_drill")
-    if _target_grammar_topics:
-        _test_types.append("target_grammar")
+        _main_types = ["situation", "multiple_choice", "find_mistake"]
+        if _pair:
+            _main_types.append("contrast_pair")
+        _main_types.append("followup_dialogue")
+        _other_types = ["sentence_transformation"]
+        if _drill_available:
+            _other_types.append("construction_drill")
+        if _target_grammar_topics:
+            _other_types.append("target_grammar")
+    else:
+        _main_types = ["multiple_choice", "fill_in_blank", "translation"]
+        _other_types = []
 
     _type_labels = {
         "fill_in_blank":           i18n.get(native_lang, "fill_in_blank"),
@@ -2577,7 +2779,25 @@ def phase3_practice(session: LessonSession, tts_lang: str, wh_lang: str) -> bool
         "sentence_transformation": i18n.get(native_lang, "sentence_transformation"),
         "construction_drill":      i18n.get(native_lang, "construction_drill"),
         "target_grammar":          i18n.get(native_lang, "target_grammar"),
+        "situation":               i18n.get(native_lang, "situation_type"),
+        "find_mistake":            i18n.get(native_lang, "find_mistake_type"),
+        "contrast_pair":           i18n.get(native_lang, "pair_type"),
+        "followup_dialogue":       i18n.get(native_lang, "dialogue_type"),
     }
+    _type_descs = {
+        "situation":       i18n.get(native_lang, "situation_desc"),
+        "multiple_choice": i18n.get(native_lang, "multiple_choice_desc"),
+        "find_mistake":    i18n.get(native_lang, "find_mistake_desc"),
+        "followup_dialogue": i18n.get(native_lang, "dialogue_desc"),
+    } if module == "grammar" else {}
+    if _pair:
+        _grammar_df = _load_grammar(str(_module_config("grammar")["db_path"]), native_lang, target_lang)
+        _pair_names = get_grammar_topics(_grammar_df, native_lang=native_lang)
+        _type_descs["contrast_pair"] = (
+            f"{i18n.get(native_lang, 'pair_desc')}  \n"
+            f"**{_pair_names.get(session.state.lesson_id, '')}** ↔ "
+            f"**{_pair_names.get(_pair['lesson_id'], '')}**"
+        )
 
     st.markdown(f"**{i18n.get(native_lang, 'test_type_label')}**")
 
@@ -2588,28 +2808,48 @@ def phase3_practice(session: LessonSession, tts_lang: str, wh_lang: str) -> bool
     # its own card, above its own Generate button.
     _target_grammar_choice = None
     _clicked_type = None
-    _cols = st.columns(3)
-    for _i, _tt in enumerate(_test_types):
-        with _cols[_i % 3]:
-            with st.container(border=True):
-                st.markdown(f"**{_type_labels[_tt]}**")
-                if _tt == "target_grammar":
-                    _tg_idx = st.selectbox(
-                        i18n.get(native_lang, "target_grammar_topic_label"),
-                        range(len(_target_grammar_topics)),
-                        format_func=lambda i: (
-                            f"[{_target_grammar_topics[i]['level']}] {_target_grammar_topics[i]['title']} "
-                            f"({_target_grammar_topics[i]['gloss_en']})"
-                        ),
-                        key="p3_tg_topic",
-                        label_visibility="collapsed",
-                    )
-                    _target_grammar_choice = _target_grammar_topics[_tg_idx]
-                if st.button(
-                    i18n.get(native_lang, "generate_exercise"),
-                    key=f"p3_gen_{_tt}", use_container_width=True,
-                ):
-                    _clicked_type = _tt
+
+    def _type_card(_tt: str, _title: str) -> None:
+        nonlocal _target_grammar_choice, _clicked_type
+        with st.container(border=True):
+            st.markdown(f"**{_title}**")
+            if _type_descs.get(_tt):
+                st.caption(_type_descs[_tt])
+            if _tt == "target_grammar":
+                _tg_idx = st.selectbox(
+                    i18n.get(native_lang, "target_grammar_topic_label"),
+                    range(len(_target_grammar_topics)),
+                    format_func=lambda i: (
+                        f"[{_target_grammar_topics[i]['level']}] {_target_grammar_topics[i]['title']} "
+                        f"({_target_grammar_topics[i]['gloss_en']})"
+                    ),
+                    key="p3_tg_topic",
+                    label_visibility="collapsed",
+                )
+                _target_grammar_choice = _target_grammar_topics[_tg_idx]
+            if st.button(
+                i18n.get(native_lang, "generate_exercise"),
+                key=f"p3_gen_{_tt}", use_container_width=True,
+            ):
+                _clicked_type = _tt
+
+    if _other_types:
+        # Grammar: numbered main path, one card per row in the agreed order.
+        for _i, _tt in enumerate(_main_types):
+            _type_card(_tt, f"{_i + 1}. {_type_labels[_tt]}")
+        with st.expander(
+            i18n.get(native_lang, "other_exercises"),
+            expanded=st.session_state.get("p3_type") in _other_types,
+        ):
+            _cols = st.columns(3)
+            for _i, _tt in enumerate(_other_types):
+                with _cols[_i % 3]:
+                    _type_card(_tt, _type_labels[_tt])
+    else:
+        _cols = st.columns(3)
+        for _i, _tt in enumerate(_main_types):
+            with _cols[_i % 3]:
+                _type_card(_tt, _type_labels[_tt])
 
     if _clicked_type:
         st.session_state["p3_type"] = _clicked_type
@@ -2632,6 +2872,7 @@ def phase3_practice(session: LessonSession, tts_lang: str, wh_lang: str) -> bool
         try:
             with st.spinner(i18n.get(native_lang, "generating_ex")):
                 tg_unit_id = None
+                pair_units = None
                 if test_type == "construction_drill":
                     # Fresh sentences built from the lesson's own construction +
                     # level-appropriate vocabulary (engine.cefr_wordlist for
@@ -2690,6 +2931,59 @@ def phase3_practice(session: LessonSession, tts_lang: str, wh_lang: str) -> bool
                             for it in items
                         ],
                     }
+                elif test_type == "followup_dialogue":
+                    qs = _gemini.generate_dialogue_questions(
+                        level, topic, session.phrases(), target_lang, native_lang,
+                    ).get("questions", [])
+                    new_test = {
+                        "instructions": _type_descs.get("followup_dialogue", ""),
+                        "items": [],
+                        "questions": qs,
+                    }
+                elif test_type == "contrast_pair" and _pair:
+                    _en_names = get_grammar_topics(_grammar_df, native_lang="English")
+                    _b_rows = _grammar_df[_grammar_df["lesson_id"] == _pair["lesson_id"]]
+                    drill = _gemini.generate_contrast_pair(
+                        level,
+                        _en_names.get(session.state.lesson_id, topic), session.phrases(),
+                        _en_names.get(_pair["lesson_id"], ""), _b_rows.to_dict("records"),
+                        _pair["contrast"], target_lang, native_lang,
+                    )
+                    new_test = {
+                        "instructions": i18n.get(native_lang, "pair_desc"),
+                        "items": drill.get("items", []),
+                    }
+                    pair_units = {
+                        "A": session.state.unit_id,
+                        "B": _recommender.unit_id_for("grammar", _pair["lesson_id"]),
+                    }
+                elif test_type in ("situation", "find_mistake") or (
+                    test_type == "multiple_choice" and module == "grammar"
+                ):
+                    # Only this lesson's own phrases: the point is choosing
+                    # the form THIS lesson teaches against the forms it gets
+                    # confused with, not a mix of unrelated weak topics.
+                    past = (
+                        _recent_lesson_mistakes(session, target_lang)
+                        if test_type == "find_mistake" else None
+                    )
+                    new_test = _gemini.generate_practice_test(
+                        level, topic, target_lang, native_lang, test_type,
+                        phrases=session.phrases(), module=module,
+                        past_mistakes=past,
+                    )
+                    # For the typed exercises the model sometimes invents
+                    # answer options and writes "choose an option" into its
+                    # instructions — use our own fixed, translated
+                    # instruction and drop any options.
+                    if test_type in ("situation", "find_mistake"):
+                        new_test["instructions"] = _type_descs.get(test_type, "")
+                        for _it in new_test.get("items", []):
+                            _it["options"] = []
+                            # situation: native-language situation and the
+                            # target sentence with the gap come as two fields.
+                            if _it.get("situation"):
+                                _it["question"] = f"{_it['situation']}\n{_it.get('question', '')}"
                 else:
                     combined_phrases = session.phrases() + _extra_practice_phrases(
                         session, module, target_lang, native_lang,
@@ -2702,9 +2996,12 @@ def phase3_practice(session: LessonSession, tts_lang: str, wh_lang: str) -> bool
                 "type":       test_type,
                 "test":       new_test,
                 "answers":    {},
+                "why":        {},
+                "no_mistake": {},
                 "checked":    False,
                 "results":    [],
                 "tg_unit_id": tg_unit_id,
+                "pair_units": pair_units,
             })
         except _gemini.PaidFeatureRequired:
             _show_upsell("p3_gen")
@@ -2726,41 +3023,85 @@ def phase3_practice(session: LessonSession, tts_lang: str, wh_lang: str) -> bool
             if _test.get("instructions"):
                 st.markdown(f"*{_test['instructions']}*")
 
+            _asks_why = _ex_type in ("situation", "find_mistake")
+            if _ex_type == "followup_dialogue":
+                if _render_followup_dialogue(
+                    ex, ex_idx, session, topic, level, tts_lang, wh_lang,
+                ) == "upsell":
+                    return False
+                continue
             if not ex["checked"]:
                 for i, item in enumerate(_test.get("items", [])):
-                    st.markdown(f"**{i + 1}.** {item['question']}")
-                    if _ex_type == "multiple_choice" and item.get("options"):
+                    # Situation items carry "situation\nsentence with ___" —
+                    # a markdown hard break keeps them on two lines.
+                    st.markdown(f"**{i + 1}.** " + str(item["question"]).replace("\n", "  \n"))
+                    if _ex_type in ("multiple_choice", "contrast_pair") and item.get("options"):
                         choice = st.radio(
-                            "", item["options"],
+                            i18n.get(native_lang, "answer_label"), item["options"],
                             key=f"p3_ex{ex_idx}_q{i}", label_visibility="collapsed",
+                            index=None,
                         )
                         ex["answers"][i] = choice
+                    elif _ex_type == "find_mistake":
+                        no_mistake = st.checkbox(
+                            i18n.get(native_lang, "no_mistake_checkbox"),
+                            key=f"p3_ex{ex_idx}_nm{i}",
+                        )
+                        ex.setdefault("no_mistake", {})[i] = no_mistake
+                        ans = st.text_input(
+                            i18n.get(native_lang, "corrected_sentence_label"),
+                            key=f"p3_ex{ex_idx}_q{i}", disabled=no_mistake,
+                        )
+                        ex["answers"][i] = ans
                     else:
                         ans = st.text_input(
                             i18n.get(native_lang, "answer_label"), key=f"p3_ex{ex_idx}_q{i}"
                         )
                         ex["answers"][i] = ans
+                    if _asks_why:
+                        ex.setdefault("why", {})[i] = st.text_input(
+                            i18n.get(native_lang, "why_label"), key=f"p3_ex{ex_idx}_why{i}",
+                        )
 
                 if st.button(
                     i18n.get(native_lang, "check_btn"), type="primary", key=f"p3_check_{ex_idx}"
                 ):
                     results = []
                     _tg_correct_seq: list[bool] = []
+                    _pair_seq: dict[str, list[bool]] = {"A": [], "B": []}
                     try:
                         for i, item in enumerate(_test.get("items", [])):
                             student_ans = ex["answers"].get(i, "")
-                            if _ex_type == "multiple_choice":
+                            if _ex_type in ("multiple_choice", "contrast_pair"):
+                                student_ans = student_ans or ""
                                 passed = evaluate(student_ans, item["answer"])["passed"]
+                                # The ✅/❌ icon is rendered next to the feedback
+                                # already, and the right answer goes in the ✔
+                                # line below — so no icon or "Options: x" here.
                                 res = {
                                     "correct": passed,
-                                    "feedback": i18n.get(native_lang, "correct") if passed
-                                                else f"{i18n.get(native_lang, 'try_again')} {item['answer']}",
+                                    "feedback": i18n.get(native_lang, "correct").lstrip("✅ ") if passed else "",
                                 }
                             else:
+                                claims_correct = bool(ex.get("no_mistake", {}).get(i))
                                 res = _gemini.check_practice_answer(
                                     item["question"], student_ans, item["answer"],
                                     target_lang, native_lang,
+                                    explanation=ex.get("why", {}).get(i, "") if _asks_why else "",
+                                    claims_correct=claims_correct,
                                 )
+                                if claims_correct:
+                                    # "No mistake here" is a yes/no claim we can
+                                    # grade exactly — don't leave it to the model,
+                                    # and don't show its text when it disagrees.
+                                    truth = bool(item.get("is_correct"))
+                                    if bool(res.get("correct")) != truth:
+                                        res["feedback"] = i18n.get(
+                                            native_lang,
+                                            "correct" if truth else "find_mistake_missed",
+                                        )
+                                    res["correct"] = truth
+                                    student_ans = item["question"]
                             results.append(res)
                             if not res["correct"]:
                                 _pm = {
@@ -2776,7 +3117,25 @@ def phase3_practice(session: LessonSession, tts_lang: str, wh_lang: str) -> bool
                                 # answer now dings THIS lesson's mastery/SRS
                                 # too, same as a wrong Phase 2 phrase already
                                 # does).
-                                if _ex_type != "target_grammar":
+                                if _ex_type == "contrast_pair":
+                                    # Credited per lesson below, not through
+                                    # _record_mistake's topic classifier — we
+                                    # already know which of the two lessons
+                                    # this gap belongs to. Still logged for
+                                    # «Мої помилки», as the full sentence.
+                                    _side = item.get("lesson", "A")
+                                    _unit = (ex.get("pair_units") or {}).get(_side)
+                                    _pm["original"] = item["question"].replace("___", student_ans or "…")
+                                    _pm["corrected"] = item["question"].replace("___", item["answer"])
+                                    _pm["_units"] = [_unit] if _unit else []
+                                    try:
+                                        _mistakes.log_mistakes(
+                                            session.state.user_id, target_lang, "grammar",
+                                            [{**_pm, "unit_id": _unit, "phase": "practice"}],
+                                        )
+                                    except Exception:
+                                        pass
+                                elif _ex_type != "target_grammar":
                                     _record_mistake(session, target_lang, [_pm], phase="practice")
                                 _collect_error(
                                     student_ans, item["answer"],
@@ -2793,6 +3152,8 @@ def phase3_practice(session: LessonSession, tts_lang: str, wh_lang: str) -> bool
                             # click otherwise).
                             if _ex_type == "target_grammar" and ex.get("tg_unit_id"):
                                 _tg_correct_seq.append(res["correct"])
+                            if _ex_type == "contrast_pair":
+                                _pair_seq[item.get("lesson", "A")].append(res["correct"])
                         if _ex_type == "target_grammar" and ex.get("tg_unit_id") and _tg_correct_seq:
                             try:
                                 _recommender.record_results(
@@ -2801,6 +3162,18 @@ def phase3_practice(session: LessonSession, tts_lang: str, wh_lang: str) -> bool
                                 )
                             except Exception:
                                 pass
+                        # "Пара" writes to BOTH lessons' mastery/SRS — each
+                        # gap to the lesson whose form was the answer.
+                        if _ex_type == "contrast_pair":
+                            for _side, _seq in _pair_seq.items():
+                                _unit = (ex.get("pair_units") or {}).get(_side)
+                                if _unit and _seq:
+                                    try:
+                                        _recommender.record_results(
+                                            session.state.user_id, target_lang, _unit, _seq,
+                                        )
+                                    except Exception:
+                                        pass
                     except _gemini.PaidFeatureRequired:
                         _show_upsell(f"p3_check_{ex_idx}")
                         return False
@@ -2808,9 +3181,18 @@ def phase3_practice(session: LessonSession, tts_lang: str, wh_lang: str) -> bool
                     ex["checked"] = True
                     st.rerun()
             else:
+                _items = _test.get("items", [])
                 for i, res in enumerate(ex.get("results", [])):
                     icon = "✅" if res["correct"] else "❌"
                     st.markdown(f"{icon} **{i + 1}.** {res.get('feedback', '')}")
+                    # The model's feedback doesn't always spell the right
+                    # version out — always show it under a wrong answer.
+                    if not res["correct"] and i < len(_items) and _ex_type in (
+                        "situation", "find_mistake", "multiple_choice", "contrast_pair",
+                    ):
+                        st.caption(f"✔ {_items[i]['answer']}")
+                    if res.get("why_feedback"):
+                        st.caption(f"💡 {res['why_feedback']}")
 
     # ── Error review + phase completion, once at least one exercise has
     # been checked — same _phase_error_review used everywhere else, just no
@@ -3038,6 +3420,15 @@ def phase4_expression(session: LessonSession, tts_lang: str, wh_lang: str) -> bo
     return False
 
 
+def _scenario_label(key: str, native_lang: str) -> str:
+    """Roleplay scenario name for display. The scene labels stay as they
+    are; the lesson-linked "story with twists" is shown in the student's
+    language."""
+    if key == "story":
+        return "🌀 " + i18n.get(native_lang, "roleplay_story_label")
+    return _gemini.ROLEPLAY_SCENARIOS[key]["label"]
+
+
 def _phase4_roleplay(session: LessonSession, tts_lang: str, wh_lang: str) -> bool:
     """
     Voice-first roleplay mode for Phase 4 — student picks a scenario
@@ -3055,6 +3446,12 @@ def _phase4_roleplay(session: LessonSession, tts_lang: str, wh_lang: str) -> boo
     level       = _lesson_level(session)
 
     _init_errors("expression_roleplay")
+    # English grammar-point name for the "story with twists" scenario's
+    # prompt (other scenarios ignore it).
+    lesson_topic = (
+        get_grammar_topics(session.df, native_lang="English").get(session.state.lesson_id)
+        if _current_module() == "grammar" else None
+    )
 
     if "p4rp_bilingual" not in st.session_state:
         st.session_state["p4rp_bilingual"] = (level == "A1")
@@ -3067,15 +3464,17 @@ def _phase4_roleplay(session: LessonSession, tts_lang: str, wh_lang: str) -> boo
     # ── Scenario picker (before start) ──────────────────────────────────────
     if "p4rp_scenario" not in st.session_state:
         scenario_keys = list(_gemini.ROLEPLAY_SCENARIOS.keys())
-        labels = [_gemini.ROLEPLAY_SCENARIOS[k]["label"] for k in scenario_keys]
+        labels = [_scenario_label(k, native_lang) for k in scenario_keys]
         choice = st.selectbox(i18n.get(native_lang, "roleplay_scenario_label"), labels, key="p4rp_pick")
         chosen_key = scenario_keys[labels.index(choice)]
         if st.button(i18n.get(native_lang, "roleplay_start_btn"), type="primary", key="p4rp_start"):
             try:
                 with st.spinner("..."):
                     opener = _gemini.chat_with_tutor(
-                        [], _gemini._ROLEPLAY_KICKOFF, target_lang, level, native_lang,
-                        scenario_key=chosen_key,
+                        [],
+                        _gemini._STORY_KICKOFF if chosen_key == "story" else _gemini._ROLEPLAY_KICKOFF,
+                        target_lang, level, native_lang,
+                        scenario_key=chosen_key, lesson_topic=lesson_topic,
                     )
                     native_opener = None
                     if st.session_state.get("p4rp_bilingual"):
@@ -3097,7 +3496,7 @@ def _phase4_roleplay(session: LessonSession, tts_lang: str, wh_lang: str) -> boo
 
     col_rp_title, col_rp_reset = st.columns([5, 1])
     with col_rp_title:
-        st.markdown(f"### {scenario['label']}")
+        st.markdown(f"### {_scenario_label(st.session_state['p4rp_scenario'], native_lang)}")
     with col_rp_reset:
         if st.button(i18n.get(native_lang, "roleplay_change_btn"), key="p4rp_reset"):
             for _k in ("p4rp_scenario", "p4rp_history", "p4rp_native_opener", "p4rp_spoken_upto", "p4rp_ended"):
@@ -3106,7 +3505,10 @@ def _phase4_roleplay(session: LessonSession, tts_lang: str, wh_lang: str) -> boo
 
     for i, msg in enumerate(history):
         if msg["role"] == "model":
-            st.markdown(f"**{scenario['label'].split(' ', 1)[-1]}:** {msg['parts'][0]}")
+            _speaker = (i18n.get(native_lang, "chat_role_tutor")
+                        if st.session_state["p4rp_scenario"] == "story"
+                        else scenario["label"].split(" ", 1)[-1])
+            st.markdown(f"**{_speaker}:** {msg['parts'][0]}")
             if i == 0 and st.session_state.get("p4rp_native_opener"):
                 st.caption(f"🌐 {st.session_state['p4rp_native_opener']}")
         else:
@@ -3157,6 +3559,7 @@ def _phase4_roleplay(session: LessonSession, tts_lang: str, wh_lang: str) -> boo
                     reply = _gemini.chat_with_tutor(
                         history, user_msg, target_lang, level, native_lang,
                         scenario_key=st.session_state["p4rp_scenario"],
+                        lesson_topic=lesson_topic,
                     )
                 st.session_state["p4rp_history"] += [
                     {"role": "user",  "parts": [user_msg]},
@@ -3253,7 +3656,7 @@ def _text_ai_search_prompt(target_lang: str, native_lang: str, level: str, inter
     )
 
 
-def phase5_video(session: LessonSession) -> str | None:
+def phase5_video(session: LessonSession, tts_lang: str = "", wh_lang: str = "") -> str | None:
     """
     Phase 5: curated YouTube channels for the student's target language and
     CEFR level. Reads data/youtube_channels.csv — no live API calls.
@@ -3316,6 +3719,7 @@ def phase5_video(session: LessonSession) -> str | None:
         st.markdown(i18n.get(native_lang, "text_ai_search_intro"))
         st.code(_text_ai_search_prompt(target_lang, native_lang, level, interest), language=None)
 
+    _render_episode_lesson(session, target_lang, native_lang, level, wh_lang)
     _render_content_discussion(target_lang, native_lang, level)
 
     st.markdown("---")
@@ -3329,6 +3733,124 @@ def phase5_video(session: LessonSession) -> str | None:
                      use_container_width=True, key="p5_done"):
             return "menu"
     return None
+
+
+def _render_episode_lesson(
+    session: LessonSession, target_lang: str, native_lang: str, level: str, wh_lang: str,
+) -> None:
+    """
+    "Lesson around an episode" (2026-10-04, from Наталья's Ted Lasso lesson):
+    the student names what they'll watch (optionally pastes a description or
+    subtitles) and gets a before-watching block — theme questions, a
+    prediction from the title, words to listen for — and after-watching
+    questions to answer by text or voice. One grammar check over all answers
+    at the end, mistakes recorded like Step 8 / the Practice dialogue.
+    Plot questions only from a pasted description (gemini.
+    generate_episode_lesson refuses to guess plot facts). All levels — B2+
+    students, who get no curated channels, need this most, so it opens
+    expanded there.
+    """
+    beyond = _recommender.CEFR_RANK.get(level, 0) >= _recommender.CEFR_RANK["B2"]
+    show_native = _recommender.CEFR_RANK.get(level, 0) <= _recommender.CEFR_RANK["A2"]
+    with st.expander(i18n.get(native_lang, "episode_title"), expanded=beyond or "p5ep_lesson" in st.session_state):
+        lesson = st.session_state.get("p5ep_lesson")
+        if lesson is None:
+            st.markdown(i18n.get(native_lang, "episode_intro"))
+            title = st.text_input(
+                i18n.get(native_lang, "episode_title_label"),
+                placeholder=i18n.get(native_lang, "episode_title_placeholder"), key="p5ep_title",
+            )
+            desc = st.text_area(i18n.get(native_lang, "episode_desc_label"), key="p5ep_desc")
+            if st.button(i18n.get(native_lang, "episode_prepare_btn"), type="primary",
+                         key="p5ep_go") and title.strip():
+                try:
+                    with st.spinner(i18n.get(native_lang, "episode_spinner")):
+                        lesson = _gemini.generate_episode_lesson(
+                            title.strip(), desc, level, target_lang, native_lang,
+                        )
+                except _gemini.PaidFeatureRequired:
+                    _show_upsell("p5ep_go")
+                    return
+                if not lesson["after"]["questions"]:
+                    st.warning(i18n.get(native_lang, "dialogue_no_questions"))
+                    return
+                st.session_state["p5ep_lesson"] = {**lesson, "title": title.strip(),
+                                                   "answers": {}, "checked": False, "errors": []}
+                st.rerun()
+            return
+
+        def _q(q: dict) -> None:
+            st.markdown(f"- {q['target']}")
+            if show_native and q.get("native"):
+                st.caption(f"🌐 {q['native']}")
+
+        st.markdown(f"#### 🎬 {lesson['title']}")
+        if st.button(i18n.get(native_lang, "episode_new_btn"), key="p5ep_reset"):
+            st.session_state.pop("p5ep_lesson", None)
+            st.rerun()
+
+        st.markdown(f"**{i18n.get(native_lang, 'episode_before_header')}**")
+        for q in lesson["before"]["questions"]:
+            _q(q)
+        if lesson["before"]["prediction"].get("target"):
+            st.markdown(f"**{i18n.get(native_lang, 'episode_prediction_header')}**")
+            _q(lesson["before"]["prediction"])
+        if lesson["before"]["vocab"]:
+            st.markdown(f"**{i18n.get(native_lang, 'episode_vocab_header')}**")
+            for v in lesson["before"]["vocab"]:
+                st.markdown(f"- **{v['word']}** — {v.get('native', '')}")
+                if v.get("example"):
+                    st.caption(v["example"])
+
+        st.markdown("---")
+        st.markdown(f"**{i18n.get(native_lang, 'episode_after_header')}**")
+        _opt_text, _opt_voice = i18n.get(native_lang, "text_opt"), i18n.get(native_lang, "voice_opt")
+        for i, q in enumerate(lesson["after"]["questions"]):
+            st.markdown(f"**{i + 1}.** {q['target']}")
+            if show_native and q.get("native"):
+                st.caption(f"🌐 {q['native']}")
+            if lesson["checked"]:
+                if lesson["answers"].get(i):
+                    st.markdown(f"> {lesson['answers'][i]}")
+                continue
+            mode = st.radio(i18n.get(native_lang, "mode_label"), [_opt_text, _opt_voice],
+                            horizontal=True, key=f"p5ep_mode{i}", label_visibility="collapsed")
+            if mode == _opt_text:
+                lesson["answers"][i] = st.text_area(
+                    i18n.get(native_lang, "write_answer"), key=f"p5ep_a{i}",
+                    value=lesson["answers"].get(i, ""), label_visibility="collapsed",
+                )
+            else:
+                audio = audio_input(f"p5ep_v{i}")
+                if audio and st.session_state.get(f"p5ep_vdone{i}") != hash(audio):
+                    with st.spinner(i18n.get(native_lang, "transcribing_spinner")):
+                        lesson["answers"][i] = transcribe_bytes(audio, language=wh_lang) or ""
+                    st.session_state[f"p5ep_vdone{i}"] = hash(audio)
+                if lesson["answers"].get(i):
+                    st.markdown(f"> {lesson['answers'][i]}")
+
+        if not lesson["checked"]:
+            answers = [a.strip() for a in lesson["answers"].values() if a and a.strip()]
+            if st.button(i18n.get(native_lang, "dialogue_check_btn"), type="primary",
+                         key="p5ep_check", disabled=not answers):
+                try:
+                    with st.spinner(i18n.get(native_lang, "checking_grammar_spinner")):
+                        correction = _gemini.correct_grammar(" ".join(answers), target_lang, native_lang)
+                except _gemini.PaidFeatureRequired:
+                    _show_upsell("p5ep_check_up")
+                    return
+                _record_step8_outcome(session, [{"correction": correction}], phase="video")
+                lesson["errors"] = correction.get("errors", [])
+                lesson["checked"] = True
+                st.rerun()
+            return
+
+        if not lesson["errors"]:
+            st.success(i18n.get(native_lang, "dialogue_no_errors"))
+        for err in lesson["errors"]:
+            st.markdown(f"❌ ~~{err['original']}~~ → **{err['fixed']}**")
+            if err.get("explanation"):
+                st.caption(err["explanation"])
 
 
 def _render_content_discussion(target_lang: str, native_lang: str, level: str) -> None:
@@ -3858,8 +4380,11 @@ def main(module: str = "grammar"):
 
     # ── Phase 6: YouTube Video ────────────────────────────────────────────────
     if _phase == 6:
-        _p5_action = phase5_video(sess)
+        _p5_action = phase5_video(sess, tts, wh)
         if _p5_action:
+            # The episode lesson belongs to this lesson's Video screen only.
+            for _k in [k for k in st.session_state if k.startswith("p5ep_")]:
+                st.session_state.pop(_k, None)
             # Whole-lesson gamification (bonus XP, streak, lessons_completed,
             # badges) — CLAUDE.md 2026-08-23: on_lesson_complete() existed
             # and worked (engine/gamification.py, same call reading_app.py
