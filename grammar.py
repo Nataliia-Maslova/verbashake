@@ -4252,13 +4252,11 @@ def main(module: str = "grammar"):
         6: i18n.get(_nl, "phase_video"),
     }
     _phase = st.session_state.get("lesson_phase", 1)
-    # Reading is mandatory, not skippable (Natalia was explicit: unlike
-    # Warmup's Skip button, this step should actually be gone through, not
-    # bypassed) -- "Новий матеріал" (and everything after it, since you can't
-    # reach Practice/Speaking/Video without passing through Material first
-    # in the normal flow anyway) stays locked until it's done. Reading/
-    # Warmup themselves are never locked -- a student can always go back and
-    # replay what they've already finished.
+    # "Новий матеріал" and everything after it stay locked until Reading is
+    # done — or skipped: since 2026-10-04 (Наталья) every phase from Reading
+    # to Speaking has a "Пропустити →" button like Warmup (_phase_skip_button
+    # below), which marks Reading as done. Reading/Warmup themselves are
+    # never locked — a student can always go back and replay them.
     _reading_done = bool(st.session_state.get("reading_step_done"))
     # Clickable phase navigation. Scoped font-size cut for this row only --
     # some translated single-word labels ("Висловлювання") are long enough
@@ -4291,6 +4289,22 @@ def main(module: str = "grammar"):
                                  help=i18n.get(_nl, "phase_reading_locked_help") if _locked else None):
                         st.session_state["lesson_phase"] = k
                         st.rerun()
+
+    # "Пропустити →" for Reading, New Material, Practice and Speaking (Warmup
+    # has its own inside phase1_warmup; Video is the last screen). Skipping
+    # records nothing — no mastery, no mistakes, the lesson isn't marked done.
+    if 2 <= _phase <= 5:
+        _sk_l, _sk_r = st.columns([4, 1.5])
+        with _sk_r:
+            if st.button(i18n.get(_nl, "skip"), key=f"phase_skip_{_phase}"):
+                if _phase == 2:
+                    st.session_state["reading_step_done"] = True
+                elif _phase == 3:
+                    st.session_state["lesson_step"] = 1
+                elif _phase == 4:
+                    st.session_state.pop("p3_exercises", None)
+                st.session_state["lesson_phase"] = _phase + 1
+                st.rerun()
 
     # ── Phase 1: Rozminka ─────────────────────────────────────────────────────
     if _phase == 1:
