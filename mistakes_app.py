@@ -83,6 +83,7 @@ def main() -> None:
             ("reading",    "🔤", i18n.get(native, "module_reading")),
             ("custom",     "📝", i18n.get(native, "module_custom")),
             ("search",     "🔍", i18n.get(native, "search_title")),
+            ("songs",      "🎵", i18n.get(native, "module_songs")),
             ("mistakes",   "✏️", i18n.get(native, "mistakes_title")),
         ):
             _is_current = (_mk == "mistakes")

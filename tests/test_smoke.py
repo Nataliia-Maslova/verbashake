@@ -831,3 +831,111 @@ def test_every_language_path_lesson_is_placed_next_to_a_real_lesson():
             assert a in base, (lang, lid, a)
         order = sort_lessons(base | own)
         assert order[-1] == 173, (lang, order[-5:])   # none left at the end
+
+
+# ── Songs module (2026-10-04) ──
+
+def test_analyze_song_numbers_lines_quotes_untrusted_and_validates_reply(monkeypatch):
+    from engine import gemini
+    reply = ('{"detected_language": "English", '
+             '"translations": [{"line": 1, "text": "Я чекав"}, {"line": 9, "text": "out of range"}], '
+             '"vocab": [{"word": "wait", "line": 1, "level": "A1", "native": "чекати"}, '
+             '{"word": "gonna", "line": 2, "level": "B1", "native": "збираюся"}], '
+             '"grammar": [{"line": 1, "fragment": "I have been waiting here all night long for you baby", '
+             '"structure": "PPC", "lesson_id": 185}, '
+             '{"line": 2, "fragment": "x", "structure": "made-up lesson", "lesson_id": 99999}, '
+             '{"line": 2, "fragment": "y", "structure": "PPC again", "lesson_id": 185}], '
+             '"song_language": [{"line": 2, "fragment": "gonna call", "standard": "going to call"}]}')
+    seen = _capture_prompt_model(monkeypatch, reply)
+    out = _raw(gemini.analyze_song)(
+        "Song «x»", ["I've been waiting", "You gonna call", ""], "B1", "English", "Ukrainian",
+        [{"id": 185, "level": "B2", "topic": "Present Perfect Continuous", "example": "I have been working."}],
+    )
+    p = seen["prompts"][0]
+    assert "[1] «I've been waiting»" in p and "[2] «You gonna call»" in p and "[3]" not in p
+    assert "185 | B2 | Present Perfect Continuous" in p
+    assert out["translations"] == {1: "Я чекав"}                      # line 9 dropped
+    assert [v["word"] for v in out["vocab"]] == ["wait"]               # slang filtered out
+    assert [g["lesson_id"] for g in out["grammar"]] == [185, None]     # unknown id -> None, duplicate dropped
+    assert len(out["grammar"][0]["fragment"].split()) <= gemini.SONG_FRAGMENT_MAX_WORDS
+    assert out["language_ok"] is True
+
+
+def test_analyze_song_empty_reply_raises(monkeypatch):
+    import pytest
+    from engine import gemini
+    _capture_prompt_model(monkeypatch, "")
+    with pytest.raises(ValueError):
+        _raw(gemini.analyze_song)("t", ["a line"], "A1", "Spanish", "Ukrainian", [])
+
+
+def test_analyze_song_flags_other_language():
+    from engine import gemini
+    out = gemini._clean_song_analysis(
+        {"detected_language": "Spanish", "translations": [{"line": 1, "text": "x"}]}, 1, set(), "English")
+    assert out["language_ok"] is False
+
+
+def test_songs_split_lyrics_and_level_filters():
+    import songs_app
+    assert songs_app.split_lyrics("[Chorus]\n  Hello  \n\nWorld\n") == ["Hello", "World"]
+    mine, other = songs_app.split_vocab_by_level(
+        [{"word": "A", "level": "B1"}, {"word": "B", "level": "A1"},
+         {"word": "C", "level": "C1"}, {"word": "D", "level": ""}], "A2", "Spanish")
+    assert [v["word"] for v in mine] == ["A", "D"] and [v["word"] for v in other] == ["B", "C"]
+    by_id = {176: {"level": "C1"}, 185: {"level": "B2"}}
+    gm, gh = songs_app.split_grammar_by_level(
+        [{"lesson_id": 176, "level": "A1"}, {"lesson_id": 185}, {"lesson_id": None, "level": "C2"}],
+        "B1", by_id)
+    assert [g["level"] for g in gm] == ["B2"] and [g["level"] for g in gh] == ["C1", "C2"]
+
+
+def test_songs_lesson_catalog_covers_language_paths_and_hides_verb_lists():
+    import songs_app
+    from engine.verb_form_topics import ENGLISH_PIVOT_VERB_LESSONS
+    ids = {l["id"] for l in songs_app._lesson_catalog("Ukrainian", "Spanish")}
+    assert 1020 in ids and 185 in ids                                 # ser/estar + base lessons
+    assert not ids & set(ENGLISH_PIVOT_VERB_LESSONS)
+    en_ids = {l["id"] for l in songs_app._lesson_catalog("Ukrainian", "English")}
+    assert not en_ids & set(ENGLISH_PIVOT_VERB_LESSONS)
+
+
+def test_pinned_lessons_come_first_on_my_path_until_mastered(monkeypatch):
+    from engine import recommender, path_pins
+    units = {"grammar:185": {"unit_id": "grammar:185", "module": "grammar", "topic": "PPC", "level": "B2"},
+             "grammar:1": {"unit_id": "grammar:1", "module": "grammar", "topic": "T1", "level": "A1"}}
+    monkeypatch.setattr(recommender, "_phase_path", lambda u, l, n: [units["grammar:1"]])
+    monkeypatch.setattr(recommender, "_candidates", lambda lang, module=None: list(units.values()))
+    monkeypatch.setattr(path_pins, "list_pins", lambda u, l: [{"unit_id": "grammar:185", "source": "Song"},
+                                                              {"unit_id": "grammar:9999", "source": "gone"}])
+    monkeypatch.setattr(recommender, "_mastery_map", lambda u, l: {})
+    out = recommender.get_path_next("u", "English", limit=6)
+    assert [u["unit_id"] for u in out] == ["grammar:185", "grammar:1"]
+    assert out[0]["pinned_source"] == "Song"
+    monkeypatch.setattr(recommender, "_mastery_map",
+                        lambda u, l: {("grammar", "PPC"): {"score": recommender.GRAMMAR_ADVANCE_THRESHOLD}})
+    assert [u["unit_id"] for u in recommender.get_path_next("u", "English")] == ["grammar:1"]
+
+
+@pytest.mark.parametrize("lang", sorted(i18n.LANG_TO_CODE))
+def test_songs_i18n_keys_resolve_with_same_placeholders(lang):
+    import string
+    keys = [k for k in i18n.STRINGS["en"] if k.startswith("songs_") or k == "module_songs"]
+    assert len(keys) >= 30
+
+    def ph(s):
+        return {f for _, f, _, _ in string.Formatter().parse(s) if f}
+    for k in keys:
+        v = i18n.get(lang, k)
+        assert v and ph(v) == ph(i18n.STRINGS["en"][k]), (lang, k, v)
+
+
+def test_songs_catalog_titles_never_nan_and_default_level_takes_higher(monkeypatch):
+    import songs_app
+    for l in songs_app._lesson_catalog("Ukrainian", "Spanish"):
+        assert l["title"] and l["title"].lower() != "nan", l
+    monkeypatch.setattr(songs_app._recommender, "current_level", lambda u, t: "A1")
+    monkeypatch.setattr(songs_app._user_prefs, "get_profile",
+                        lambda u: {"target_lang": "Spanish", "self_level": "B2"})
+    assert songs_app.default_level("u", "Spanish") == "B2"
+    assert songs_app.default_level("u", "French") == "A1"    # self level was for another language

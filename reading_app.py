@@ -1201,6 +1201,7 @@ def _render_module_nav_sidebar(current_module: str) -> None:
         ("reading",    "🔤", i18n.get(_sb_native, "module_reading")),
         ("custom",     "📝", i18n.get(_sb_native, "module_custom")),
         ("search",     "🔍", i18n.get(_sb_native, "search_title")),
+        ("songs",      "🎵", i18n.get(_sb_native, "module_songs")),
         ("mistakes",   "✏️", i18n.get(_sb_native, "mistakes_title")),
     ]
     st.markdown(

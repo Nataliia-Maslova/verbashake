@@ -583,7 +583,19 @@ def get_path_next(user_id: str, target_lang: str, limit: int = 6) -> list[dict]:
          grammar advances one lesson at a time via its mastery-gated
          frontier, everything else keeps free score-based mixing
          (_normal_path).
+
+    Lessons the student pinned themselves (engine/path_pins.py, e.g. "➕ В мій
+    шлях" in the Songs module) come before all three, until mastered.
     """
+    pinned = _pinned_units(user_id, target_lang)
+    base = _phase_path(user_id, target_lang, limit)
+    if not pinned:
+        return base
+    seen = {u["unit_id"] for u in pinned}
+    return (pinned + [u for u in base if u["unit_id"] not in seen])[:limit]
+
+
+def _phase_path(user_id: str, target_lang: str, limit: int) -> list[dict]:
     done, total = _reading_progress(user_id, target_lang)
     if total == 0:
         return _normal_path(user_id, target_lang, limit)
@@ -597,6 +609,33 @@ def get_path_next(user_id: str, target_lang: str, limit: int = 6) -> list[dict]:
     if done < total:
         return _interleave_path(user_id, target_lang, limit)
     return _normal_path(user_id, target_lang, limit)
+
+
+def _pinned_units(user_id: str, target_lang: str) -> list[dict]:
+    """Lessons the student added to My Path themselves (engine/path_pins.py,
+    e.g. from a song) — shown before the regular order, oldest first, until
+    the lesson's topic reaches GRAMMAR_ADVANCE_THRESHOLD. Each returned row
+    carries "pinned_source" (the song title) for My Path's card. Only units
+    still in this language's catalog (_candidates) count."""
+    from engine import path_pins
+    pins = path_pins.list_pins(user_id, target_lang)
+    if not pins:
+        return []
+    try:
+        catalog = {u["unit_id"]: u for u in _candidates(target_lang)}
+        mastery = _mastery_map(user_id, target_lang)
+    except Exception:
+        return []
+    out = []
+    for p in pins:
+        unit = catalog.get(p["unit_id"])
+        if unit is None or unit["module"] == "target_grammar":
+            continue
+        row = mastery.get((unit["module"], _mastery_topic(unit["topic"])))
+        if row and row["score"] >= GRAMMAR_ADVANCE_THRESHOLD:
+            continue
+        out.append({**unit, "pinned_source": p.get("source")})
+    return out
 
 
 # ── Recording results ───────────────────────────────────────────────────────

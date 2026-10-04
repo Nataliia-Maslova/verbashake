@@ -25,6 +25,7 @@ Flow:
 from __future__ import annotations
 
 import base64
+import html as _html
 import datetime as _dt
 from pathlib import Path
 from urllib.parse import quote as _quote
@@ -39,6 +40,7 @@ from engine import i18n
 from engine import user_prefs as _user_prefs
 from engine import literacy as _literacy
 from engine import mistakes as _mistakes
+from engine import path_pins as _path_pins
 
 ROOT        = Path(__file__).parent
 APP_IMG_DIR = ROOT / "static" / "app_images"
@@ -82,6 +84,7 @@ _SHORTCUT_MODULES = [
     ("reading",    "🔤", APP_IMG_DIR / "reading_banner.jpg"),
     ("custom",     "📝", APP_IMG_DIR / "my_phrases_banner.jpg"),
     ("search",     "🔍", APP_IMG_DIR / "search_banner.jpg"),
+    ("songs",      "🎵", APP_IMG_DIR / "songs_banner.jpg"),
 ]
 
 # Module display names all route through this instead of a 4th hardcoded
@@ -94,6 +97,7 @@ _MODULE_I18N_KEY = {
     "grammar": "module_grammar", "vocab": "module_vocab",
     "phrasebook": "module_phrasebook", "reading": "module_reading",
     "custom": "module_custom", "search": "search_title", "path": "module_path",
+    "songs": "module_songs",
 }
 
 
@@ -277,7 +281,7 @@ def _render_schedule_badge(user: str, native: str) -> None:
 # ── Internal helpers ─────────────────────────────────────────────────────────
 
 def _launch_unit(unit: dict, user: str, native: str, target: str,
-                  return_module: str = "path") -> None:
+                  return_module: str = "path", phase: str | None = None) -> None:
     """
     Set up session state so that the next rerun lands inside the right module
     at the right lesson.  Uses the existing vnav_lesson query-param bridge
@@ -288,6 +292,9 @@ def _launch_unit(unit: dict, user: str, native: str, target: str,
     is this function's original caller). search_app.py passes "search" so a
     lesson opened from a search hit returns to the search results instead
     of always landing on My Path.
+
+    phase="practice" (grammar only): open the lesson straight on Practice
+    instead of Warmup — the Songs module's "Потренувати зараз".
     """
     parsed = _recommender.parse_unit_id(unit["unit_id"])
     utype  = parsed["module"]
@@ -314,6 +321,8 @@ def _launch_unit(unit: dict, user: str, native: str, target: str,
             "vnav_target":  _quote(target),
             "vnav_user":    _quote(user),
         })
+        if phase == "practice":
+            st.query_params["vnav_phase"] = "practice"
     elif utype == "vocab":
         st.session_state["active_module"] = "vocab"
         st.query_params.update({
@@ -585,6 +594,8 @@ def main() -> None:
     sub = f"{i18n.get(native, 'word_lesson')} {_num}"
     if unit.get("level"):
         sub += f" · {unit['level']}"
+    if unit.get("pinned_source"):
+        sub += " · " + i18n.get(native, "songs_pinned_badge").format(song=_html.escape(unit["pinned_source"]))
 
     left, right = st.columns([4, 1])
     with left:
@@ -624,4 +635,7 @@ def main() -> None:
         # No fixed sequence to advance past — nudge this unit's SRS due date
         # forward so a different lesson surfaces next time.
         _recommender.record_result(user, target, unit["unit_id"], correct=True)
+        # A lesson the student pinned themselves (e.g. from a song) would
+        # otherwise stay first until mastered -- skipping it means "not now".
+        _path_pins.remove(user, target, unit["unit_id"])
         st.rerun()

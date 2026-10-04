@@ -1349,6 +1349,9 @@ def render_setup():
                 # let anyone edit the address bar to read/write another
                 # user's progress.
                 _qp_user   = st.session_state.get("launcher_user", "student1")
+                # path_app._launch_unit(phase="practice") -- the Songs module's
+                # "Потренувати зараз" opens the lesson on Practice directly.
+                _qp_practice = _qp.get("vnav_phase") == "practice"
                 if _qp_native not in LANGUAGES:
                     _qp_native = "English"
                 if _qp_target not in LANGUAGES or _qp_target == _qp_native:
@@ -1377,8 +1380,8 @@ def render_setup():
                         # below -- this deep-link path (wave-nav clicks, direct
                         # ?vnav_lesson= URLs) can also fire while a different
                         # lesson is already mid-session.
-                        "lesson_phase":      1,
-                        "reading_step_done": False,
+                        "lesson_phase":      4 if _qp_practice else 1,
+                        "reading_step_done": _qp_practice,
                         "tts_lang":    TTS_LANG.get(_qp_target, "en"),
                         "wh_lang":     WHISPER_LANG.get(_qp_target),
                         "lang_pair":   _qp_lp,
@@ -1806,6 +1809,10 @@ def _clear_all(go_home: bool = False):
     # unset, and otherwise silently sent the student back to the screen they
     # came from instead. Don't default _return_module to "path" here.
     _return_module = None if go_home else st.session_state.get("_return_module")
+    # Songs module: the student's pasted lyrics + analysis live only in
+    # session_state (never stored) -- keep them so "back" lands on the same song.
+    if _return_module == "songs" and "songs_work" in st.session_state:
+        _keep["songs_work"] = st.session_state["songs_work"]
     for k in list(st.session_state):
         del st.session_state[k]
     st.session_state.update(_keep)
@@ -4095,6 +4102,7 @@ def main(module: str = "grammar"):
             ("reading",    "🔤", i18n.get(_sb_native, "module_reading")),
             ("custom",     "📝", i18n.get(_sb_native, "module_custom")),
             ("search",     "🔍", i18n.get(_sb_native, "search_title")),
+            ("songs",      "🎵", i18n.get(_sb_native, "module_songs")),
             ("mistakes",   "✏️", i18n.get(_sb_native, "mistakes_title")),
         ]
         st.markdown(

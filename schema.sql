@@ -413,6 +413,19 @@ CREATE TABLE IF NOT EXISTS user_mistakes (
 );
 CREATE INDEX IF NOT EXISTS idx_user_mistakes_user ON user_mistakes (user_id, target_lang, resolved_at);
 
+-- ── path_pins ───────────────────────────────────────────────────────────────
+-- Lessons the student added to My Path themselves (2026-10-04, first from the
+-- Songs module). engine/recommender.get_path_next() shows them first until
+-- the lesson's topic is mastered; `source` is a human label (song title).
+CREATE TABLE IF NOT EXISTS path_pins (
+    user_id      TEXT NOT NULL,
+    target_lang  TEXT NOT NULL,
+    unit_id      TEXT NOT NULL,
+    source       TEXT,
+    created_at   TIMESTAMPTZ NOT NULL DEFAULT now(),
+    PRIMARY KEY (user_id, target_lang, unit_id)
+);
+
 -- ── Row-Level Security ──────────────────────────────────────────────────────
 -- Supabase auto-publishes every table in `public` over its PostgREST API
 -- under the (non-secret) anon key -- without RLS, anyone with the project URL
@@ -440,3 +453,4 @@ ALTER TABLE language_literacy    ENABLE ROW LEVEL SECURITY;
 ALTER TABLE user_feedback        ENABLE ROW LEVEL SECURITY;
 ALTER TABLE app_errors           ENABLE ROW LEVEL SECURITY;
 ALTER TABLE user_mistakes         ENABLE ROW LEVEL SECURITY;
+ALTER TABLE path_pins            ENABLE ROW LEVEL SECURITY;
