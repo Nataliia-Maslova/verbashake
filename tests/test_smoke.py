@@ -627,18 +627,32 @@ def test_practice_i18n_keys_resolve_everywhere():
         assert i18n.get(lang, "no_mistake_checkbox").startswith("✓"), lang
 
 
-def test_drop_ambiguous_items_removes_flagged_and_keeps_minimum(monkeypatch):
+def test_drop_ambiguous_items_keeps_only_items_where_just_the_key_works(monkeypatch):
     from engine import gemini
-    items = [{"question": f"q{i}", "answer": "a", "is_correct": False} for i in range(4)]
-    _capture_prompt_model(monkeypatch, '{"flagged": [1, 3]}')
-    kept = gemini._drop_ambiguous_items("find_mistake", items, "English")
-    assert [it["question"] for it in kept] == ["q0", "q2"]
+    items = [
+        {"question": "I ___ him yesterday.", "options": ["saw", "have seen"], "answer": "saw"},
+        {"question": "She ___ her passport.", "options": ["has lost", "lost"], "answer": "has lost"},
+        {"question": "I ___ here since 2015.", "options": ["have lived", "lived"], "answer": "have lived"},
+    ]
+    # per-sentence verdicts, in order: item0 (saw ok, have seen no), item1 (both ok), item2 (key ok)
+    seen = _capture_prompt_model(monkeypatch, '{"ok": [true, false, true, true, true, false]}')
+    kept = gemini._drop_ambiguous_items("multiple_choice", items, "English")
+    assert [it["question"] for it in kept] == ["I ___ him yesterday.", "I ___ here since 2015."]
+    p = seen["prompts"][0]
+    assert "She has lost her passport." in p and "She lost her passport." in p   # options filled in
     # would leave < 2 items -> original list kept
-    _capture_prompt_model(monkeypatch, '{"flagged": [0, 1, 2]}')
-    assert gemini._drop_ambiguous_items("find_mistake", items, "English") == items
-    # bools are not indices
-    _capture_prompt_model(monkeypatch, '{"flagged": [true]}')
-    assert len(gemini._drop_ambiguous_items("multiple_choice", items, "English")) == 4
+    _capture_prompt_model(monkeypatch, '{"ok": [true, true, true, true, true, true]}')
+    assert gemini._drop_ambiguous_items("multiple_choice", items, "English") == items
+    # wrong-length answer -> unchanged
+    _capture_prompt_model(monkeypatch, '{"ok": [true]}')
+    assert gemini._drop_ambiguous_items("multiple_choice", items, "English") == items
+
+
+def test_fill_gaps_handles_two_gaps_and_mismatch():
+    from engine import gemini
+    assert gemini._fill_gaps("___ you ever ___ to Japan?", "Have / been") == "Have you ever been to Japan?"
+    assert gemini._fill_gaps("I ______ it.", "did") == "I did it."
+    assert gemini._fill_gaps("___ you ___ it?", "Did") is None
 
 
 def test_drop_ambiguous_items_survives_model_failure(monkeypatch):
@@ -653,11 +667,13 @@ def test_drop_ambiguous_items_survives_model_failure(monkeypatch):
 
 def test_drop_ambiguous_items_keeps_one_correct_sentence(monkeypatch):
     from engine import gemini
-    items = [{"question": "w0", "is_correct": False}, {"question": "ok", "is_correct": True},
-             {"question": "w2", "is_correct": False}, {"question": "w3", "is_correct": False}]
-    _capture_prompt_model(monkeypatch, '{"flagged": [1]}')
+    items = [{"question": "w0", "answer": "f0", "is_correct": False}, {"question": "ok", "answer": "ok", "is_correct": True},
+             {"question": "w2", "answer": "f2", "is_correct": False}, {"question": "w3", "answer": "f3", "is_correct": False}]
+    # checks: w0 q, w0 fix, ok q, w2 q, w2 fix, w3 q, w3 fix
+    # w0: "wrong" sentence judged fine -> unfair, dropped; correct one judged wrong -> dropped, then restored? no (judged wrong)
+    _capture_prompt_model(monkeypatch, '{"ok": [true, true, true, false, true, false, true]}')
     kept = gemini._drop_ambiguous_items("find_mistake", items, "English")
-    assert any(it["is_correct"] for it in kept) and len(kept) == 4
+    assert [it["question"] for it in kept] == ["ok", "w2", "w3"]
 
 
 # ── "Пара" Practice exercise (2026-10-04) ──

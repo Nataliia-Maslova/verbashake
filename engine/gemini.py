@@ -22,6 +22,7 @@ from __future__ import annotations
 
 import functools
 import json
+import re
 import os
 import random
 
@@ -955,7 +956,16 @@ _TEST_TYPE_GUIDANCE = {
         "wrong IN THAT SENTENCE (not just less common). The sentence with "
         "the key put into the gap must be fully grammatical with natural "
         "word order — keep adverbs like 'yet' or 'already' outside the gap "
-        "unless they really belong exactly there."
+        "unless they really belong exactly there. " +
+        "Every item must contain a marker that makes only ONE form possible "
+        "in EVERY standard variety of the language. For English Past Simple "
+        "vs Present Perfect: a finished-time marker (yesterday, ago, last "
+        "week, in 2019, When...?) for the Past Simple; for/since with a "
+        "situation that still continues, 'This is the first time...' or "
+        "'so far' for the Present Perfect. Avoid just/already/yet/ever and "
+        "'past event with a present result' contexts ('She lost her "
+        "passport, so she can't travel') — American English accepts the "
+        "Past Simple there. "
     ),
     "find_mistake": (
         "This is a FIND THE MISTAKE drill. Each item's \"question\" is one "
@@ -1089,68 +1099,119 @@ def generate_practice_test(
     return test
 
 
+_GAP_RE = re.compile(r"_{2,}")
+
+
+def _fill_gaps(question: str, option: str) -> str | None:
+    """'I ___ him ___.' + 'have / seen' -> 'I have him seen.'-style fill: one
+    option part per gap, in order. None if the parts don't match the gaps."""
+    gaps = _GAP_RE.findall(question)
+    parts = [p.strip() for p in option.split(" / ")] if len(gaps) > 1 else [option.strip()]
+    if not gaps or len(parts) != len(gaps):
+        return None
+    out = question
+    for part in parts:
+        out = _GAP_RE.sub(part, out, count=1)
+    return out
+
+
 def _drop_ambiguous_items(test_type: str, items: list[dict], target_lang: str) -> list[dict]:
     """
     Second, independent pass over a generated multiple_choice / find_mistake
-    test (2026-10-04): the generator itself keeps producing items that are
-    unfair to grade — a "mistake" that is normal American/British usage
-    ("They didn't see that movie yet", "the team have decided"), or a
-    multiple-choice gap where two options both work ("Look at the children
-    ___ in the park": play / playing). Prompt rules alone didn't stop it, so a
-    separate call reviews the finished items and those it flags are dropped.
+    / contrast-pair test (2026-10-04): the generator keeps producing items
+    that are unfair to grade — a "mistake" that is normal American/British
+    usage ("They didn't see that movie yet", "the team have decided"), or a
+    gap where two options both work ("Look at the children ___ in the park":
+    play / playing; "She ___ her passport, so she can't travel": has lost /
+    lost — fine in American English).
+
+    The first version asked the model to "flag items where more than one
+    option fits" and on a labelled set of 14 items caught only 1-3 of 8
+    ambiguous ones while dropping 2 of 6 clean ones. Now the code fills EVERY
+    option into the gap and the model judges each full sentence on its own
+    ("would a native speaker of any standard variety say this here?"). A
+    multiple-choice item survives only if exactly its key is acceptable; a
+    find-the-mistake item only if its "wrong" sentence is unacceptable
+    everywhere (and its "correct" one acceptable).
 
     Best-effort: on any failure, or if it would leave fewer than 2 items,
     the original list is returned unchanged.
     """
     if not items:
         return items
-    if test_type == "find_mistake":
-        listing = "\n".join(
-            f"{i}. «{it.get('question', '')}» — marked "
-            f"{'CORRECT' if it.get('is_correct') else 'WRONG, fix: «' + str(it.get('answer', '')) + '»'}"
-            for i, it in enumerate(items)
-        )
-        task = (
-            "Flag an item if a sentence marked WRONG is actually acceptable in "
-            "ANY standard variety of the language (British, American, "
-            "Australian... English; European or Latin American Spanish; and so "
-            "on), or if a sentence marked CORRECT actually contains an error."
-        )
-    else:
-        listing = "\n".join(
-            f"{i}. «{it.get('question', '')}» options: {it.get('options', [])} — key: «{it.get('answer', '')}»"
-            for i, it in enumerate(items)
-        )
-        task = (
-            "Flag an item if MORE THAN ONE option fits the gap grammatically "
-            "and naturally in that sentence, if the key itself is wrong, or if "
-            "putting the key into the gap gives unnatural word order (e.g. "
-            "'they haven't finished yet the report')."
-        )
+    # (item index, label, full sentence) to judge
+    checks: list[tuple[int, str, str]] = []
+    unfillable: set[int] = set()
+    for i, it in enumerate(items):
+        if test_type == "find_mistake":
+            checks.append((i, "q", str(it.get("question", ""))))
+            if not it.get("is_correct"):
+                checks.append((i, "fix", str(it.get("answer", ""))))
+        else:
+            for j, opt in enumerate(it.get("options") or []):
+                full = _fill_gaps(str(it.get("question", "")), str(opt))
+                if full is None:      # option parts don't match the gaps — can't be graded fairly
+                    unfillable.add(i)
+                    continue
+                checks.append((i, f"o{j}", full))
+    listing = "\n".join(f"{k}. {sent}" for k, (_, _, sent) in enumerate(checks))
     prompt = (
-        f"You are reviewing a {target_lang} grammar exercise before students "
-        f"see it. {task} Be strict: if a careful teacher would accept another "
-        f"answer, flag it.\n\n{listing}\n\n"
-        'Return JSON only — no markdown fences: {"flagged": [indices]}'
+        f"You are a careful {target_lang} teacher. For EACH numbered sentence "
+        f"below, decide on its own whether it is grammatical and natural — "
+        f"something a native speaker of ANY standard variety of the language "
+        f"would say or write in that context. Accept it if it is fine in at "
+        f"least one standard variety (British, American, Australian... "
+        f"English; European or Latin American Spanish; European or Brazilian "
+        f"Portuguese; and so on), even if another variety prefers something "
+        f"else. Remember for English: American English often uses the Past "
+        f"Simple where British English uses the Present Perfect — with just, "
+        f"already, yet, ever, and for a past event with a present result "
+        f"('I lost my keys, so I can't get in') — and collective nouns can "
+        f"take a plural verb in British English ('the team have decided'). "
+        f"Judge each sentence independently; ignore the others.\n\n{listing}\n\n"
+        'Return JSON only — no markdown fences: {"ok": [true/false for each sentence, in order]}'
     )
-    try:
-        result = _parse_json(
-            _model(_FLASH, timeout_ms=20000).generate_content(prompt).text,
-            fallback={"flagged": []},
-        )
-        flagged = {
-            i for i in result.get("flagged", [])
-            if isinstance(i, int) and not isinstance(i, bool)
-        }
-    except Exception:
+    # Two independent judgements — on the same items one run alone caught
+    # anywhere from 6 to 8 of 8 ambiguous items, so an item has to be judged
+    # fair by BOTH to stay.
+    def _judge() -> list | None:
+        try:
+            result = _parse_json(
+                _model(_FLASH, timeout_ms=30000).generate_content(prompt).text,
+                fallback={},
+            )
+        except Exception:
+            return None
+        oks = result.get("ok")
+        return oks if isinstance(oks, list) and len(oks) == len(checks) else None
+
+    runs = [r for r in (_judge(), _judge()) if r is not None]
+    if not runs:
         return items
-    kept = [it for i, it in enumerate(items) if i not in flagged]
+
+    def _fair(i: int, it: dict, oks: list) -> bool:
+        v = {label: bool(ok) for (j, label, _), ok in zip(checks, oks) if j == i}
+        if test_type == "find_mistake":
+            return bool(v.get("q")) if it.get("is_correct") else (not v.get("q") and v.get("fix", True))
+        opts = it.get("options") or []
+        good = [opts[int(lbl[1:])] for lbl, ok in v.items() if ok]
+        return good == [it.get("answer")]
+
+    verdict: dict[int, dict[str, bool]] = {}
+    for (i, label, _), ok in zip(checks, runs[0]):
+        verdict.setdefault(i, {})[label] = bool(ok)
+    kept = []
+    for i, it in enumerate(items):
+        if i in unfillable:
+            continue
+        if all(_fair(i, it, oks) for oks in runs):
+            kept.append(it)
     # find_mistake needs at least one fully correct sentence — that's the
     # point of the exercise — so never let the review strip them all.
     if test_type == "find_mistake" and not any(it.get("is_correct") for it in kept):
-        first_ok = next((it for it in items if it.get("is_correct")), None)
+        first_ok = next((it for it in items if it.get("is_correct") and verdict.get(items.index(it), {}).get("q")), None)
         if first_ok is not None:
-            kept.insert(items.index(first_ok) if items.index(first_ok) <= len(kept) else len(kept), first_ok)
+            kept.insert(min(items.index(first_ok), len(kept)), first_ok)
     return kept if len(kept) >= 2 else items
 
 
@@ -1201,20 +1262,50 @@ def generate_contrast_pair(
         "sentence with the answer in the gap must have natural word order — "
         "keep adverbs like 'yet'/'already' outside the gap unless they really "
         "belong there. Never build an item where both forms would be "
-        "acceptable in some standard variety of the language. \"lesson\" is "
+        "acceptable in some standard variety of the language. " +
+        "Every item must contain a marker that makes only ONE form possible "
+        "in EVERY standard variety of the language. For English Past Simple "
+        "vs Present Perfect: a finished-time marker (yesterday, ago, last "
+        "week, in 2019, When...?) for the Past Simple; for/since with a "
+        "situation that still continues, 'This is the first time...' or "
+        "'so far' for the Present Perfect. Avoid just/already/yet/ever and "
+        "'past event with a present result' contexts ('She lost her "
+        "passport, so she can't travel') — American English accepts the "
+        "Past Simple there. " +
+        "\"lesson\" is "
         "\"A\" or \"B\": whose form is the answer.\n\n"
         "Return JSON only — no markdown fences:\n"
         '{"items": [{"question": "...", "options": ["...", "..."], "answer": "...", "lesson": "A"}]}'
     )
-    test = _parse_json(
-        _model(_FLASH).generate_content(prompt).text,
-        fallback={"items": []},
+    # English Past Simple vs Present Perfect: just/already/yet/ever/never are
+    # exactly the markers where American English also accepts the Past
+    # Simple ("I never went", "Did you eat yet?"), and the model kept using
+    # them despite the prompt — so such items are dropped in code.
+    variety_trap = (
+        re.compile(r"\b(just|already|yet|ever|never)\b", re.I)
+        if target_lang == "English" and "present perfect" in contrast.lower()
+        else None
     )
-    items = [
-        it for it in test.get("items", [])
-        if it.get("answer") in (it.get("options") or []) and it.get("lesson") in ("A", "B")
-    ]
-    return {"items": _drop_ambiguous_items("multiple_choice", items, target_lang)}
+    collected: list[dict] = []
+    for _attempt in range(3):
+        test = _parse_json(
+            _model(_FLASH).generate_content(prompt).text,
+            fallback={"items": []},
+        )
+        items = [
+            it for it in test.get("items", [])
+            if it.get("answer") in (it.get("options") or []) and it.get("lesson") in ("A", "B")
+            and not (variety_trap and variety_trap.search(str(it.get("question", ""))))
+        ]
+        reviewed = _drop_ambiguous_items("multiple_choice", items, target_lang) if len(items) >= 2 else items
+        collected += [it for it in reviewed if it.get("question") not in {c.get("question") for c in collected}]
+        # A pair needs both sides — the review can strip one side entirely.
+        if sum(it["lesson"] == "A" for it in collected) >= 2 and sum(it["lesson"] == "B" for it in collected) >= 2:
+            break
+    a = [it for it in collected if it["lesson"] == "A"]
+    b = [it for it in collected if it["lesson"] == "B"]
+    mixed = [x for pair in zip(a, b) for x in pair] + a[len(b):] + b[len(a):]
+    return {"items": mixed[:7]}
 
 
 @_gated("generate_practice_test", 10)
@@ -2141,7 +2232,7 @@ def translate_verb_row(row: str, from_lang: str, to_lang: str, pattern: str = ""
     roles = [p.strip() for p in pattern.split(" - ")] if pattern.count(" - ") == 2 else None
     role = (f" In {from_lang}, the three parts play these roles, in order: (1) {roles[0]}; (2) {roles[1]}; "
             f"(3) {roles[2]}. Example row: {example}.") if roles else ""
-    for _attempt in range(2):
+    for _attempt in range(3):
         result = _safe_text(_model(_LITE).generate_content(
             f"The {from_lang} row below lists three forms of ONE verb, separated by ' - '.{role}\n"
             f"Translate it into {to_lang}, keeping exactly three parts separated by ' - '. For EACH part, give the "
