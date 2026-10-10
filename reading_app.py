@@ -1969,7 +1969,7 @@ def main():
         _cols     = st.columns(_ncols)
 
         with _cols[0]:
-            if st.button(_ui("nav_repeat"), type="primary", use_container_width=True):
+            if st.button(_ui("nav_repeat"), use_container_width=True):
                 clear_step_state()
                 st.session_state["r_step"] = 1
                 st.session_state.pop("_r_progress_saved", None)
@@ -1979,7 +1979,7 @@ def main():
 
         if _has_next:
             with _cols[1]:
-                if st.button(f"\u25b6 {_lesson_word} {_next_lid}", use_container_width=True, type="primary"):
+                if st.button(f"\u25b6 {_lesson_word} {_next_lid}", use_container_width=True):
                     _next_rows = df[df["lesson_id"] == _next_lid].reset_index(drop=True)
                     clear_step_state()
                     st.session_state["r_lesson"] = _next_lid
@@ -1991,9 +1991,16 @@ def main():
                     st.session_state.pop("_cached_r_streak", None)
                     st.rerun()
 
+        # "Next" = whatever My Path recommends now (after the reading intro
+        # that's grammar/vocab, not reading lesson N+1) -- it used to be a
+        # dead button (`pass`), found live 2026-10-10 by Natalia on French.
         with _cols[-1]:
-            if st.button("\u23ed Next", use_container_width=True):
-                pass
+            _nl = st.session_state.get("launcher_native", "English")
+            if st.button(f"\u23ed {i18n.get(_nl, 'module_path')}", use_container_width=True,
+                         type="primary", key="r_done_to_path"):
+                st.session_state["_return_module"] = "path"
+                clear_all()
+                st.rerun()
 
     else:
         # -- Render lesson step (1-5) --
