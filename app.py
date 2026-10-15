@@ -509,6 +509,7 @@ def _render_onboarding(user_id: str) -> None:
         # unrated level) leave this None -- "not asked" -- same as before,
         # so they still get the short intro; only a real question-not-asked
         # AND a real B1+ self-report together produce this.
+        user_prefs.set_language_level(user_id, target, self_level)
         if literacy_required is not None:
             user_prefs.set_language_literacy(user_id, target, literacy_required)
         elif self_level in _recommender.CEFR_RANK and \

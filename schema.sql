@@ -352,6 +352,21 @@ CREATE TABLE IF NOT EXISTS language_literacy (
     PRIMARY KEY (user_id, target_lang)
 );
 
+-- ── language_level ──────────────────────────────────────────────────────────
+-- Per-(user, target_lang) self-reported level (2026-10-15). Onboarding used
+-- to ask "how much {target} do you know?" once and store it in the single
+-- user_prefs.self_level field, so switching to another target_lang later
+-- never asked again (same bug class as language_literacy above). Onboarding
+-- writes the first row; path_app.py asks the first time a target_lang with
+-- no row here is opened. user_prefs.self_level stays as the onboarding gate.
+CREATE TABLE IF NOT EXISTS language_level (
+    user_id      TEXT NOT NULL,
+    target_lang  TEXT NOT NULL,
+    self_level   TEXT NOT NULL,
+    updated_at   TIMESTAMPTZ NOT NULL DEFAULT now(),
+    PRIMARY KEY (user_id, target_lang)
+);
+
 -- ── user_feedback ────────────────────────────────────────────────────────────
 -- "🐛 Report a problem" widget (engine/feedback.py, 2026-09-16) -- added
 -- before the first test-user launch, since there was previously no in-app
@@ -450,6 +465,7 @@ ALTER TABLE custom_phrases       ENABLE ROW LEVEL SECURITY;
 ALTER TABLE weekly_signup_gate   ENABLE ROW LEVEL SECURITY;
 ALTER TABLE lesson_schedule      ENABLE ROW LEVEL SECURITY;
 ALTER TABLE language_literacy    ENABLE ROW LEVEL SECURITY;
+ALTER TABLE language_level       ENABLE ROW LEVEL SECURITY;
 ALTER TABLE user_feedback        ENABLE ROW LEVEL SECURITY;
 ALTER TABLE app_errors           ENABLE ROW LEVEL SECURITY;
 ALTER TABLE user_mistakes         ENABLE ROW LEVEL SECURITY;

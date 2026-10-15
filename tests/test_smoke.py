@@ -935,8 +935,8 @@ def test_songs_catalog_titles_never_nan_and_default_level_takes_higher(monkeypat
     for l in songs_app._lesson_catalog("Ukrainian", "Spanish"):
         assert l["title"] and l["title"].lower() != "nan", l
     monkeypatch.setattr(songs_app._recommender, "current_level", lambda u, t: "A1")
-    monkeypatch.setattr(songs_app._user_prefs, "get_profile",
-                        lambda u: {"target_lang": "Spanish", "self_level": "B2"})
+    monkeypatch.setattr(songs_app._user_prefs, "get_language_level",
+                        lambda u, t: "B2" if t == "Spanish" else None)
     assert songs_app.default_level("u", "Spanish") == "B2"
     assert songs_app.default_level("u", "French") == "A1"    # self level was for another language
 

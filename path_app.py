@@ -160,6 +160,45 @@ def _render_mistakes_entry(user: str, native: str, target: str) -> None:
         _switch_module("mistakes", user, native, target)
 
 
+_SELF_LEVELS = ["zero", "A1", "A2", "B1", "B2", "C1", "C2"]
+
+
+def _render_level_prompt(user: str, native: str, target: str) -> bool:
+    """Per-target_lang level question (2026-10-15, Natalia: "не питає рівень
+    знань учня"). Onboarding asks it once, for the pair picked at signup;
+    switching target_lang later never asked again. Same idea as
+    _render_literacy_prompt below, and the same follow-up as onboarding:
+    seed starting mastery from the answer, and treat a B1+ same-script
+    learner as already literate. Returns True while the question is shown,
+    so the literacy question waits for it (it depends on "zero")."""
+    if not user or _user_prefs.get_language_level(user, target) is not None:
+        return False
+    with st.container(border=True):
+        level = st.selectbox(
+            i18n.get(native, "onboarding_level_label").format(target=target),
+            _SELF_LEVELS,
+            format_func=lambda lvl: i18n.get(native, f"level_{lvl}"),
+            key=f"level_prompt_{target}",
+        )
+        if st.button(i18n.get(native, "custom_save_btn"), key=f"level_prompt_save_{target}",
+                     type="primary"):
+            _user_prefs.set_language_level(user, target, level)
+            if (level in _recommender.CEFR_RANK
+                    and _recommender.CEFR_RANK[level] >= _recommender.CEFR_RANK["B1"]
+                    and not _literacy.needs_literacy_question(native, target, level)
+                    and _user_prefs.get_language_literacy(user, target) is None):
+                _user_prefs.set_language_literacy(user, target, False)
+            if level in _recommender.CEFR_RANK:
+                with st.spinner("…"):
+                    for m in _recommender.ALL_MODULES:
+                        try:
+                            _recommender.seed_mastery_from_level(user, target, m, level)
+                        except Exception:
+                            pass
+            st.rerun()
+    return True
+
+
 def _render_literacy_prompt(user: str, native: str, target: str) -> None:
     """Non-blocking literacy check for a target_lang this student hasn't
     been asked about yet (2026-09-20, Natalia: "обидва фікси"). Mirrors
@@ -173,8 +212,7 @@ def _render_literacy_prompt(user: str, native: str, target: str) -> None:
     not new ones."""
     if not user or _user_prefs.get_language_literacy(user, target) is not None:
         return
-    profile = _user_prefs.get_profile(user) or {}
-    self_level = profile.get("self_level") or ""
+    self_level = _user_prefs.get_language_level(user, target) or ""
     if not _literacy.needs_literacy_question(native, target, self_level):
         return
     with st.container(border=True):
@@ -525,7 +563,8 @@ def main() -> None:
     st.markdown(f"## {i18n.get(native, 'path_title')}")
 
     # ── Literacy check for this target_lang, if not answered yet ────────────
-    _render_literacy_prompt(user, native, target)
+    if not _render_level_prompt(user, native, target):
+        _render_literacy_prompt(user, native, target)
 
     # ── Routine: delayed setup prompt + settings (engine/schedule.py) ───────
     _render_schedule_prompt(user, native)

@@ -186,9 +186,7 @@ def default_level(user: str, target: str) -> str:
         found.append(_recommender.current_level(user, target))
     except Exception:
         pass
-    prof = _user_prefs.get_profile(user) or {}
-    if prof.get("target_lang") == target:
-        found.append(prof.get("self_level"))
+    found.append(_user_prefs.get_language_level(user, target))
     found = [l for l in found if l in LEVELS]
     return max(found, key=LEVELS.index) if found else "A1"
 

@@ -155,6 +155,37 @@ def set_language_literacy(user_id: str, target_lang: str, value: bool) -> None:
         pass
 
 
+def get_language_level(user_id: str, target_lang: str) -> str | None:
+    """Per-(user, target_lang) self-reported level ("zero"/"A1".."C2"), or
+    None if this target_lang hasn't been asked about yet (or DB unavailable)
+    — see schema.sql's language_level comment."""
+    if not user_id or not target_lang:
+        return None
+    try:
+        row = db.fetch_one(
+            "SELECT self_level FROM language_level "
+            "WHERE user_id = :uid AND target_lang = :lang",
+            {"uid": user_id, "lang": target_lang},
+        )
+        return row["self_level"] if row else None
+    except Exception:
+        return None
+
+
+def set_language_level(user_id: str, target_lang: str, level: str) -> None:
+    """Best-effort save, same fail-silent convention as set_language_literacy()."""
+    if not user_id or not target_lang or not level:
+        return
+    try:
+        db.upsert(
+            "language_level",
+            keys={"user_id": user_id, "target_lang": target_lang},
+            values={"self_level": level},
+        )
+    except Exception:
+        pass
+
+
 def is_onboarded(user_id: str) -> bool:
     """True once the student has been through the first-run onboarding
     screen (app.py::_render_onboarding) — name + self-reported level saved,
