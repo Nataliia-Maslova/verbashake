@@ -939,3 +939,103 @@ def test_songs_catalog_titles_never_nan_and_default_level_takes_higher(monkeypat
                         lambda u: {"target_lang": "Spanish", "self_level": "B2"})
     assert songs_app.default_level("u", "Spanish") == "B2"
     assert songs_app.default_level("u", "French") == "A1"    # self level was for another language
+
+
+# ---------------------------------------------------------------------------
+# Video "retell the episode" (2026-10-15): check_retelling post-processing.
+# ---------------------------------------------------------------------------
+
+RETELL_I18N_KEYS = [
+    "retell_title", "retell_intro", "retell_text_label", "retell_episode_label", "retell_check_btn",
+    "retell_main_issue", "retell_grammar_header", "retell_vocab_header",
+    "retell_strengths_header", "retell_progress_header", "retell_no_errors",
+    "retell_again_btn", "retell_focus_label", "retell_new_btn",
+    "retell_prev_attempt", "retell_error",
+]
+
+
+@pytest.mark.parametrize("lang", sorted(i18n.LANG_TO_CODE))
+@pytest.mark.parametrize("key", RETELL_I18N_KEYS)
+def test_i18n_retell_keys_resolve_for_every_language(lang, key):
+    value = i18n.get(lang, key)
+    assert isinstance(value, str) and value.strip(), f"{lang}/{key} is empty"
+    for junk in ("✅", "❌", "→"):
+        assert junk not in value, f"{lang}/{key} has stray {junk}: {value!r}"
+
+
+def _sequenced_model(monkeypatch, replies):
+    """_model() whose successive calls return the given texts in order."""
+    from engine import gemini
+    queue = list(replies)
+
+    class Resp:
+        def __init__(self, t): self.text = t
+
+    class M:
+        def generate_content(self, p): return Resp(queue.pop(0))
+
+    monkeypatch.setattr(gemini, "_model", lambda *a, **k: M())
+
+
+RETELL_TEXT = ("Sam gets a email from Rebecca. They splitted up to chase it. "
+               "Dean was filling the gas. The monster ambushed dean and knocked him out. "
+               "It copies his memories.")
+
+
+def test_check_retelling_filters_and_reclassifies(monkeypatch):
+    import json as _json
+    from engine import gemini
+    first = {
+        "main_issue": {"title": "Tenses", "explanation": "x",
+                       "examples": ["Sam gets a email", "knocked him out"]},
+        "grammar": [
+            {"original": "Sam gets a email", "fixed": "Sam got an email", "explanation": "", "topic_en": "Past Simple"},
+            {"original": "copies his memories", "fixed": "copies its memories", "explanation": "", "topic_en": "Pronouns"},
+            {"original": "ambushed dean", "fixed": "ambushed Dean", "explanation": "", "topic_en": "Caps"},
+            {"original": "copes his memories", "fixed": "copies his memories", "explanation": "", "topic_en": "x"},
+        ],
+        "vocabulary": [
+            {"original": "splitted up", "fixed": "split up", "explanation": ""},
+            {"original": "They splitted up to chase it", "fixed": "They split up to chase it", "explanation": ""},
+            {"original": "filling the gas", "fixed": "filling up the car", "explanation": ""},
+        ],
+        "strengths": [{"phrase": "knocked him out", "comment": "good"},
+                      {"phrase": "Sam gets a email from Rebecca", "comment": "bad praise"}],
+        "focus_progress": "ignored without focus",
+    }
+    # judge sees: 0 gets a email, 1 copies his memories, 2 splitted up, 3 filling the gas
+    judge = {"items": [{"id": 0, "definite_error": True, "type": "grammar"},
+                       {"id": 1, "definite_error": False, "type": "grammar"},
+                       {"id": 2, "definite_error": True, "type": "grammar"},
+                       {"id": 3, "definite_error": True, "type": "vocabulary"}]}
+    _sequenced_model(monkeypatch, [_json.dumps(first), _json.dumps(judge)])
+    r = gemini.check_retelling.__wrapped__(RETELL_TEXT, "Supernatural", "B2", "English", "Ukrainian")
+    assert [g["original"] for g in r["grammar"]] == ["Sam gets a email", "splitted up"]
+    assert [v["original"] for v in r["vocabulary"]] == ["filling the gas"]
+    assert "topic_en" not in r["vocabulary"][0]
+    assert [s["phrase"] for s in r["strengths"]] == ["knocked him out"]
+    assert r["main_issue"]["examples"] == ["Sam gets a email"]
+    assert r["focus_progress"] == ""
+
+
+def test_check_retelling_drops_pattern_with_single_error(monkeypatch):
+    import json as _json
+    from engine import gemini
+    first = {"main_issue": {"title": "Tenses", "explanation": "x", "examples": ["Sam gets a email"]},
+             "grammar": [{"original": "Sam gets a email", "fixed": "Sam got an email", "explanation": "", "topic_en": "x"}],
+             "vocabulary": [], "strengths": [], "focus_progress": "Much better"}
+    _sequenced_model(monkeypatch, [_json.dumps(first), '{"items": [{"id": 0, "definite_error": true, "type": "grammar"}]}'])
+    r = gemini.check_retelling.__wrapped__(RETELL_TEXT, "", "B2", "English", "Ukrainian",
+                                           focus="Tenses", previous_text="old")
+    assert r["main_issue"] == {}
+    assert r["focus_progress"] == "Much better"
+
+
+def test_check_retelling_survives_judge_failure(monkeypatch):
+    import json as _json
+    from engine import gemini
+    first = {"main_issue": {}, "grammar": [{"original": "splitted up", "fixed": "split up", "explanation": "", "topic_en": "x"}],
+             "vocabulary": [], "strengths": [], "focus_progress": ""}
+    _sequenced_model(monkeypatch, [_json.dumps(first), "not json"])
+    r = gemini.check_retelling.__wrapped__(RETELL_TEXT, "", "B2", "English", "Ukrainian")
+    assert [g["original"] for g in r["grammar"]] == ["splitted up"]

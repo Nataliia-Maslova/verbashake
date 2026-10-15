@@ -3727,6 +3727,7 @@ def phase5_video(session: LessonSession, tts_lang: str = "", wh_lang: str = "") 
         st.code(_text_ai_search_prompt(target_lang, native_lang, level, interest), language=None)
 
     _render_episode_lesson(session, target_lang, native_lang, level, wh_lang)
+    _render_episode_retelling(session, target_lang, native_lang, level, wh_lang)
     _render_content_discussion(target_lang, native_lang, level)
 
     st.markdown("---")
@@ -3858,6 +3859,139 @@ def _render_episode_lesson(
             st.markdown(f"❌ ~~{err['original']}~~ → **{err['fixed']}**")
             if err.get("explanation"):
                 st.caption(err["explanation"])
+
+
+def _render_episode_retelling(
+    session: LessonSession, target_lang: str, native_lang: str, level: str, wh_lang: str,
+) -> None:
+    """
+    "Retell the episode" (2026-10-15, from Наталья's manual check of her B2
+    student's Supernatural summary): the student retells what they watched
+    (text, or voice → editable transcript) and gets gemini.check_retelling's
+    teacher-style feedback — the systemic main issue first (her student's
+    case: jumping between past and present inside the story), then definite
+    grammar / vocabulary errors separately, then strengths. "Retell again"
+    keeps the main issue as the focus of the next attempt, and the next
+    check says whether that pattern improved. Grammar errors are recorded
+    like the episode questions (_record_step8_outcome); vocabulary errors go
+    to «Мої помилки» only — they aren't about any grammar lesson, so they
+    must not ding one. Opens expanded once the episode questions are checked.
+    """
+    ss = st.session_state
+    ep = ss.get("p5ep_lesson") or {}
+    expanded = bool(ep.get("checked")) or "p5rt_result" in ss or "p5rt_focus" in ss
+    with st.expander(i18n.get(native_lang, "retell_title"), expanded=expanded):
+        result = ss.get("p5rt_result")
+        if result is not None:
+            _show_retelling_result(result, native_lang)
+            c1, c2 = st.columns(2)
+            if (result["main_issue"] or result["grammar"] or result["vocabulary"]) and c1.button(
+                    i18n.get(native_lang, "retell_again_btn"), type="primary", key="p5rt_again"):
+                ss["p5rt_focus"] = result["main_issue"].get("title", "")
+                ss["p5rt_prev"] = {"text": ss.get("p5rt_checked_text", ""), "result": result}
+                for k in ("p5rt_result", "p5rt_text", "p5rt_vdone", "p5rt_checked_text"):
+                    ss.pop(k, None)
+                st.rerun()
+            if c2.button(i18n.get(native_lang, "retell_new_btn"), key="p5rt_reset"):
+                for k in [k for k in ss if k.startswith("p5rt_")]:
+                    ss.pop(k, None)
+                st.rerun()
+            return
+
+        st.markdown(i18n.get(native_lang, "retell_intro"))
+        prev = ss.get("p5rt_prev")
+        if prev:
+            # Streamlit forbids an expander inside an expander — bordered box.
+            with st.container(border=True):
+                st.caption(i18n.get(native_lang, "retell_prev_attempt"))
+                st.markdown(f"> {prev['text']}")
+                _show_retelling_result(prev["result"], native_lang)
+        focus = ss.get("p5rt_focus", "")
+        if focus:
+            st.info(f"**{i18n.get(native_lang, 'retell_focus_label')}:** {focus}")
+
+        if "p5rt_title" not in ss and ep.get("title"):
+            ss["p5rt_title"] = ep["title"]
+        title = st.text_input(
+            i18n.get(native_lang, "retell_episode_label"),
+            placeholder=i18n.get(native_lang, "episode_title_placeholder"), key="p5rt_title",
+        )
+        _opt_text, _opt_voice = i18n.get(native_lang, "text_opt"), i18n.get(native_lang, "voice_opt")
+        mode = st.radio(i18n.get(native_lang, "mode_label"), [_opt_text, _opt_voice],
+                        horizontal=True, key="p5rt_mode", label_visibility="collapsed")
+        if mode == _opt_voice:
+            audio = audio_input("p5rt_voice")
+            if audio and ss.get("p5rt_vdone") != hash(audio):
+                with st.spinner(i18n.get(native_lang, "transcribing_spinner")):
+                    heard = transcribe_bytes(audio, language=wh_lang) or ""
+                # Each recording is appended, so a long retelling can be told
+                # in parts; the transcript stays editable below.
+                ss["p5rt_text"] = (ss.get("p5rt_text", "").rstrip() + " " + heard).strip()
+                ss["p5rt_vdone"] = hash(audio)
+        text = st.text_area(i18n.get(native_lang, "retell_text_label"), key="p5rt_text", height=220)
+
+        # Not disabled while empty: Streamlit commits the text area on blur,
+        # so a button disabled-until-text swallows the first click of a
+        # student who types and clicks straight away.
+        if st.button(i18n.get(native_lang, "retell_check_btn"), type="primary",
+                     key="p5rt_check") and text.strip():
+            try:
+                with st.spinner(i18n.get(native_lang, "checking_grammar_spinner")):
+                    result = _gemini.check_retelling(
+                        text.strip(), title.strip(), level, target_lang, native_lang, focus=focus,
+                        previous_text=(prev or {}).get("text", ""),
+                    )
+            except _gemini.PaidFeatureRequired:
+                _show_upsell("p5rt_check_up")
+                return
+            except Exception:
+                st.error(i18n.get(native_lang, "retell_error"))
+                return
+            _record_step8_outcome(session, [{"correction": {"errors": result["grammar"]}}],
+                                  phase="video_retell")
+            if result["vocabulary"] and session.state.unit_id:
+                try:
+                    _mistakes.log_mistakes(
+                        session.state.user_id, target_lang, _current_module(),
+                        [{"unit_id": session.state.unit_id, "phase": "video_retell",
+                          "topic_en": "Word choice", "original": v["original"],
+                          "corrected": v["fixed"], "explanation": v.get("explanation", "")}
+                         for v in result["vocabulary"]],
+                    )
+                except Exception:
+                    pass
+            ss["p5rt_result"] = result
+            # The text_area isn't rendered on the result view, so Streamlit
+            # drops its widget state — keep the checked text for "retell again".
+            ss["p5rt_checked_text"] = text.strip()
+            st.rerun()
+
+
+def _show_retelling_result(result: dict, native_lang: str) -> None:
+    if result.get("focus_progress"):
+        st.info(f"**{i18n.get(native_lang, 'retell_progress_header')}**\n\n{result['focus_progress']}")
+    main = result.get("main_issue") or {}
+    if main:
+        body = f"**{i18n.get(native_lang, 'retell_main_issue')}: {main['title']}**"
+        if main.get("explanation"):
+            body += f"\n\n{main['explanation']}"
+        for ex in main.get("examples", [])[:4]:
+            body += f"\n\n> {ex}"
+        st.warning(body)
+    if not result["grammar"] and not result["vocabulary"]:
+        st.success(i18n.get(native_lang, "retell_no_errors"))
+    for key, rows in (("retell_grammar_header", result["grammar"]),
+                      ("retell_vocab_header", result["vocabulary"])):
+        if not rows:
+            continue
+        st.markdown(f"**{i18n.get(native_lang, key)}** · {len(rows)}")
+        for r in rows:
+            st.markdown(f"❌ ~~{r['original']}~~ → **{r['fixed']}**")
+            if r.get("explanation"):
+                st.caption(r["explanation"])
+    if result.get("strengths"):
+        st.success(f"**{i18n.get(native_lang, 'retell_strengths_header')}**\n\n" + "\n".join(
+            f"- **{s['phrase']}** — {s.get('comment', '')}" for s in result["strengths"]))
 
 
 def _render_content_discussion(target_lang: str, native_lang: str, level: str) -> None:
@@ -4405,7 +4539,7 @@ def main(module: str = "grammar"):
         _p5_action = phase5_video(sess, tts, wh)
         if _p5_action:
             # The episode lesson belongs to this lesson's Video screen only.
-            for _k in [k for k in st.session_state if k.startswith("p5ep_")]:
+            for _k in [k for k in st.session_state if k.startswith(("p5ep_", "p5rt_"))]:
                 st.session_state.pop(_k, None)
             # Whole-lesson gamification (bonus XP, streak, lessons_completed,
             # badges) — CLAUDE.md 2026-08-23: on_lesson_complete() existed
