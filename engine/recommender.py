@@ -359,16 +359,39 @@ def _reading_gate_mode(user_id: str, target_lang: str) -> str:
     return "full" if _is_script_lang(target_lang) else "default"
 
 
+def _reading_units(user_id: str, target_lang: str) -> list[dict]:
+    """Reading units this student goes through, in catalog order. A student
+    who can already read (engine.reading_start.skips_letters: B1+, or A2 who
+    said "I can read") doesn't get the letter/syllable lessons — 2026-10-15,
+    Natalia: a B1 student was given an alphabet lesson as the in-lesson
+    "Читання" step."""
+    units = _candidates(target_lang, module="reading")
+    if not units:
+        return units
+    from engine import user_prefs, reading_start
+    try:
+        level = user_prefs.get_language_level(user_id, target_lang)
+        literacy = user_prefs.get_language_literacy(user_id, target_lang)
+    except Exception:
+        return units
+    if not reading_start.skips_letters(level, literacy):
+        return units
+    skip = reading_start.letter_lessons(LANG_TO_CODE.get(target_lang, ""))
+    kept = [u for u in units if parse_unit_id(u["unit_id"]).get("lesson_id") not in skip]
+    return kept or units
+
+
 def _reading_progress(user_id: str, target_lang: str) -> tuple[int, int]:
     """(attempted, total) reading units for this (user, target_lang) — "attempted"
     means it has an srs_state row (written on the first checked answer, same
-    signal lesson_progress_map() already uses for the wave-picker colors)."""
-    total = len(_candidates(target_lang, module="reading"))
-    if total == 0:
+    signal lesson_progress_map() already uses for the wave-picker colors).
+    Counts only the units this student actually goes through (_reading_units)."""
+    units = _reading_units(user_id, target_lang)
+    if not units:
         return 0, 0
     srs = _srs_map(user_id, target_lang)
-    done = sum(1 for uid in srs if uid.startswith("reading:"))
-    return done, total
+    done = sum(1 for u in units if u["unit_id"] in srs)
+    return done, len(units)
 
 
 def _grammar_frontier_unit(user_id: str, target_lang: str,
@@ -423,7 +446,7 @@ def _reading_frontier_units(user_id: str, target_lang: str, limit: int) -> list[
     later through get_next()'s own SRS-urgency term as background review;
     this only decides what's NEXT to introduce.
     """
-    units = _candidates(target_lang, module="reading")
+    units = _reading_units(user_id, target_lang)
     if not units:
         return []
 
