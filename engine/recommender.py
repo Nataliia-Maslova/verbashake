@@ -67,27 +67,26 @@ _SRS_MAX_INTERVAL  = 60.0
 _UNSEEN_MASTERY    = 0.0   # a topic with no attempts yet is "not yet mastered", not "half mastered" —
                             # this is what makes novelty correctly favor A1 first for a brand-new user
 
-# ── Path ordering (2026-08-27, Natalia's tutoring model) ───────────────────
+# ── Path ordering (2026-08-27, rebuilt 2026-10-22) ──────────────────────
 # get_next()/get_stats() above score every module uniformly, all competing on
 # one formula -- fine for within-module picks, but Natalia's real teaching
-# order is stricter: reading (script/phonics) FIRST for a brand-new learner,
-# THEN grammar+vocab, with grammar taught strictly in sequence (each lesson
-# is deliberately harder than the last) rather than freely reordered by
-# score. get_path_next() below is a thin ordering layer on top of the
-# existing per-unit scoring -- it decides WHICH MODULE gets to go next and,
-# for grammar, WHICH LESSON; it still calls get_next()/mastery/srs_state
-# underneath for the actual within-module ranking (vocab keeps its free
-# score-based mixing, exactly as before).
-SCRIPT_GATE_LANGS: frozenset[str] = frozenset({"ko", "ja", "zh", "bg"})
-# Languages whose script has to be learned as a whole before grammar/vocab
-# are legible at all (confirmed by Natalia's own experience learning Korean:
-# without the letters, even the easiest grammar was unreadable) -- for these,
-# the reading gate is every reading lesson for that language, not a fixed
-# count. Everyone else uses a short fixed intro instead (Latin/Cyrillic
-# learners mostly need a quick refresher on sound-spelling, not the whole
-# alphabet from zero).
-READING_INTRO_COUNT     = 5   # non-script languages: fixed reading-first batch before anything else opens
-READING_INTERLEAVE_BATCH = 3  # once the gate clears but reading isn't exhausted yet: reading lessons per interleave cycle
+# order is stricter: grammar taught strictly in sequence (each lesson is
+# deliberately harder than the last), vocabulary and phrasebook by the
+# student's level. get_path_next() below is a thin ordering layer on top of
+# the existing per-unit scoring.
+#
+# 2026-10-22, Natalia: reading is NOT a My Path lesson any more -- it is only
+# the "Читання" step after the warmup inside every lesson (grammar.py /
+# reading_app.render_embedded_reading_step). Two exceptions for a student who
+# needs the letters:
+#   - ko/ja/zh: the whole letter block (reading_start.LETTER_LESSONS) comes
+#     first in My Path, then ordinary lessons -- without the script nothing
+#     else is legible (Natalia's own experience learning Korean);
+#   - every other language: the first lesson's "Читання" step runs
+#     READING_INTRO_COUNT reading lessons in a row.
+LETTER_BLOCK_LANGS: frozenset[str] = frozenset({"ko", "ja", "zh"})
+READING_INTRO_COUNT = 5   # letter learners, Latin/Cyrillic: reading lessons in the first lesson's "Читання" step
+PHRASEBOOK_FROM_LEVEL = "A2"  # phrasebook joins the path from this level on
 GRAMMAR_ADVANCE_THRESHOLD = 0.5  # mastery score a grammar lesson's topic needs before the "frontier" moves past it
 
 
@@ -310,53 +309,37 @@ def get_next(user_id: str, target_lang: str, module: str | None = None, limit: i
     return scored[:limit]
 
 
-def _is_script_lang(target_lang: str) -> bool:
-    return LANG_TO_CODE.get(target_lang) in SCRIPT_GATE_LANGS
+def needs_letters(user_id: str, target_lang: str) -> bool:
+    """True when this student starts reading from the letter lessons
+    (engine.reading_start.skips_letters is False for their level and
+    "do you know the letters?" answer in this target_lang)."""
+    from engine import user_prefs, reading_start
+    try:
+        level = user_prefs.get_language_level(user_id, target_lang)
+        literacy = user_prefs.get_language_literacy(user_id, target_lang)
+    except Exception:
+        return False
+    return not reading_start.skips_letters(level, literacy)
 
 
-def _reading_gate_mode(user_id: str, target_lang: str) -> str:
-    """
-    "full" | "skip" | "default" — how much of the reading catalog gates
-    grammar/vocab for this student, in target_lang.
-
-    engine.user_prefs.get_language_literacy(user_id, target_lang) (the
-    language_literacy table, schema.sql, 2026-09-20) is the AUTHORITATIVE
-    signal when the student was actually asked and gave an explicit answer
-    FOR THIS target_lang specifically, script-gated or not:
-      - True  ("no, teach me the letters first")  -> "full": every reading
-        lesson must be cleared first, same as ko/ja/zh always required.
-      - False ("yes, I can already read")         -> "skip": no reading-
-        first phase at all, straight to _normal_path's free scoring — a
-        student who just told us they're literate shouldn't be sent through
-        Reading Lesson 1 regardless of self-reported CEFR level. Confirmed
-        live 2026-09-06: a self-rated C2 English learner who answered "yes,
-        I can already read" was still recommended Reading Lesson 1 (A1)
-        first, because only the "needs letters" -> full-gate direction had
-        been wired, not this one.
-      - None  (never asked for THIS target_lang -- native/target scripts
-        matched at onboarding so app.py::_render_onboarding never showed the
-        question, the user predates this feature, or they switched to a
-        target_lang path_app.py's banner hasn't asked about yet) ->
-        "default": fall back to the pre-2026-09-06 behavior, i.e.
-        SCRIPT_GATE_LANGS (ko/ja/zh) forces "full", everyone else gets the
-        short READING_INTRO_COUNT intro.
-
-    This used to read a single global-per-user user_prefs.literacy_required
-    column instead -- set once at onboarding for whichever target_lang was
-    picked THEN, and silently misapplied to every later target_lang switch
-    (confirmed live 2026-09-20: a fresh account with an existing "yes, I can
-    read" answer for an earlier Latin-script pair got "skip" applied to a
-    brand-new Korean pair too, never asked about it, and skipped the
-    reading-first gate entirely). language_literacy is keyed per
-    (user_id, target_lang) specifically to fix that.
-    """
+def path_level(user_id: str, target_lang: str, frontier: dict | None = None) -> str:
+    """CEFR level My Path picks vocabulary/phrasebook for: the higher of the
+    student's own answer for this language (zero / none -> A1) and one level
+    below the grammar lesson they are on now, so it rises as they go. One
+    below, because seeding from the student's answer marks their own level's
+    grammar as known and the frontier starts a level above it."""
     from engine import user_prefs
-    literacy = user_prefs.get_language_literacy(user_id, target_lang)
-    if literacy is True:
-        return "full"
-    if literacy is False:
-        return "skip"
-    return "full" if _is_script_lang(target_lang) else "default"
+    try:
+        own = user_prefs.get_language_level(user_id, target_lang)
+    except Exception:
+        own = None
+    own = own if own in CEFR_RANK else "A1"
+    if frontier is None:
+        frontier = _grammar_frontier_unit(user_id, target_lang)
+    cur = frontier.get("level") if frontier else None
+    if cur in CEFR_RANK and CEFR_RANK[cur] - 1 > CEFR_RANK[own]:
+        return next(lvl for lvl, rk in CEFR_RANK.items() if rk == CEFR_RANK[cur] - 1)
+    return own
 
 
 def _reading_units(user_id: str, target_lang: str) -> list[dict]:
@@ -526,89 +509,88 @@ def current_level(user_id: str, target_lang: str) -> str | None:
     return unit["level"] if unit else None
 
 
-def _interleave_path(user_id: str, target_lang: str, limit: int) -> list[dict]:
-    """Reading gate is cleared but reading isn't exhausted yet: 1 grammar +
-    1 vocab + READING_INTERLEAVE_BATCH reading, repeating -- Natalia's own
-    tutoring pattern ("граматика лексика по 1, потім ще 2-3 читання")."""
-    pattern = ["grammar", "vocab"] + ["reading"] * READING_INTERLEAVE_BATCH
-    frontier = _grammar_frontier_unit(user_id, target_lang)
-    vocab_pool = get_next(user_id, target_lang, module="vocab", limit=limit)
-    reading_pool = _reading_frontier_units(user_id, target_lang, limit)
+def _letter_block_units(user_id: str, target_lang: str, limit: int) -> list[dict]:
+    """ko/ja/zh student who needs the letters: the letter lessons not yet
+    attempted, in order. Empty once the block is done (or not needed)."""
+    from engine import reading_start
+    code = LANG_TO_CODE.get(target_lang, "")
+    if code not in LETTER_BLOCK_LANGS or not needs_letters(user_id, target_lang):
+        return []
+    letters = reading_start.letter_lessons(code)
+    units = [u for u in _candidates(target_lang, module="reading")
+             if parse_unit_id(u["unit_id"]).get("lesson_id") in letters]
+    units.sort(key=lambda u: parse_unit_id(u["unit_id"])["lesson_id"])
+    srs = _srs_map(user_id, target_lang)
+    return [u for u in units if u["unit_id"] not in srs][:limit]
 
+
+def _by_level(pool: list[dict], level: str, allow_above: int) -> list[dict]:
+    """Units of `pool` up to `level` + allow_above: the student's own level
+    first, then the levels above it, then the easier ones below; get_next()'s
+    order (due reviews, weak topics) kept inside each group. Untagged units
+    count as the student's level."""
+    rank = CEFR_RANK.get(level, 0)
+
+    def _r(u: dict) -> int:
+        return CEFR_RANK.get(u.get("level") or "", rank)
+
+    fit = [u for u in pool if _r(u) <= rank + allow_above]
+    fit.sort(key=lambda u: 0 if _r(u) == rank else (1 if _r(u) > rank else 2))
+    return fit
+
+
+def _level_path(user_id: str, target_lang: str, limit: int) -> list[dict]:
+    """Grammar (its sequential frontier) -> vocabulary -> phrasebook (from
+    PHRASEBOOK_FROM_LEVEL), repeating; vocabulary at the student's level or
+    one above, phrasebook at or below it.
+
+    target_grammar units never appear: a "target_grammar" content_units row
+    has no lesson_id (parse_unit_id() returns lang_code/topic_key), and every
+    caller treats a returned unit as a launchable lesson. The same topic is
+    always also seeded as a real grammar:1000+ lesson, and that one comes
+    through the grammar frontier."""
+    frontier = _grammar_frontier_unit(user_id, target_lang)
+    level = path_level(user_id, target_lang, frontier)
+    pattern = ["grammar", "vocab"]
+    if CEFR_RANK[level] >= CEFR_RANK[PHRASEBOOK_FROM_LEVEL]:
+        pattern.append("phrasebook")
+    pools = {
+        "vocab": _by_level(get_next(user_id, target_lang, module="vocab", limit=100_000), level, 1),
+        "phrasebook": (_by_level(get_next(user_id, target_lang, module="phrasebook", limit=100_000), level, 0)
+                       if "phrasebook" in pattern else []),
+    }
+    idx = {"vocab": 0, "phrasebook": 0}
     picks: list[dict] = []
     seen: set[str] = set()
-    vi = ri = 0
-    guard = 0
-    while len(picks) < limit and guard < limit * len(pattern) + len(pattern):
-        kind = pattern[guard % len(pattern)]
-        guard += 1
-        unit = None
+    for step in range(limit * len(pattern)):
+        if len(picks) >= limit:
+            break
+        kind = pattern[step % len(pattern)]
         if kind == "grammar":
-            unit = frontier
-        elif kind == "vocab" and vi < len(vocab_pool):
-            unit, vi = vocab_pool[vi], vi + 1
-        elif kind == "reading" and ri < len(reading_pool):
-            unit, ri = reading_pool[ri], ri + 1
+            unit = frontier if step == 0 else None
+        else:
+            pool = pools[kind]
+            unit = pool[idx[kind]] if idx[kind] < len(pool) else None
+            idx[kind] += 1
         if unit is not None and unit["unit_id"] not in seen:
             picks.append(unit)
             seen.add(unit["unit_id"])
     return picks[:limit]
 
 
-def _normal_path(user_id: str, target_lang: str, limit: int) -> list[dict]:
-    """Reading is exhausted (or this target_lang has no reading content at
-    all) -- grammar keeps its sequential frontier, everything else (vocab,
-    phrasebook, reading review) keeps the free score-based mixing get_next()
-    already does. Reading doesn't disappear here: overdue reading units
-    still surface through get_next()'s own SRS-urgency term, just as
-    background review, not a dedicated phase.
-
-    target_grammar units are excluded (not just grammar): a "target_grammar"
-    content_units row is an older, ephemeral Phase-3-practice representation
-    with no lesson_id (parse_unit_id() returns lang_code/topic_key instead
-    of lesson_id for it) -- every consumer of get_stats()/get_path_next()
-    that treats a returned unit as a launchable lesson (My Path's card, the
-    launcher progress cards) will KeyError on one. The same topic is always
-    ALSO seeded as a real, launchable grammar:1000+ lesson
-    (engine/target_grammar_loader.py), so dropping the bare target_grammar
-    form here just prefers that launchable one instead of losing the
-    recommendation. This used to be patched only in path_app.py, on its own
-    copy of stats["upcoming"] after the call -- fixed at the source instead
-    so every caller gets it, not just the one that already got bitten."""
-    picks: list[dict] = []
-    frontier = _grammar_frontier_unit(user_id, target_lang)
-    if frontier:
-        picks.append(frontier)
-    for u in get_next(user_id, target_lang, limit=limit + 5):
-        if u["module"] in ("grammar", "target_grammar"):
-            continue
-        picks.append(u)
-        if len(picks) >= limit:
-            break
-    return picks[:limit]
-
-
 def get_path_next(user_id: str, target_lang: str, limit: int = 6) -> list[dict]:
     """
     Cross-module ordering for "My Path" (replaces the raw get_next(module=None)
-    call get_stats() used to make). Three phases per (user, target_lang):
+    call get_stats() used to make):
 
-      1. Reading gate — pure reading, nothing else recommended. Full reading
-         catalog for script languages (ko/ja/zh — without the alphabet
-         nothing else is legible) or anyone who told onboarding they need
-         the letters first; a short fixed intro (READING_INTRO_COUNT) for
-         everyone else; skipped entirely (straight to phase 3) for a student
-         who told onboarding they can already read this script — see
-         _reading_gate_mode().
-      2. Interleave — gate cleared, reading not yet exhausted: 1 grammar +
-         1 vocab + a small reading batch, repeating (_interleave_path).
-      3. Normal — reading exhausted (or none exists for this language):
-         grammar advances one lesson at a time via its mastery-gated
-         frontier, everything else keeps free score-based mixing
-         (_normal_path).
+      1. ko/ja/zh student who needs the letters: the letter block first
+         (_letter_block_units), nothing else.
+      2. Everyone else / after the block: grammar frontier + vocabulary +
+         phrasebook (from A2) by level (_level_path). Reading is never a
+         My Path lesson -- it is the "Читання" step inside every lesson.
 
     Lessons the student pinned themselves (engine/path_pins.py, e.g. "➕ В мій
-    шлях" in the Songs module) come before all three, until mastered.
+    шлях" in the Songs module) come before both, until mastered.
     """
     pinned = _pinned_units(user_id, target_lang)
     base = _phase_path(user_id, target_lang, limit)
@@ -619,19 +601,8 @@ def get_path_next(user_id: str, target_lang: str, limit: int = 6) -> list[dict]:
 
 
 def _phase_path(user_id: str, target_lang: str, limit: int) -> list[dict]:
-    done, total = _reading_progress(user_id, target_lang)
-    if total == 0:
-        return _normal_path(user_id, target_lang, limit)
-
-    mode = _reading_gate_mode(user_id, target_lang)
-    if mode == "skip":
-        return _normal_path(user_id, target_lang, limit)
-    gate = total if mode == "full" else min(READING_INTRO_COUNT, total)
-    if done < gate:
-        return _reading_frontier_units(user_id, target_lang, limit)
-    if done < total:
-        return _interleave_path(user_id, target_lang, limit)
-    return _normal_path(user_id, target_lang, limit)
+    block = _letter_block_units(user_id, target_lang, limit)
+    return block if block else _level_path(user_id, target_lang, limit)
 
 
 def _pinned_units(user_id: str, target_lang: str) -> list[dict]:

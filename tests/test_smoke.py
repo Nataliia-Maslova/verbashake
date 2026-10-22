@@ -1062,3 +1062,48 @@ def test_reading_letter_lessons_exist_and_leave_word_lessons():
         all_lids = set(df["lesson_id"].astype(int))
         assert lids & all_lids, code
         assert all_lids - lids, code
+
+
+def _path_fixture(monkeypatch, level):
+    from engine import recommender
+    g = {"unit_id": "grammar:1", "module": "grammar", "topic": "T1", "level": "A1"}
+    vocab = [{"unit_id": f"vocab:{lv}:{i}", "module": "vocab", "topic": lv, "level": lv}
+             for i, lv in enumerate(["A1", "B2", "A2", "C1", "A2"])]
+    phr = [{"unit_id": f"phrasebook:S:{i}", "module": "phrasebook", "topic": "S", "level": lv}
+           for i, lv in enumerate(["B1", "A2", "A1"])]
+    monkeypatch.setattr(recommender, "_pinned_units", lambda u, l: [])
+    monkeypatch.setattr(recommender, "_letter_block_units", lambda u, l, n: [])
+    monkeypatch.setattr(recommender, "_grammar_frontier_unit", lambda u, l, *a, **k: g)
+    monkeypatch.setattr(recommender, "path_level", lambda u, l, f=None: level)
+    monkeypatch.setattr(recommender, "get_next",
+                        lambda u, l, module=None, limit=1: {"vocab": vocab, "phrasebook": phr}.get(module, []))
+    return recommender
+
+
+def test_my_path_has_no_reading_and_no_phrasebook_at_a1(monkeypatch):
+    r = _path_fixture(monkeypatch, "A1")
+    ids = [u["unit_id"] for u in r.get_path_next("u", "German", limit=6)]
+    assert ids[0] == "grammar:1"
+    assert not any(i.startswith(("reading", "phrasebook")) for i in ids)
+    assert ids[1:] == ["vocab:A1:0", "vocab:A2:2", "vocab:A2:4"]    # own level, then one above; B2/C1 left out
+
+
+def test_my_path_adds_phrasebook_from_a2_by_level(monkeypatch):
+    r = _path_fixture(monkeypatch, "A2")
+    ids = [u["unit_id"] for u in r.get_path_next("u", "German", limit=7)]
+    assert ids[:3] == ["grammar:1", "vocab:A2:2", "phrasebook:S:1"]  # grammar -> vocab -> phrasebook
+    assert "phrasebook:S:0" not in ids                              # phrasebook never above the level
+    assert not any(i.startswith("reading") for i in ids)
+
+
+def test_letter_block_comes_first_only_for_ko_ja_zh(monkeypatch):
+    from engine import recommender, reading_start
+    units = [{"unit_id": f"reading:ko:{i}", "module": "reading", "topic": None, "level": "A1"} for i in (1, 2, 57, 58)]
+    monkeypatch.setattr(recommender, "_candidates", lambda lang, module=None: units)
+    monkeypatch.setattr(recommender, "_srs_map", lambda u, l: {"reading:ko:1": {}})
+    monkeypatch.setattr(recommender, "needs_letters", lambda u, l: True)
+    assert [u["unit_id"] for u in recommender._letter_block_units("u", "Korean", 5)] == ["reading:ko:2"]
+    assert recommender._letter_block_units("u", "German", 5) == []
+    monkeypatch.setattr(recommender, "needs_letters", lambda u, l: False)
+    assert recommender._letter_block_units("u", "Korean", 5) == []
+    assert 57 not in reading_start.letter_lessons("ko")

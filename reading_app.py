@@ -1712,6 +1712,18 @@ def _render_embedded_ai_passage(user_id: str, native_lang: str, target_lang: str
     return False
 
 
+def _intro_lessons_needed(user_id: str, target_lang: str, lang_code: str) -> int:
+    """How many reading lessons this "Читання" step runs in a row: a student
+    who needs the letters in a Latin/Cyrillic language gets
+    READING_INTRO_COUNT in their first lesson (2026-10-22, Natalia: "дать в
+    первом уроке 5 уроков на чтение"); ko/ja/zh letter learners already did
+    the whole letter block in My Path; everyone else -- one."""
+    if lang_code in _recommender.LETTER_BLOCK_LANGS or not _recommender.needs_letters(user_id, target_lang):
+        return 1
+    done, _total = _recommender._reading_progress(user_id, target_lang)
+    return max(1, _recommender.READING_INTRO_COUNT - done)
+
+
 def render_embedded_reading_step(user_id: str, native_lang: str, target_lang: str) -> bool:
     """
     One reading lesson's step-loop (1-5), with none of the standalone
@@ -1738,12 +1750,33 @@ def render_embedded_reading_step(user_id: str, native_lang: str, target_lang: st
     for this language) -- grammar.py then unlocks "Новий матеріал".
     """
     lang_code = _recommender.LANG_TO_CODE.get(target_lang)
-    unit = _recommender.next_reading_unit(user_id, target_lang) if lang_code else None
+    # Reading lessons already finished in THIS "Читання" step (the intro run
+    # below); kept out of the pick, since skipping steps writes no srs_state
+    # row and next_reading_unit would hand the same lesson back.
+    if st.session_state.get("r_intro_done") is None:
+        st.session_state["r_intro_done"] = []
+    intro_done = st.session_state["r_intro_done"]
+    unit = None
+    if lang_code:
+        unit = next((u for u in _recommender._reading_frontier_units(
+                         user_id, target_lang, limit=len(intro_done) + 1)
+                     if _recommender.parse_unit_id(u["unit_id"])["lesson_id"] not in intro_done),
+                    None)
+        if unit is not None and _recommender.next_reading_unit(user_id, target_lang) is None:
+            unit = None
 
     if unit is None:
+        if intro_done:
+            return True
         return _render_embedded_ai_passage(user_id, native_lang, target_lang)
 
     lesson_id = _recommender.parse_unit_id(unit["unit_id"])["lesson_id"]
+    if st.session_state.get("r_intro_total") is None:
+        st.session_state["r_intro_total"] = _intro_lessons_needed(user_id, target_lang, lang_code)
+    intro_total = st.session_state["r_intro_total"]
+    if intro_total > 1:
+        st.caption(i18n.get(native_lang, "reading_intro_progress").format(
+            n=len(intro_done) + 1, total=intro_total))
 
     if st.session_state.get("r_lesson") != lesson_id or "r_rows" not in st.session_state:
         df = load(str(DB_PATH), lang=lang_code, native_lang=native_lang)
@@ -1759,6 +1792,10 @@ def render_embedded_reading_step(user_id: str, native_lang: str, target_lang: st
     _save_step_progress(lesson_id, 99 if step > 5 else step, user_id)
 
     if step > 5:
+        if len(intro_done) + 1 < intro_total:
+            intro_done.append(lesson_id)
+            st.session_state.pop("r_rows", None)
+            st.rerun()
         return True
 
     fn = {1: do_step1, 2: do_step2, 3: do_step3, 4: do_step4, 5: do_step5}[step]

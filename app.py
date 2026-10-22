@@ -491,7 +491,7 @@ def _render_onboarding(user_id: str) -> None:
             user_id, name.strip(), native, target, self_level, literacy_required,
         )
         # Also seed the per-(user, target_lang) answer (2026-09-20) -- this
-        # is what engine.recommender._reading_gate_mode() actually reads now;
+        # is what engine.recommender.needs_letters() actually reads now;
         # user_prefs.literacy_required above is kept only for backward
         # compatibility/other reads. Writes when the question was actually
         # asked (different-script pair), OR -- 2026-09-25, Natalia -- when it
@@ -502,7 +502,7 @@ def _render_onboarding(user_id: str) -> None:
         # gate reads the same True/False/None signal this writes -- treating
         # "already knows this script well enough to be B1+ in it" as
         # equivalent to "yes, I can already read" skips the forced intro
-        # (recommender._reading_gate_mode: False -> "skip" -> straight to
+        # (recommender.needs_letters: False -> no letter lessons, straight to
         # the normal grammar/vocab mix). Reading content itself isn't lost --
         # it keeps resurfacing later through get_next()'s own SRS-urgency
         # term, just not force-fronted. True A1/A2 self-reports (or an

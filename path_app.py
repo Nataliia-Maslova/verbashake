@@ -222,8 +222,8 @@ def _render_literacy_prompt(user: str, native: str, target: str) -> None:
     instead of once ever -- onboarding only asks about whichever pair was
     picked at signup; switching to a different target_lang later used to
     silently reuse that one answer (or the script-family default) for
-    every language after, see engine.recommender._reading_gate_mode()'s
-    docstring for the live bug this fixes. Uses the exact same i18n keys
+    every language after (engine.recommender.needs_letters reads this
+    per-language answer now). Uses the exact same i18n keys
     as the onboarding question (already translated for all 14 languages),
     not new ones."""
     if not user or _user_prefs.get_language_literacy(user, target) is not None:
