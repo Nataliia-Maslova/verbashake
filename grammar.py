@@ -2807,6 +2807,11 @@ def phase3_practice(session: LessonSession, tts_lang: str, wh_lang: str) -> bool
             f"**{_pair_names.get(_pair['lesson_id'], '')}**"
         )
 
+    # Generated exercises are drawn here, above the exercise-type cards
+    # (2026-10-22, Natalia: they used to appear below everything, so it
+    # wasn't visible that anything had been generated).
+    _ex_area = st.container()
+
     st.markdown(f"**{i18n.get(native_lang, 'test_type_label')}**")
 
     # target_grammar needs a second picker: WHICH topic from target_lang's
@@ -3017,11 +3022,11 @@ def phase3_practice(session: LessonSession, tts_lang: str, wh_lang: str) -> bool
 
     exercises = st.session_state.get("p3_exercises", [])
 
-    # ── Render every generated exercise, oldest first — each one its own
-    # card with its own inputs and its own Check button, so earlier ones
-    # stay visible (and answerable) while later ones are added below.
-    for ex_idx, ex in enumerate(exercises):
-        with st.container(border=True):
+    # ── Render every generated exercise, newest first, in _ex_area at the
+    # top of the phase — each one its own card with its own inputs and its
+    # own Check button, so earlier ones stay visible (and answerable).
+    for ex_idx, ex in reversed(list(enumerate(exercises))):
+        with _ex_area.container(border=True):
             _ex_type = ex["type"]
             st.markdown(
                 f"**{i18n.get(native_lang, 'exercise_label')} {ex_idx + 1} "
@@ -3207,12 +3212,13 @@ def phase3_practice(session: LessonSession, tts_lang: str, wh_lang: str) -> bool
     # longer gated on a single global "checked" flag now that several
     # exercises can be in flight/checked at once.
     if any(ex["checked"] for ex in exercises):
-        if _phase_error_review("practice", wh_lang, target_lang, native_lang):
-            if st.button(
-                i18n.get(native_lang, "next"), type="primary", key="p3_next"
-            ):
-                st.session_state.pop("p3_exercises", None)
-                return True
+        with _ex_area:
+            if _phase_error_review("practice", wh_lang, target_lang, native_lang):
+                if st.button(
+                    i18n.get(native_lang, "next"), type="primary", key="p3_next"
+                ):
+                    st.session_state.pop("p3_exercises", None)
+                    return True
 
     return False
 
