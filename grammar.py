@@ -677,18 +677,8 @@ def step_hdr(step, title=None, desc=None, total=8, show_image=False):
     req_note = (f' <span style="color:var(--mova-amber-ink);font-size:.72rem;">🔒 {req_word}</span>'
                 if step in REQUIRED_STEPS else '')
 
-    st.markdown(f"""
-    <div class="step-header step-type-{s_type}">
-      <div class="step-icon-row">
-        <span class="mova-icon-tile" data-step="{step}">{icon}</span>
-        <div style="flex:1">
-          <div class="step-title">{title}</div>
-          <div class="step-desc">{desc}</div>
-        </div>
-      </div>
-    </div>""", unsafe_allow_html=True)
-
-    # Show lesson illustration if requested
+    # Lesson illustration above the instruction (2026-10-22, Natalia:
+    # "картинку хочу отображать над инструкцией").
     if show_image and sess:
         _mod = _current_module()
         if _mod == "vocab" and len(sess.df) > 0:
@@ -702,6 +692,17 @@ def step_hdr(step, title=None, desc=None, total=8, show_image=False):
                 _, _mid, _ = st.columns([1, 2, 1])
                 with _mid:
                     st.image(str(_p), use_container_width=True)
+
+    st.markdown(f"""
+    <div class="step-header step-type-{s_type}">
+      <div class="step-icon-row">
+        <span class="mova-icon-tile" data-step="{step}">{icon}</span>
+        <div style="flex:1">
+          <div class="step-title">{title}</div>
+          <div class="step-desc">{desc}</div>
+        </div>
+      </div>
+    </div>""", unsafe_allow_html=True)
 
 
 def _audio_duration_ms(audio_bytes: bytes) -> int:

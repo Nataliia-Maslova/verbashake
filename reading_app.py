@@ -789,6 +789,12 @@ def shdr(step: int, hint_override: str = None):
     icon  = _ui(f"step{step}_icon")
     title = _ui(f"step{step}")
     hint  = hint_override or _ui(f"step{step}_hint")
+    # Illustration above the instruction (2026-10-22, Natalia).
+    _banner = APP_IMG_DIR / "reading_banner.jpg"
+    if _banner.exists() and not st.session_state.get("_dark_mode"):
+        _, _mid, _ = st.columns([1, 2, 1])
+        with _mid:
+            st.image(str(_banner), use_container_width=True)
     st.markdown(
         f'<div class="step-header">'
         f'<div class="step-icon-row">'
@@ -799,11 +805,6 @@ def shdr(step: int, hint_override: str = None):
         f'</div></div></div>',
         unsafe_allow_html=True,
     )
-    _banner = APP_IMG_DIR / "reading_banner.jpg"
-    if _banner.exists() and not st.session_state.get("_dark_mode"):
-        _, _mid, _ = st.columns([1, 2, 1])
-        with _mid:
-            st.image(str(_banner), use_container_width=True)
 
 
 def card(word, trans, rule="", show_word=True, show_trans=True):
