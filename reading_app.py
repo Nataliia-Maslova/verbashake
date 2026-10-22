@@ -1770,21 +1770,31 @@ def render_embedded_reading_step(user_id: str, native_lang: str, target_lang: st
     if st.session_state.get("r_intro_done") is None:
         st.session_state["r_intro_done"] = []
     intro_done = st.session_state["r_intro_done"]
-    unit = None
-    if lang_code:
-        unit = next((u for u in _recommender._reading_frontier_units(
-                         user_id, target_lang, limit=len(intro_done) + 1)
-                     if _recommender.parse_unit_id(u["unit_id"])["lesson_id"] not in intro_done),
-                    None)
-        if unit is not None and _recommender.next_reading_unit(user_id, target_lang) is None:
-            unit = None
+    # The lesson this step is on stays fixed until its 5 steps are done
+    # (2026-10-22, Natalia: after "Перевірити вимову" on step 2 the step
+    # jumped to the next reading lesson -- the check writes an srs_state row,
+    # so re-picking "the first lesson not started yet" on the next rerun
+    # returned the following lesson).
+    pinned = st.session_state.get("r_embed_lid")
+    if pinned and pinned[0] == target_lang:
+        lesson_id = pinned[1]
+    else:
+        unit = None
+        if lang_code:
+            unit = next((u for u in _recommender._reading_frontier_units(
+                             user_id, target_lang, limit=len(intro_done) + 1)
+                         if _recommender.parse_unit_id(u["unit_id"])["lesson_id"] not in intro_done),
+                        None)
+            if unit is not None and _recommender.next_reading_unit(user_id, target_lang) is None:
+                unit = None
 
-    if unit is None:
-        if intro_done:
-            return True
-        return _render_embedded_ai_passage(user_id, native_lang, target_lang)
+        if unit is None:
+            if intro_done:
+                return True
+            return _render_embedded_ai_passage(user_id, native_lang, target_lang)
 
-    lesson_id = _recommender.parse_unit_id(unit["unit_id"])["lesson_id"]
+        lesson_id = _recommender.parse_unit_id(unit["unit_id"])["lesson_id"]
+        st.session_state["r_embed_lid"] = (target_lang, lesson_id)
     if st.session_state.get("r_intro_total") is None:
         st.session_state["r_intro_total"] = _intro_lessons_needed(user_id, target_lang, lang_code)
     intro_total = st.session_state["r_intro_total"]
@@ -1809,6 +1819,7 @@ def render_embedded_reading_step(user_id: str, native_lang: str, target_lang: st
         if len(intro_done) + 1 < intro_total:
             intro_done.append(lesson_id)
             st.session_state.pop("r_rows", None)
+            st.session_state["r_embed_lid"] = None
             st.rerun()
         return True
 

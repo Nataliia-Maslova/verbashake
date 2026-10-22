@@ -1382,7 +1382,7 @@ def render_setup():
                         # lesson is already mid-session.
                         "lesson_phase":      4 if _qp_practice else 1,
                         "reading_step_done": _qp_practice,
-                        "r_intro_done": [], "r_intro_total": None,
+                        "r_intro_done": [], "r_intro_total": None, "r_embed_lid": None,
                         "tts_lang":    TTS_LANG.get(_qp_target, "en"),
                         "wh_lang":     WHISPER_LANG.get(_qp_target),
                         "lang_pair":   _qp_lp,
@@ -4361,7 +4361,7 @@ def main(module: str = "grammar"):
                                 # ever going through ITS OWN reading step.
                                 "lesson_phase":      1,
                                 "reading_step_done": False,
-                                "r_intro_done": [], "r_intro_total": None,
+                                "r_intro_done": [], "r_intro_total": None, "r_embed_lid": None,
                                 "tts_lang":    TTS_LANG.get(state.target_lang, "en"),
                                 "wh_lang":     WHISPER_LANG.get(state.target_lang),
                                 "lang_pair":   _lp,
@@ -4615,7 +4615,7 @@ def main(module: str = "grammar"):
                             "lesson_step":       1,
                             "lesson_phase":      1,
                             "reading_step_done": False,
-                            "r_intro_done": [], "r_intro_total": None,
+                            "r_intro_done": [], "r_intro_total": None, "r_embed_lid": None,
                         })
                         if _ltoasts:
                             st.session_state["_pending_toasts"] = _ltoasts
