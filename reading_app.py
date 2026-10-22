@@ -733,12 +733,6 @@ header [data-testid="stDecoration"]{display:none;}
     min-width:36px !important;
     min-height:36px !important;
 }
-.wcard{background:var(--mova-card);border:1px solid var(--mova-line);border-radius:14px;padding:28px 20px;margin:10px 0;text-align:center;}
-.wbig{font-size:3.2rem;font-weight:700;color:var(--mova-ink);}
-.tbig{font-size:2rem;color:var(--mova-indigo);font-family:'JetBrains Mono',monospace;margin-top:8px;}
-.rule{background:var(--mova-card);border-left:3px solid var(--mova-indigo);border-radius:6px;padding:10px 14px;margin:8px 0;color:#a0a0d0;font-size:.9rem;}
-.spill{font-family:'JetBrains Mono',monospace;font-size:.7rem;padding:3px 10px;border-radius:20px;margin:2px;display:inline-block;}
-.row-ok{display:flex;gap:10px;padding:8px 14px;background:var(--mova-card);border-bottom:1px solid var(--mova-line);align-items:center;}
 /* Make Streamlit secondary buttons (e.g. step 3 choices) dark-themed for readability */
 .stApp .stButton > button[kind="secondary"]{
     background:var(--mova-card) !important;
@@ -1556,7 +1550,26 @@ def _show_upsell_reading(key: str) -> None:
 #  Main
 # ═══════════════════════════════════════════════════════════════════════════
 
+# Reading-content classes (word card, rule, word table) -- shared by the
+# standalone module and the "Читання" step inside a grammar lesson
+# (render_embedded_reading_step), whose page only has grammar.py's CSS
+# (2026-10-22: the word table rendered as one glued line there).
+_CONTENT_CSS = """
+.wcard{background:var(--mova-card);border:1px solid var(--mova-line);border-radius:14px;padding:28px 20px;margin:10px 0;text-align:center;}
+.wbig{font-size:3.2rem;font-weight:700;color:var(--mova-ink);}
+.tbig{font-size:2rem;color:var(--mova-indigo);font-family:'JetBrains Mono',monospace;margin-top:8px;}
+.rule{background:var(--mova-card);border-left:3px solid var(--mova-indigo);border-radius:6px;padding:10px 14px;margin:8px 0;color:var(--mova-ink-2);font-size:.9rem;}
+.spill{font-family:'JetBrains Mono',monospace;font-size:.7rem;padding:3px 10px;border-radius:20px;margin:2px;display:inline-block;}
+.row-ok{display:flex;gap:10px;padding:8px 14px;background:var(--mova-card);border-bottom:1px solid var(--mova-line);align-items:center;}
+"""
+
+
+def _inject_content_css():
+    st.markdown(f"<style>{_CONTENT_CSS}</style>", unsafe_allow_html=True)
+
+
 def _inject_css():
+    _inject_content_css()
     st.markdown("""
 <style>
 /* Fonts loaded by app.py via _inject_mova_css — no extra @import needed */
@@ -1749,6 +1762,7 @@ def render_embedded_reading_step(user_id: str, native_lang: str, target_lang: st
     fallback was shown once curated content is exhausted / doesn't exist
     for this language) -- grammar.py then unlocks "Новий матеріал".
     """
+    _inject_content_css()
     lang_code = _recommender.LANG_TO_CODE.get(target_lang)
     # Reading lessons already finished in THIS "Читання" step (the intro run
     # below); kept out of the pick, since skipping steps writes no srs_state
