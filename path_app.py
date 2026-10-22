@@ -180,9 +180,25 @@ def _render_level_prompt(user: str, native: str, target: str) -> bool:
             format_func=lambda lvl: i18n.get(native, f"level_{lvl}"),
             key=f"level_prompt_{target}",
         )
+        # The letters question sits in the same card (2026-10-22, Natalia:
+        # "вообще не вижу вопроса про чтение" — it used to appear only
+        # after this card was saved, so it looked missing).
+        ask_letters = (_literacy.needs_literacy_question(native, target, level)
+                       and _user_prefs.get_language_literacy(user, target) is None)
+        letters = None
+        if ask_letters:
+            letters = st.radio(
+                i18n.get(native, "onboarding_literacy_label").format(target=target),
+                ["can_read", "needs_letters"],
+                format_func=lambda c: i18n.get(native, f"literacy_{c}"),
+                index=None,
+                key=f"level_prompt_letters_{target}",
+            )
         if st.button(i18n.get(native, "custom_save_btn"), key=f"level_prompt_save_{target}",
-                     type="primary"):
+                     type="primary", disabled=ask_letters and letters is None):
             _user_prefs.set_language_level(user, target, level)
+            if letters is not None:
+                _user_prefs.set_language_literacy(user, target, letters == "needs_letters")
             if (level in _recommender.CEFR_RANK
                     and _recommender.CEFR_RANK[level] >= _recommender.CEFR_RANK["B1"]
                     and not _literacy.needs_literacy_question(native, target, level)
