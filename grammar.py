@@ -1022,7 +1022,7 @@ def step2(session: LessonSession, tts_lang, wh_lang):
 # ═══════════════════════════════════════════════════════════════════════════
 def step3(session: LessonSession, tts_lang, wh_lang):
     session.start_step(3)
-    step_hdr(3, show_image=True)
+    step_hdr(3)  # no illustration: the student scrolls this step phrase by phrase (2026-10-22, Natalia)
     native_lang = session.state.native_lang
     phrases = session.phrases()
 
