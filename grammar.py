@@ -1238,7 +1238,6 @@ def step7(session: LessonSession, tts_lang, wh_lang):
 
     # ── Record & Submit ──
     # No live timer: speed = actual audio recording length.
-    st.markdown(f"#### {i18n.get(native_lang, 'step7_record_prompt')}")
     audio = audio_input("s7")
 
     # Submit button appears only after the user records audio
