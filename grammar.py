@@ -677,8 +677,8 @@ def step_hdr(step, title=None, desc=None, total=8, show_image=False):
     req_note = (f' <span style="color:var(--mova-amber-ink);font-size:.72rem;">🔒 {req_word}</span>'
                 if step in REQUIRED_STEPS else '')
 
-    # Lesson illustration above the instruction (2026-10-22, Natalia:
-    # "картинку хочу отображать над инструкцией").
+    # Lesson illustration above the instruction, step 1 only (2026-10-22,
+    # Natalia: "картинку хочу отображать над инструкцией" / "только в шаге 1").
     if show_image and sess:
         _mod = _current_module()
         if _mod == "vocab" and len(sess.df) > 0:
@@ -988,7 +988,7 @@ def step1(session: LessonSession, tts_lang, wh_lang):
 # ═══════════════════════════════════════════════════════════════════════════
 def step2(session: LessonSession, tts_lang, wh_lang):
     session.start_step(2)
-    step_hdr(2, show_image=True)
+    step_hdr(2)
     phrases = session.phrases()
     paths   = [get_audio_path(p["target"], tts_lang) for p in phrases]
     pauses  = [phrase_pause(p["target"]) for p in phrases]
@@ -1022,7 +1022,7 @@ def step2(session: LessonSession, tts_lang, wh_lang):
 # ═══════════════════════════════════════════════════════════════════════════
 def step3(session: LessonSession, tts_lang, wh_lang):
     session.start_step(3)
-    step_hdr(3)  # no illustration: the student scrolls this step phrase by phrase (2026-10-22, Natalia)
+    step_hdr(3)
     native_lang = session.state.native_lang
     phrases = session.phrases()
 
@@ -1097,7 +1097,7 @@ def step3(session: LessonSession, tts_lang, wh_lang):
 # ═══════════════════════════════════════════════════════════════════════════
 def step4(session: LessonSession, tts_lang, wh_lang):
     session.start_step(4)
-    step_hdr(4, show_image=True)
+    step_hdr(4)
     native_lang = session.state.native_lang
     phrases = session.phrases()
 
@@ -1143,7 +1143,7 @@ def step4(session: LessonSession, tts_lang, wh_lang):
 # ═══════════════════════════════════════════════════════════════════════════
 def step5(session: LessonSession, tts_lang, wh_lang):
     session.start_step(5)
-    step_hdr(5, show_image=True)
+    step_hdr(5)
     phrases = session.phrases()
     paths   = [get_audio_path(p["target"], tts_lang) for p in phrases]
     pauses  = [phrase_pause(p["target"]) for p in phrases]
@@ -1177,7 +1177,7 @@ def step5(session: LessonSession, tts_lang, wh_lang):
 # ═══════════════════════════════════════════════════════════════════════════
 def step6(session: LessonSession, tts_lang, wh_lang):
     session.start_step(6)
-    step_hdr(6, show_image=True)
+    step_hdr(6)
     native_lang = session.state.native_lang
     phrases = session.phrases()
     scores  = st.session_state.get("s6_scores", {})
@@ -1225,7 +1225,7 @@ _S7_MIN_SIMILARITY        = 0.80  # ≥ 80% similarity
 
 def step7(session: LessonSession, tts_lang, wh_lang):
     session.start_step(7)
-    step_hdr(7, show_image=True)
+    step_hdr(7)
     native_lang = session.state.native_lang
     phrases = session.phrases()
 
@@ -1621,7 +1621,7 @@ def step8(session: LessonSession, tts_lang, wh_lang):
         title = i18n.get(native_lang, "step8_grammar_title")
         desc  = i18n.get(native_lang, "step8_grammar_desc")
 
-    step_hdr(8, title=title, desc=desc, total=8, show_image=True)
+    step_hdr(8, title=title, desc=desc, total=8)
 
     phrases = session.phrases()
 
