@@ -1039,3 +1039,26 @@ def test_check_retelling_survives_judge_failure(monkeypatch):
     _sequenced_model(monkeypatch, [_json.dumps(first), "not json"])
     r = gemini.check_retelling.__wrapped__(RETELL_TEXT, "", "B2", "English", "Ukrainian")
     assert [g["original"] for g in r["grammar"]] == ["splitted up"]
+
+
+def test_reading_skips_letters_when_student_says_they_know_them():
+    from engine.reading_start import skips_letters
+    # "так, уже знаю букви" wins over a low / missing level (2026-10-22).
+    for level in ("zero", "A1", "A2", None):
+        assert skips_letters(level, False) is True
+    # "навчи мене літер" wins over a high level.
+    assert skips_letters("C1", True) is False
+    # No answer: only B1+ skips the letters.
+    assert skips_letters("B1", None) is True
+    for level in ("zero", "A1", "A2", None):
+        assert skips_letters(level, None) is False
+
+
+def test_reading_letter_lessons_exist_and_leave_word_lessons():
+    import reading_app
+    from engine.reading_start import LETTER_LESSONS
+    for code, lids in LETTER_LESSONS.items():
+        df = reading_app.load(str(reading_app.DB_PATH), code)
+        all_lids = set(df["lesson_id"].astype(int))
+        assert lids & all_lids, code
+        assert all_lids - lids, code
