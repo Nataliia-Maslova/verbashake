@@ -1107,3 +1107,25 @@ def test_letter_block_comes_first_only_for_ko_ja_zh(monkeypatch):
     monkeypatch.setattr(recommender, "needs_letters", lambda u, l: False)
     assert recommender._letter_block_units("u", "Korean", 5) == []
     assert 57 not in reading_start.letter_lessons("ko")
+
+
+def test_reading_rules_translated_for_every_native_with_ipa_intact():
+    """English-target Reading rules exist for every native language and keep
+    every [IPA] transcription of the English source (2026-10-23)."""
+    import json, re
+    import pandas as pd
+    from engine.loader import LANG_COLUMNS
+    import reading_app
+
+    src = pd.read_excel(reading_app.DB_PATH, engine="openpyxl", sheet_name="Правила")
+    src.columns = ["lesson_id", "ru", "en", "es", "uk"]
+    en = {str(int(r.lesson_id)): str(r.en) for r in src.itertuples()}
+    gen = json.loads(reading_app.RULES_GENERATED_PATH.read_text(encoding="utf-8"))
+    norm = lambda s: sorted(x.replace("i", "ı").replace(" ", "")
+                            for x in re.findall(r"\[[^\]]*\]", s))
+    for lang in LANG_COLUMNS:
+        if lang in reading_app.NATIVE_TO_RULES_COL:
+            continue
+        assert set(gen[lang]) == set(en), lang
+        for k, v in gen[lang].items():
+            assert norm(v) == norm(en[k]), (lang, k)

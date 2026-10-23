@@ -157,6 +157,8 @@ NATIVE_TO_RULES_COL = {
     "Ukrainian": "uk", "Russian": "ru",
     "English":   "en", "Spanish": "es",
 }
+# Same rules translated for every other native language
+RULES_GENERATED_PATH = Path(__file__).parent / "data" / "reading_rules_generated.json"
 
 
 def _r_lang() -> str:
@@ -664,6 +666,10 @@ def load(path: str, lang: str = "en", native_lang: str = "Ukrainian") -> pd.Data
             df_rules.columns = ["lesson_id", "ru", "en", "es", "uk"]
             rule_map = dict(zip(df_rules["lesson_id"].astype(int),
                                 df_rules[rules_col].fillna("")))
+            # Other natives: generated translations (scripts/generate_reading_rules.py)
+            if native_lang not in NATIVE_TO_RULES_COL and RULES_GENERATED_PATH.exists():
+                gen = json.loads(RULES_GENERATED_PATH.read_text(encoding="utf-8"))
+                rule_map.update({int(k): v for k, v in gen.get(native_lang, {}).items() if v})
             # Apply: Правила sheet takes priority (multilingual); fall back to inline rule
             def _apply_rule(row):
                 from_sheet = rule_map.get(int(row["lesson_id"]), "")

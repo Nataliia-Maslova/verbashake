@@ -5001,3 +5001,16 @@ localhost (её аккаунт, урок English по deep-link): `.row-ok` = fl
 «Вправа 2» над «Вправа 1», карточки ниже. Указатели English её аккаунта восстановлены.
 Продолжение: картинка теперь только на шаге 1 — в «Новому матеріалі» (`show_image=True` только у `step_hdr(1)`) и в
 пяти шагах чтения (`reading_app.shdr`: `step == 1`), и в модуле «Читання», и в шаге урока.
+
+## Каталанський інтерфейс: 9 помилок + правило вимови для всіх рідних мов (2026-10-23)
+
+Знайдено при підготовці валенсійського посібника (`../VerbaShake — guia d'usuari (valencià).docx`). `data/i18n_generated.json` (ca):
+«Escalfeu motores» (ісп. *motores*) → «Escalfament»; «▶ Proper pròxim» (тавтологія) → «▶ Pròxima lliçó»; «Intenta-ho més fort» (калька) →
+«Més difícil»; «▶ Juga tot» (*jugar* = грати в гру) → «▶ Reprodueix-ho tot»; «⭐ Actualitza» (= онови) → «⭐ Millora el pla»; «Envia i Puntuació» →
+«Envia i puntua»; «Parlant» (phase_speaking/speaking_title) → «Expressió oral»; step 3 «Escoltar, triar…» → «Escolta i tria la traducció»;
+регістр «Nou Material», «Escolta i Repeteix/Troba». Генератор resumable — без `--overwrite` правки не перезапишуться.
+**Правило вимови (English Reading)** показувалось англійською всім, крім ru/en/es/uk (аркуш «Правила» має лише ці 4 колонки).
+[scripts/generate_reading_rules.py](scripts/generate_reading_rules.py) → [data/reading_rules_generated.json](data/reading_rules_generated.json)
+(56 правил × 15 мов, Gemini Flash), `reading_app.load()` бере їх для інших рідних мов. Знайдено й виправлено в джерелі: правило уроку 20 обрізане
+в усіх 4 колонках («Ii, Yy в бу [ı]» → «у ненаголошеному складі»), опечатки IPA в уроках 68/75. Тест `test_reading_rules_translated_for_every_native_with_ipa_intact`
+(усі [IPA] збережені). Переклади не звірені носіями. 1404/1404. Вживу в UI не перевірено (перезапустити сервер — JSON читається на імпорті).
