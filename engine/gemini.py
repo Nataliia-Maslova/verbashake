@@ -1454,7 +1454,9 @@ def generate_episode_lesson(
         "keep before-watching questions about the themes the title suggests, "
         "and phrase after-watching questions so the STUDENT supplies the facts "
         "(e.g. 'Which character did you like most, and why?', 'What surprised "
-        "you most in the episode?')."
+        "you most in the episode?'). Never write template placeholders like "
+        "'[Character Name]' or '[X]' — say 'one of the characters', 'the main "
+        "character', etc."
     )
     prompt = (
         source + "\n"
@@ -1481,17 +1483,38 @@ def generate_episode_lesson(
         '"vocab": [{"word": "...", "native": "...", "example": "..."}]}, '
         '"after": {"questions": [{"target": "...", "native": "..."}]}}'
     )
-    out = _parse_json(model.generate_content(prompt).text, fallback={})
+    # Without a description the model kept writing "How did [Character Name]
+    # feel when...?" (screenshot 2026-10-23) — retry once, then drop any
+    # question that still has a [placeholder].
+    for _attempt in range(2):
+        out = _parse_json(model.generate_content(prompt).text, fallback={})
+        if not _has_placeholder(out):
+            break
     before = out.get("before") or {}
     after = out.get("after") or {}
+    ok = lambda q: q.get("target") and not _has_placeholder(q)
+    prediction = before.get("prediction") or {}
     return {
         "before": {
-            "questions": [q for q in before.get("questions", []) if q.get("target")],
-            "prediction": before.get("prediction") or {},
+            "questions": [q for q in before.get("questions", []) if ok(q)],
+            "prediction": {} if _has_placeholder(prediction) else prediction,
             "vocab": [v for v in before.get("vocab", []) if v.get("word")],
         },
-        "after": {"questions": [q for q in after.get("questions", []) if q.get("target")]},
+        "after": {"questions": [q for q in after.get("questions", []) if ok(q)]},
     }
+
+
+_PLACEHOLDER_RE = re.compile(r"\[[^\]\n]{2,40}\]")
+
+
+def _has_placeholder(obj) -> bool:
+    """True if any question text (not vocab) still has a «[Character Name]»-
+    style template slot."""
+    if isinstance(obj, dict):
+        return any(_has_placeholder(v) for k, v in obj.items() if k != "vocab")
+    if isinstance(obj, list):
+        return any(_has_placeholder(v) for v in obj)
+    return isinstance(obj, str) and bool(_PLACEHOLDER_RE.search(obj))
 
 
 @_gated("check_retelling", 5)

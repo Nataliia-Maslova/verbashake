@@ -627,7 +627,7 @@ def preload_lesson_audio(rows, prefix: str):
     lang = _r_lang()
     key  = f"{prefix}_paths"
     if key not in st.session_state:
-        with st.spinner("Готуємо аудіо..."):
+        with st.spinner(_ui("preparing_audio")):
             paths = []
             for _, r in rows.iterrows():
                 p = audio_for_row(r["word"], r["transcription"],
@@ -917,7 +917,7 @@ def do_step2(rows: pd.DataFrame) -> bool:
                                success=bool(r["passed"]))
                     st.rerun()
                 else:
-                    st.error("Не вдалося розпізнати аудіо.")
+                    st.error(_ui("audio_not_recognized"))
 
     # ── Phrases table BELOW mic ───────────────────────────────────────────────
     lessons_table(rows, show_word=True, show_trans=True,
@@ -983,15 +983,15 @@ def do_step3(rows: pd.DataFrame) -> bool:
         row = rows.iloc[idx]
         p   = st.session_state.get(f"s3_audio_{idx}")
 
-        st.markdown(f"**Послухай слово {idx+1} і знайди його:**")
+        st.markdown("**" + _ui("find_word").format(n=idx + 1) + "**")
         if p:
             play(p, autoplay=True)
         else:
-            st.caption("⚠️ Аудіо недоступне")
+            st.caption(_ui("audio_unavailable"))
 
         c_rp, _ = st.columns([1, 3])
         with c_rp:
-            if p and st.button("▶ Ще раз", key=f"s3_rp_{idx}"):
+            if p and st.button(_ui("listen_again"), key=f"s3_rp_{idx}"):
                 play(p)
 
         st.markdown("---")
@@ -1010,15 +1010,15 @@ def do_step3(rows: pd.DataFrame) -> bool:
                                response_time_ms=0,
                                success=ok)
                     if ok:
-                        st.success(f"✓ Правильно! — {row['transcription']}")
+                        st.success(_ui("word_correct").format(t=row['transcription']))
                     else:
-                        st.error(f"✗ Неправильно. Правильно: **{row['word']}** {row['transcription']}")
+                        st.error(_ui("word_wrong").format(w=row['word'], t=row['transcription']))
                     time.sleep(0.4)
                     st.rerun()
         return False
 
     ok = sum(1 for v in scores.values() if v)
-    st.success(f"✓ Готово! {ok}/{len(rows)}")
+    st.success("✓ " + i18n.get(st.session_state.get("launcher_native", "English"), "step3_done_msg").format(ok=ok, total=len(rows)))
     if st.button(_ui("continue"), type="primary", use_container_width=True, key="s3_done"):
         return True
     return False
@@ -1425,7 +1425,8 @@ def render_setup():
             else:
                 st.warning(f"{_lesson_word} {lid} — not found.")
         except Exception as _e:
-            st.error(f"Помилка: {_e}")
+            print(f"[reading] {_e}")
+            st.error(i18n.get(native_lang, "unexpected_error_msg"))
 
     _lesson_word = i18n.get(native_lang, "word_lesson")
 
@@ -1534,7 +1535,8 @@ def render_setup():
                 except _gemini.PaidFeatureRequired:
                     _show_upsell_reading(f"r_ai_{chosen_lang}")
                 except Exception as _e:
-                    st.error(f"Помилка: {_e}")
+                    print(f"[reading] {_e}")
+                    st.error(i18n.get(native_lang, "unexpected_error_msg"))
             _passage = st.session_state.get(_ai_key)
             if _passage and _passage.get("sentences"):
                 st.markdown(f"**{_passage.get('title', '')}**")

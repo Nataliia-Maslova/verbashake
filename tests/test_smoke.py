@@ -1129,3 +1129,35 @@ def test_reading_rules_translated_for_every_native_with_ipa_intact():
         assert set(gen[lang]) == set(en), lang
         for k, v in gen[lang].items():
             assert norm(v) == norm(en[k]), (lang, k)
+
+
+def test_situation_gap_answer_is_graded_as_whole_sentence():
+    """Typing only the gap words ("is watching") must count as the full
+    expected sentence (screenshot 2026-10-23: it was marked wrong)."""
+    import grammar
+    q = "El teu amic està mirant la tele ara mateix.\nMy friend ___ TV right now."
+    filled = grammar._fill_situation_gap(q, "is watching")
+    assert grammar._same_sentence(filled, "My friend is watching TV right now.")
+    assert not grammar._same_sentence(grammar._fill_situation_gap(q, "watch"),
+                                      "My friend is watching TV right now.")
+    full = "My friend is watching TV right now"
+    assert grammar._fill_situation_gap(q, full) == full
+
+
+def test_episode_lesson_placeholder_detection():
+    from engine import gemini
+    assert gemini._has_placeholder({"after": {"questions": [{"target": "How did [Character Name] feel?"}]}})
+    assert not gemini._has_placeholder({"before": {"questions": [{"target": "Do you like it?"}],
+                                                   "vocab": [{"example": "[x]"}]}})
+
+
+@pytest.mark.parametrize("lang", sorted(__import__("engine.i18n", fromlist=["x"]).LANG_TO_CODE))
+def test_reading_step3_and_you_said_keys_resolve(lang):
+    from engine import i18n
+    for k in ("reading_find_word", "reading_listen_again", "reading_audio_unavailable",
+              "reading_word_correct", "reading_word_wrong", "reading_preparing_audio",
+              "reading_audio_not_recognized", "you_said_label"):
+        v = i18n.get(lang, k)
+        assert v and "Послухай" not in v or lang == "Ukrainian", (lang, k)
+    assert i18n.get(lang, "reading_find_word").format(n=1)
+    assert i18n.get(lang, "step7_not_passed_suffix").lstrip()[:1] in ".。", lang

@@ -1726,10 +1726,11 @@ def step8(session: LessonSession, tts_lang, wh_lang):
             for i, item in enumerate(results):
                 orig   = item["original"]
                 errors = item["correction"].get("errors", [])
-                st.markdown(f"**You:** {orig}")
+                _you = i18n.get(native_lang, "chat_role_you")
                 if not errors:
-                    st.success("✓")
+                    st.markdown(f"**{_you}:** {orig} ✓")
                 else:
+                    st.markdown(f"**{_you}:** {orig}")
                     any_errors = True
                     for j, err in enumerate(errors):
                         col_chk, col_txt = st.columns([0.4, 5])
@@ -2478,7 +2479,7 @@ def phase1_warmup(session: LessonSession, tts_lang: str, wh_lang: str) -> bool:
             with st.spinner(i18n.get(native_lang, "transcribing_spinner")):
                 answer = transcribe_bytes(audio, language=wh_lang)
             if answer:
-                st.markdown(f"**You said:** {answer}")
+                st.markdown(f"**{i18n.get(native_lang, 'you_said_label')}:** {answer}")
     else:
         answer_text = st.text_input(
             i18n.get(native_lang, "answer_label"), key="warmup_text_input"
@@ -2695,6 +2696,25 @@ def _recent_lesson_mistakes(session: LessonSession, target_lang: str, n: int = 3
     except Exception:
         return []
     return [r["original"] for r in rows if r.get("unit_id") == session.state.unit_id][:n]
+
+
+def _fill_situation_gap(question: str, answer: str) -> str:
+    """Situation items are "native situation\\nsentence with ___". A student
+    usually types only the gap words ("is watching") — put them into the
+    sentence so the grader sees a whole sentence. A full sentence (or no gap)
+    is returned unchanged."""
+    answer = (answer or "").strip()
+    line = next((ln for ln in str(question).splitlines() if "___" in ln), "")
+    if not answer or not line or len(answer.split()) >= len(line.split()):
+        return answer
+    return line.replace("___", answer, 1).strip()
+
+
+def _same_sentence(a: str, b: str) -> bool:
+    """Equal after case, spacing and punctuation are ignored."""
+    norm = lambda s: " ".join("".join(c for c in (s or "").lower()
+                                      if c.isalnum() or c.isspace() or c == "'").split())
+    return bool(norm(a)) and norm(a) == norm(b)
 
 
 def phase3_practice(session: LessonSession, tts_lang: str, wh_lang: str) -> bool:
@@ -3097,6 +3117,8 @@ def phase3_practice(session: LessonSession, tts_lang: str, wh_lang: str) -> bool
                                 }
                             else:
                                 claims_correct = bool(ex.get("no_mistake", {}).get(i))
+                                if _ex_type == "situation" and not claims_correct:
+                                    student_ans = _fill_situation_gap(item["question"], student_ans)
                                 res = _gemini.check_practice_answer(
                                     item["question"], student_ans, item["answer"],
                                     target_lang, native_lang,
@@ -3115,6 +3137,14 @@ def phase3_practice(session: LessonSession, tts_lang: str, wh_lang: str) -> bool
                                         )
                                     res["correct"] = truth
                                     student_ans = item["question"]
+                                if (_ex_type == "situation" and not res.get("correct")
+                                        and _same_sentence(student_ans, item["answer"])):
+                                    # The gap filled in IS the expected sentence —
+                                    # the model sometimes still says "you left
+                                    # part out" (screenshot 2026-10-23).
+                                    res["correct"] = True
+                                    res["feedback"] = i18n.get(native_lang, "correct").lstrip("✅ ")
+                                    res.pop("topic_en", None)
                             results.append(res)
                             if not res["correct"]:
                                 _pm = {
@@ -3369,7 +3399,7 @@ def phase4_expression(session: LessonSession, tts_lang: str, wh_lang: str) -> bo
             if audio and st.button(i18n.get(native_lang, "submit_voice_btn"), type="primary", key="p4_voice_go"):
                 with st.spinner(i18n.get(native_lang, "transcribing_spinner")):
                     transcribed = transcribe_bytes(audio, language=wh_lang)
-                st.markdown(f"**You said:** {transcribed}")
+                st.markdown(f"**{i18n.get(native_lang, 'you_said_label')}:** {transcribed}")
                 st.session_state["p4_answer"] = transcribed
 
         if "p4_answer" in st.session_state and not st.session_state.get("p4_submitted"):
