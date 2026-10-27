@@ -352,6 +352,18 @@ CREATE TABLE IF NOT EXISTS language_literacy (
     PRIMARY KEY (user_id, target_lang)
 );
 
+-- ── reading_phase_off ───────────────────────────────────────────────────────
+-- (2026-10-27, Natalia) A student who already reads well can turn off the
+-- lesson's "Читання" step for one target_lang. Row present = off; grammar.py
+-- then goes Warmup -> New Material, and the Reading tab offers to turn it on.
+CREATE TABLE IF NOT EXISTS reading_phase_off (
+    user_id      TEXT NOT NULL,
+    target_lang  TEXT NOT NULL,
+    updated_at   TIMESTAMPTZ NOT NULL DEFAULT now(),
+    PRIMARY KEY (user_id, target_lang)
+);
+ALTER TABLE reading_phase_off ENABLE ROW LEVEL SECURITY;
+
 -- ── language_level ──────────────────────────────────────────────────────────
 -- Per-(user, target_lang) self-reported level (2026-10-15). Onboarding used
 -- to ask "how much {target} do you know?" once and store it in the single

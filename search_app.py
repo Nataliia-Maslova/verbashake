@@ -310,6 +310,7 @@ def main() -> None:
         # gap already fixed in grammar.py's/reading_app.py's copies of this
         # sidebar earlier the same day.
         _SIDEBAR_MODULES = [
+            ("path",       "🗺️", i18n.get(native, "module_path")),
             ("grammar",    "🗣️", i18n.get(native, "module_grammar")),
             ("vocab",      "📖", i18n.get(native, "module_vocab")),
             ("phrasebook", "💬", i18n.get(native, "module_phrasebook")),

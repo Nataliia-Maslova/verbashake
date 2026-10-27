@@ -2585,7 +2585,9 @@ def _render_followup_dialogue(
             st.markdown(f"**{you}:** {t['answer']}")
 
     current = turns[-1]
-    if current["answer"] is None:
+    # "Завершити" at any point once something was answered (2026-10-27,
+    # Natalia: the dialogue could only be continued, never ended).
+    if current["answer"] is None and not ex.get("ended"):
         ap = get_audio_path(current["target"], tts_lang)
         if ap:
             st.audio(ap)
@@ -2629,12 +2631,21 @@ def _render_followup_dialogue(
             elif main_idx + 1 < len(questions):
                 turns.append({**questions[main_idx + 1], "kind": "main", "answer": None})
             st.rerun()
-        return None
+        if not any(t["answer"] for t in turns):
+            return None
+        if not st.button(i18n.get(native_lang, "dialogue_finish_btn"),
+                         key=f"p3_dlg{ex_idx}_end{n}"):
+            return None
+        ex["ended"] = True
+        _end_now = True
+    else:
+        _end_now = False
 
-    # Every question answered: one grammar check over all answers.
+    # Every question answered (or the student ended it): one grammar check
+    # over all answers.
     if not ex["checked"]:
-        if st.button(i18n.get(native_lang, "dialogue_check_btn"), type="primary",
-                     key=f"p3_dlg{ex_idx}_check"):
+        if _end_now or st.button(i18n.get(native_lang, "dialogue_check_btn"), type="primary",
+                                 key=f"p3_dlg{ex_idx}_check"):
             answers = [t["answer"] for t in turns if t["answer"]]
             try:
                 with st.spinner(i18n.get(native_lang, "checking_grammar_spinner")):
@@ -4267,6 +4278,7 @@ def main(module: str = "grammar"):
         # was in Russian).
         _sb_native = st.session_state.get("launcher_native", "English")
         _SIDEBAR_MODULES = [
+            ("path",       "🗺️", i18n.get(_sb_native, "module_path")),
             ("grammar",    "🗣️", i18n.get(_sb_native, "module_grammar")),
             ("vocab",      "📖", i18n.get(_sb_native, "module_vocab")),
             ("phrasebook", "💬", i18n.get(_sb_native, "module_phrasebook")),
@@ -4437,7 +4449,16 @@ def main(module: str = "grammar"):
     # to Speaking has a "Пропустити →" button like Warmup (_phase_skip_button
     # below), which marks Reading as done. Reading/Warmup themselves are
     # never locked — a student can always go back and replay them.
-    _reading_done = bool(st.session_state.get("reading_step_done"))
+    # A student who reads well can turn the "Читання" step off for this
+    # target_lang (2026-10-27, Natalia; user_prefs.reading_phase_off) — then
+    # Warmup leads straight to New Material and nothing is locked.
+    _roff_key = f"_reading_off_{sess.state.target_lang}"
+    if _roff_key not in st.session_state:
+        from engine import user_prefs as _up
+        st.session_state[_roff_key] = _up.get_reading_phase_off(
+            sess.state.user_id, sess.state.target_lang)
+    _reading_off = st.session_state[_roff_key]
+    _reading_done = bool(st.session_state.get("reading_step_done")) or _reading_off
     # Clickable phase navigation. Scoped font-size cut for this row only --
     # some translated single-word labels ("Висловлювання") are long enough
     # that the global button font-size (--mova-fs-body, 15px bold) makes
@@ -4473,7 +4494,7 @@ def main(module: str = "grammar"):
     # "Пропустити →" for Reading, New Material, Practice and Speaking (Warmup
     # has its own inside phase1_warmup; Video is the last screen). Skipping
     # records nothing — no mastery, no mistakes, the lesson isn't marked done.
-    if 2 <= _phase <= 5:
+    if 2 <= _phase <= 5 and not (_phase == 2 and _reading_off):
         _sk_l, _sk_r = st.columns([4, 1.5])
         with _sk_r:
             if st.button(i18n.get(_nl, "skip"), key=f"phase_skip_{_phase}"):
@@ -4489,13 +4510,29 @@ def main(module: str = "grammar"):
     # ── Phase 1: Rozminka ─────────────────────────────────────────────────────
     if _phase == 1:
         if phase1_warmup(sess, tts, wh):
-            st.session_state["lesson_phase"] = 2
+            st.session_state["lesson_phase"] = 3 if _reading_off else 2
             st.rerun()
         return
 
     # ── Phase 2: Chytannia (embedded reading, one lesson) ──────────────────
     if _phase == 2:
         st.markdown(f"## 🔤 {i18n.get(_nl, 'phase_reading')}")
+        from engine import user_prefs as _up
+        if _reading_off:
+            st.info(i18n.get(_nl, "reading_off_info"))
+            if st.button(i18n.get(_nl, "reading_on_btn"), key="reading_on_btn", type="primary"):
+                _up.set_reading_phase_off(sess.state.user_id, sess.state.target_lang, False)
+                st.session_state[_roff_key] = False
+                st.session_state["reading_step_done"] = False
+                st.rerun()
+            return
+        if st.button(i18n.get(_nl, "reading_off_btn"), key="reading_off_btn",
+                     help=i18n.get(_nl, "reading_off_help")):
+            _up.set_reading_phase_off(sess.state.user_id, sess.state.target_lang, True)
+            st.session_state[_roff_key] = True
+            st.session_state["reading_step_done"] = True
+            st.session_state["lesson_phase"] = 3
+            st.rerun()
         import reading_app
         if reading_app.render_embedded_reading_step(
             sess.state.user_id, sess.state.native_lang, sess.state.target_lang,

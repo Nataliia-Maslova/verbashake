@@ -77,6 +77,7 @@ def main() -> None:
             unsafe_allow_html=True,
         )
         for _mk, _mi, _mn in (
+            ("path",       "🗺️", i18n.get(native, "module_path")),
             ("grammar",    "🗣️", i18n.get(native, "module_grammar")),
             ("vocab",      "📖", i18n.get(native, "module_vocab")),
             ("phrasebook", "💬", i18n.get(native, "module_phrasebook")),

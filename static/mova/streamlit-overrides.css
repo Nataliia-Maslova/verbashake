@@ -388,3 +388,8 @@ hr, [data-testid="stDivider"] {
   0%, 100% { box-shadow: 0 0 0 0 rgba(255,123,107,.55), 0 4px 16px rgba(255,123,107,.35); }
   50%      { box-shadow: 0 0 0 14px rgba(255,123,107,0), 0 4px 16px rgba(255,123,107,.35); }
 }
+
+/* "Press Ctrl+Enter / Enter to apply" hint under text inputs and text areas
+   (2026-10-27, Natalia: hide it — it's noise for students, and on phones
+   there is no Ctrl at all). */
+[data-testid="InputInstructions"] { display: none !important; }

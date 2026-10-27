@@ -1196,6 +1196,7 @@ def _render_module_nav_sidebar(current_module: str) -> None:
     session_state-wiping mode switch in the app."""
     _sb_native = st.session_state.get("launcher_native", "English")
     _MODS = [
+        ("path",       "🗺️", i18n.get(_sb_native, "module_path")),
         ("grammar",    "🗣️", i18n.get(_sb_native, "module_grammar")),
         ("vocab",      "📖", i18n.get(_sb_native, "module_vocab")),
         ("phrasebook", "💬", i18n.get(_sb_native, "module_phrasebook")),

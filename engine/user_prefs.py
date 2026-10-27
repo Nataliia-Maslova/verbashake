@@ -155,6 +155,38 @@ def set_language_literacy(user_id: str, target_lang: str, value: bool) -> None:
         pass
 
 
+def get_reading_phase_off(user_id: str, target_lang: str) -> bool:
+    """True if the student turned off the lesson's "Читання" step for this
+    target_lang (schema.sql's reading_phase_off). False on no row / no DB."""
+    if not user_id or not target_lang:
+        return False
+    try:
+        return db.fetch_one(
+            "SELECT 1 AS x FROM reading_phase_off "
+            "WHERE user_id = :uid AND target_lang = :lang",
+            {"uid": user_id, "lang": target_lang},
+        ) is not None
+    except Exception:
+        return False
+
+
+def set_reading_phase_off(user_id: str, target_lang: str, off: bool) -> None:
+    """Best-effort save, same fail-silent convention as save_prefs()."""
+    if not user_id or not target_lang:
+        return
+    try:
+        if off:
+            db.upsert("reading_phase_off",
+                      keys={"user_id": user_id, "target_lang": target_lang}, values={})
+        else:
+            db.execute(
+                "DELETE FROM reading_phase_off WHERE user_id = :uid AND target_lang = :lang",
+                {"uid": user_id, "lang": target_lang},
+            )
+    except Exception:
+        pass
+
+
 def get_language_level(user_id: str, target_lang: str) -> str | None:
     """Per-(user, target_lang) self-reported level ("zero"/"A1".."C2"), or
     None if this target_lang hasn't been asked about yet (or DB unavailable)
