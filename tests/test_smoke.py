@@ -1202,3 +1202,55 @@ def test_inbox_i18n_keys_resolve_with_same_placeholders(lang):
     for k in keys:
         v = i18n.get(lang, k)
         assert v and ph(v) == ph(i18n.STRINGS["en"][k]), (lang, k, v)
+
+
+def test_split_article_paragraphs_and_word_cap():
+    import songs_app
+    paras, cut = songs_app.split_article("Title\n\nFirst  para\nstill first.\n\n\nSecond.")
+    assert paras == ["Title", "First para still first.", "Second."] and not cut
+    paras, cut = songs_app.split_article("Line one\nLine two\nLine three")   # no blank lines
+    assert paras == ["Line one", "Line two", "Line three"]
+    paras, cut = songs_app.split_article("a b c d\n\ne f g h\n\ni j", max_words=6)
+    assert paras == ["a b c d", "e f"] and cut
+
+
+def test_clean_article_analysis_filters_useless_news_language():
+    """Real reply 2026-10-30: «Según el alcalde → Según el alcalde» and
+    «inauguró ayer → El Ayuntamiento inauguró ayer» teach nothing; a
+    headline item may just restore the dropped article."""
+    from engine import gemini
+    out = {
+        "detected_language": "Spanish",
+        "translations": [{"line": 1, "text": "т1"}, {"line": 9, "text": "out of range"}],
+        "vocab": [{"word": f"w{i}", "line": 1} for i in range(20)],
+        "grammar": [{"line": 1, "structure": "Pretérito", "lesson_id": 115},
+                    {"line": 2, "structure": "Fake", "lesson_id": 99999}],
+        "news_language": [
+            {"line": 1, "fragment": "Según el alcalde", "standard": "Según el alcalde"},
+            {"line": 1, "fragment": "inauguró ayer", "standard": "El Ayuntamiento inauguró ayer"},
+            {"line": 1, "fragment": "afirmó", "standard": "dijo"},
+            {"line": 0, "fragment": "Ayuntamiento abre", "standard": "El Ayuntamiento abre"},
+        ],
+        "questions": [{"question": "¿Qué?", "answer": "Esto."}, {"answer": "no question"}],
+        "simplified": "Texto fácil.",
+    }
+    r = gemini._clean_article_analysis(out, 2, {115}, "Spanish", simplify=True)
+    assert r["translations"] == {1: "т1"} and r["language_ok"]
+    assert len(r["vocab"]) == 15
+    assert [g["lesson_id"] for g in r["grammar"]] == [115, None]
+    assert [(n["fragment"], n["line"]) for n in r["news_language"]] == [("afirmó", 1), ("Ayuntamiento abre", 0)]
+    assert r["questions"] == [{"question": "¿Qué?", "answer": "Esto."}]
+    assert gemini._clean_article_analysis(out, 2, {115}, "Spanish", simplify=False)["simplified"] == ""
+
+
+@pytest.mark.parametrize("lang", sorted(i18n.LANG_TO_CODE))
+def test_articles_i18n_keys_resolve_with_same_placeholders(lang):
+    import string
+    keys = [k for k in i18n.STRINGS["en"] if k.startswith("articles_")] + ["module_songs", "songs_premium_only"]
+    assert len(keys) >= 25
+
+    def ph(s):
+        return {f for _, f, _, _ in string.Formatter().parse(s) if f}
+    for k in keys:
+        v = i18n.get(lang, k)
+        assert v and ph(v) == ph(i18n.STRINGS["en"][k]), (lang, k, v)

@@ -1,5 +1,7 @@
 """
-songs_app.py — "Songs" module (2026-10-04, Наталья): study a song.
+songs_app.py — "Songs" module (2026-10-04, Наталья): study a song — and,
+since 2026-10-30, a news article (🎵/📰 choice on the input screen; see
+"Articles" below).
 
 The student types the song's name and pastes the lyrics THEMSELVES — the app
 only links to the official video and a lyrics search, and never stores the
@@ -16,12 +18,21 @@ Premium only (her decision). Works for every target language: the lesson
 catalog comes from grammar._load_grammar for the current pair; for English,
 word levels are re-checked against CEFR-J instead of trusting the model.
 
+Articles (2026-10-30): the student pastes the article (never fetched or
+stored); engine.gemini.analyze_article analyses it by paragraph with the
+same words / grammar tabs, plus "news language" (headline style, reporting
+verbs, passive), comprehension questions with answers behind a click, a
+retelling checked by gemini.check_retelling (the Video phase's teacher-style
+check), and for A1-B1 the same news rewritten at the student's level.
+work["kind"] is "song" or "article".
+
 State lives only in st.session_state["songs_work"] (kept across a lesson
 opened from here by grammar._clear_all) — nothing is written to the DB
 except the optional My Path pin.
 """
 from __future__ import annotations
 
+import re
 from urllib.parse import quote_plus
 
 import streamlit as st
@@ -149,6 +160,31 @@ def split_lyrics(text: str) -> list[str]:
     return lines
 
 
+def split_article(text: str, max_words: int | None = None) -> tuple[list[str], bool]:
+    """(paragraphs, cut): paragraphs split on blank lines — or on single line
+    breaks if the paste has none — capped at ARTICLE_MAX_PARAGRAPHS
+    paragraphs and max_words words in total; cut is True when anything was
+    dropped."""
+    max_words = max_words or _gemini.ARTICLE_MAX_WORDS
+    raw = (text or "").replace("\r", "").strip()
+    blocks = [b for b in re.split(r"\n\s*\n", raw) if b.strip()]
+    if len(blocks) <= 1:
+        blocks = [b for b in raw.split("\n") if b.strip()]
+    paras, words, cut = [], 0, False
+    for b in blocks:
+        b = " ".join(b.split())
+        n = len(b.split())
+        if len(paras) >= _gemini.ARTICLE_MAX_PARAGRAPHS or words >= max_words:
+            cut = True
+            break
+        if words + n > max_words:
+            b = " ".join(b.split()[:max_words - words])
+            cut = True
+        paras.append(b)
+        words += len(b.split())
+    return paras, cut
+
+
 def split_vocab_by_level(vocab: list[dict], level: str, target: str) -> tuple[list[dict], list[dict]]:
     """(for this student: their level and one above, everything else).
     English levels come from CEFR-J when the word is in it."""
@@ -196,6 +232,12 @@ def default_level(user: str, target: str) -> str:
 # ── Screens ───────────────────────────────────────────────────────────────
 
 def _render_input(user: str, native: str, target: str) -> None:
+    _song, _article = i18n.get(native, "articles_kind_song"), i18n.get(native, "articles_kind_article")
+    kind = st.radio(i18n.get(native, "module_songs"), [_song, _article], horizontal=True,
+                    key="songs_kind", label_visibility="collapsed")
+    if kind == _article:
+        _render_article_input(user, native, target)
+        return
     st.caption(i18n.get(native, "songs_intro"))
     title = st.text_input(i18n.get(native, "songs_title_label"), key="songs_title",
                           placeholder=i18n.get(native, "songs_title_placeholder")).strip()
@@ -243,8 +285,53 @@ def _render_input(user: str, native: str, target: str) -> None:
             print(f"[songs_app] analyze_song failed: {e}")
             st.error(i18n.get(native, "songs_error"))
             return
-    st.session_state["songs_work"] = {"title": title, "lines": lines, "level": level,
-                                      "result": result}
+    st.session_state["songs_work"] = {"kind": "song", "title": title, "lines": lines,
+                                      "level": level, "result": result}
+    st.rerun()
+
+
+def _render_article_input(user: str, native: str, target: str) -> None:
+    st.caption(i18n.get(native, "articles_intro"))
+    title = st.text_input(i18n.get(native, "articles_title_label"), key="articles_title",
+                          placeholder=i18n.get(native, "articles_title_placeholder")).strip()
+    text = st.text_area(i18n.get(native, "articles_text_label"), key="articles_text", height=280)
+    st.caption(i18n.get(native, "articles_text_help").format(n=_gemini.ARTICLE_MAX_WORDS))
+    lvl_default = default_level(user, target)
+    level = st.selectbox(i18n.get(native, "songs_level_label"), LEVELS,
+                         index=LEVELS.index(lvl_default), key="articles_level")
+    paras, cut = split_article(text)
+    if cut:
+        st.info(i18n.get(native, "articles_too_long").format(n=_gemini.ARTICLE_MAX_WORDS))
+    # Not disabled while empty: a text area commits on blur, so a button
+    # disabled-until-text would swallow the first click (grammar.py, retelling).
+    if not st.button(i18n.get(native, "articles_analyze_btn"), type="primary",
+                     key="articles_analyze"):
+        return
+    if not paras:
+        st.warning(i18n.get(native, "articles_need_text"))
+        return
+    title = title or paras[0][:80]
+    try:
+        rate_limit.check_and_increment(user, "analyze_article", DAILY_LIMIT)
+    except rate_limit.DailyLimitExceeded:
+        st.warning(i18n.get(native, "articles_limit_reached"))
+        return
+    catalog = _lesson_catalog(native, target)
+    with st.spinner(i18n.get(native, "articles_analyzing")):
+        try:
+            result = _gemini.analyze_article(
+                title, paras, level, target, native,
+                [{k: l[k] for k in ("id", "level", "topic", "example")} for l in catalog],
+            )
+        except _gemini.PaidFeatureRequired:
+            _render_premium_gate(native)
+            return
+        except Exception as e:
+            print(f"[songs_app] analyze_article failed: {e}")
+            st.error(i18n.get(native, "articles_error"))
+            return
+    st.session_state["songs_work"] = {"kind": "article", "title": title, "lines": paras,
+                                      "level": level, "result": result}
     st.rerun()
 
 
@@ -255,7 +342,11 @@ def _render_premium_gate(native: str) -> None:
         st.rerun()
 
 
-def _line_ref(native: str, n: int | None) -> str:
+def _line_ref(native: str, n: int | None, kind: str = "song") -> str:
+    if kind == "article":
+        if n == 0:
+            return f" · {i18n.get(native, 'articles_headline')}"
+        return f" · {i18n.get(native, 'articles_para').format(n=n)}" if n else ""
     return f" · {i18n.get(native, 'songs_line').format(n=n)}" if n else ""
 
 
@@ -263,6 +354,15 @@ def _render_text_tab(native: str, work: dict) -> None:
     res = work["result"]
     show = st.toggle(i18n.get(native, "songs_show_translation"),
                      value=work["level"] in ("A1", "A2", "B1"), key="songs_show_tr")
+    if work.get("kind") == "article":
+        for n, para in enumerate(work["lines"], 1):
+            tr = res["translations"].get(n, "")
+            st.markdown(f"<span style='color:var(--mova-ink-3);font-size:.75rem'>{n}</span> {_esc(para)}",
+                        unsafe_allow_html=True)
+            if show and tr:
+                st.markdown(f"<div style='color:var(--mova-ink-2);margin:-6px 0 14px'>{_esc(tr)}</div>",
+                            unsafe_allow_html=True)
+        return
     for n, line in enumerate(work["lines"], 1):
         tr = res["translations"].get(n, "")
         st.markdown(
@@ -283,6 +383,7 @@ def _render_vocab_tab(native: str, target: str, work: dict) -> None:
     mine, other = split_vocab_by_level(work["result"]["vocab"], work["level"], target)
 
     user = st.session_state.get("launcher_user", "")
+    kind = work.get("kind", "song")
 
     def _rows(items: list[dict]) -> None:
         for i, v in enumerate(items):
@@ -290,7 +391,7 @@ def _render_vocab_tab(native: str, target: str, work: dict) -> None:
             lvl = f" `{v['level']}`" if v.get("level") else ""
             c_text, c_add = st.columns([12, 1], vertical_alignment="center")
             c_text.markdown(f"**{_esc(v['word'])}**{lvl} — {_esc(v['native'])}"
-                            f"<span style='color:var(--mova-ink-3)'>{_line_ref(native, v.get('line'))}</span>{note}",
+                            f"<span style='color:var(--mova-ink-3)'>{_line_ref(native, v.get('line'), kind)}</span>{note}",
                             unsafe_allow_html=True)
             with c_add:
                 _inbox_app.render_save_button(v["word"], v.get("native"), user, native, target,
@@ -327,7 +428,7 @@ def _render_grammar_item(i: int, g: dict, by_id: dict, user: str, native: str,
         st.markdown(f"**{_esc(g['structure'])}**{lvl}", unsafe_allow_html=True)
         if g.get("fragment"):
             st.markdown(f"<i>«{_esc(g['fragment'])}»</i>"
-                        f"<span style='color:var(--mova-ink-3)'>{_line_ref(native, g.get('line'))}</span>",
+                        f"<span style='color:var(--mova-ink-3)'>{_line_ref(native, g.get('line'), work.get('kind', 'song'))}</span>",
                         unsafe_allow_html=True)
         if g.get("explanation"):
             st.write(g["explanation"])
@@ -373,7 +474,105 @@ def _render_song_language_tab(native: str, work: dict) -> None:
             st.caption(s["explanation"])
 
 
+def _render_news_language_tab(native: str, work: dict) -> None:
+    items = work["result"].get("news_language") or []
+    if not items:
+        st.info(i18n.get(native, "articles_no_news_language"))
+        return
+    st.caption(i18n.get(native, "articles_news_language_intro"))
+    for s in items:
+        st.markdown(
+            f"**«{_esc(s['fragment'])}»** → {_esc(s['standard'])}"
+            f"<span style='color:var(--mova-ink-3)'>{_line_ref(native, s.get('line'), 'article')}</span>",
+            unsafe_allow_html=True,
+        )
+        if s.get("explanation"):
+            st.caption(s["explanation"])
+
+
+def _render_understanding_tab(native: str, target: str, work: dict) -> None:
+    questions = work["result"].get("questions") or []
+    if questions:
+        st.markdown(f"#### {i18n.get(native, 'articles_questions_header')}")
+        for i, q in enumerate(questions, 1):
+            with st.expander(f"{i}. {q['question']}"):
+                st.markdown(q["answer"] or "—")
+    st.markdown(f"#### {i18n.get(native, 'articles_retell_header')}")
+    ss = st.session_state
+    result = ss.get("articles_rt_result")
+    if result is not None:
+        st.markdown(f"> {_esc(ss.get('articles_rt_checked', ''))}")
+        _grammar._show_retelling_result(result, native)
+        if st.button(i18n.get(native, "retell_again_btn"), key="articles_rt_again"):
+            for k in ("articles_rt_result", "articles_rt_checked", "articles_rt_text"):
+                ss.pop(k, None)
+            st.rerun()
+        return
+    text = st.text_area(i18n.get(native, "articles_retell_label"), key="articles_rt_text", height=140)
+    if st.button(i18n.get(native, "retell_check_btn"), type="primary",
+                 key="articles_rt_check") and text.strip():
+        try:
+            with st.spinner(i18n.get(native, "checking_grammar_spinner")):
+                result = _gemini.check_retelling(text.strip(), work["title"], work["level"],
+                                                 target, native)
+        except _gemini.PaidFeatureRequired:
+            _render_premium_gate(native)
+            return
+        except Exception as e:
+            print(f"[songs_app] check_retelling failed: {e}")
+            st.error(i18n.get(native, "retell_error"))
+            return
+        ss["articles_rt_result"] = result
+        ss["articles_rt_checked"] = text.strip()
+        st.rerun()
+
+
+def _render_simplified_tab(native: str, work: dict) -> None:
+    st.caption(i18n.get(native, "articles_simple_intro").format(level=work["level"]))
+    st.markdown(_esc(work["result"].get("simplified", "")))
+
+
+def _render_article_analysis(user: str, native: str, target: str, work: dict) -> None:
+    res = work["result"]
+    st.markdown(f"### 📰 {_esc(work['title'])}")
+    st.caption(f"{native} → {target} · {work['level']}")
+    if not res.get("language_ok", True):
+        st.warning(i18n.get(native, "articles_wrong_language").format(
+            text_lang=res.get("detected_language", "?"), target=target))
+    names = [i18n.get(native, "songs_tab_text"), i18n.get(native, "songs_tab_vocab"),
+             i18n.get(native, "songs_tab_grammar"), i18n.get(native, "articles_tab_news_language"),
+             i18n.get(native, "articles_tab_understanding")]
+    if res.get("simplified"):
+        names.append(i18n.get(native, "articles_tab_simple"))
+    tabs = st.tabs(names)
+    with tabs[0]:
+        _render_text_tab(native, work)
+    with tabs[1]:
+        _render_vocab_tab(native, target, work)
+    with tabs[2]:
+        _render_grammar_tab(user, native, target, work)
+    with tabs[3]:
+        _render_news_language_tab(native, work)
+    with tabs[4]:
+        _render_understanding_tab(native, target, work)
+    if res.get("simplified"):
+        with tabs[5]:
+            _render_simplified_tab(native, work)
+    st.markdown("")
+    if st.button(i18n.get(native, "articles_new_btn"), key="articles_new"):
+        for k in [k for k in st.session_state if k.startswith("articles_") and k != "articles_level"]:
+            st.session_state.pop(k, None)
+        st.session_state.pop("songs_work", None)
+        # The 🎵/📰 radio isn't rendered on this screen, so Streamlit dropped
+        # its state — without this "another article" lands on the song form.
+        st.session_state["songs_kind"] = i18n.get(native, "articles_kind_article")
+        st.rerun()
+
+
 def _render_analysis(user: str, native: str, target: str, work: dict) -> None:
+    if work.get("kind") == "article":
+        _render_article_analysis(user, native, target, work)
+        return
     res = work["result"]
     st.markdown(f"### 🎵 {_esc(work['title'])}")
     st.caption(f"{native} → {target} · {work['level']}")
