@@ -42,6 +42,7 @@ from engine import literacy as _literacy
 from engine import mistakes as _mistakes
 from engine import word_inbox as _word_inbox
 from engine import path_pins as _path_pins
+from engine import rule_explanation_ui as _rule_explanation_ui
 
 ROOT        = Path(__file__).parent
 APP_IMG_DIR = ROOT / "static" / "app_images"
@@ -496,28 +497,31 @@ def _render_topic_explanation(unit: dict, native_lang: str, target_lang: str) ->
     # recommender reorders (same reasoning as grammar.py's
     # s1_explanation_{lesson_id}).
     state_key = f"path_explanation_{unit['unit_id']}"
-    with st.expander(i18n.get(native_lang, "rule_explanation_title"), expanded=False):
-        if st.button(i18n.get(native_lang, "rule_explanation_btn"), key="path_explain_btn"):
-            try:
-                with st.spinner("..."):
-                    st.session_state[state_key] = _gemini.explain_lesson_rule(
-                        topic, level, target_lang, native_lang, [], topic_key=topic,
-                    )
-            except _gemini.PaidFeatureRequired:
-                st.warning("⭐ Premium feature, or you've hit today's free AI limit for it — try again tomorrow, or upgrade to Premium for unlimited.")
-                if st.button("⭐ Go to Upgrade", key="path_explain_upsell"):
-                    st.session_state["_show_launcher"] = True
-                    st.rerun()
-
-        explanation = st.session_state.get(state_key)
-        if explanation:
-            st.markdown(explanation.get("rule", ""))
-            for ex in explanation.get("examples", []):
-                st.markdown(f"- **{ex.get('target', '')}** — {ex.get('native', '')}")
-            if explanation.get("exceptions"):
-                st.markdown(f"**{i18n.get(native_lang, 'rule_exceptions_label')}**")
-                for exc in explanation["exceptions"]:
-                    st.markdown(f"- {exc}")
+    # A toggle button, not an expander (2026-10-30): My Path reruns in the
+    # background and Streamlit re-created the expander collapsed — the
+    # "⏭ Skip this lesson" button below then slid up under the cursor, and a
+    # click meant for "Explain this rule" skipped the lesson (happened twice
+    # in a live check). What's shown now depends only on session_state.
+    open_key = f"path_explain_open_{unit['unit_id']}"
+    if st.button(i18n.get(native_lang, "rule_explanation_title"), key="path_explain_btn",
+                 use_container_width=True):
+        st.session_state[open_key] = not st.session_state.get(open_key, False)
+    if not st.session_state.get(open_key):
+        return
+    if state_key not in st.session_state:
+        try:
+            with st.spinner("..."):
+                st.session_state[state_key] = _gemini.explain_lesson_rule(
+                    topic, level, target_lang, native_lang, [], topic_key=topic,
+                )
+        except _gemini.PaidFeatureRequired:
+            st.warning("⭐ Premium feature, or you've hit today's free AI limit for it — try again tomorrow, or upgrade to Premium for unlimited.")
+            if st.button("⭐ Go to Upgrade", key="path_explain_upsell"):
+                st.session_state["_show_launcher"] = True
+                st.rerun()
+            return
+    with st.container(border=True):
+        _rule_explanation_ui.render(st.session_state[state_key], native_lang)
 
 
 def _pct_bar(pct: float, color: str = "var(--mova-indigo)") -> str:

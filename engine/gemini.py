@@ -616,8 +616,14 @@ def classify_mistake_topics(
 # STEP 1 (New Material): rule explanation — CLAUDE.md idea A, 2026-08-23
 # ─────────────────────────────────────────────────────────────────────────────
 
+# Bumped whenever the explanation's shape or teaching approach changes, so
+# neither cache (Postgres lesson_explanations, local diskcache) keeps serving
+# explanations written under the old prompt. v2 (2026-10-30): situations first.
+_EXPLANATION_VERSION = "v2"
+
+
 @_gated("explain_lesson_rule", 30)
-@_cache.memoize()
+@_cache.memoize(name=f"explain_lesson_rule_{_EXPLANATION_VERSION}")
 def explain_lesson_rule(
     topic: str, level: str, target_lang: str, native_lang: str,
     seed_phrases: list[str], topic_key: str | None = None,
@@ -651,14 +657,24 @@ def explain_lesson_rule(
     generate_practice_test -- the returned examples should illustrate the
     rule freshly, not just restate the lesson's own sentences).
 
+    Situations first (Наталья, 2026-10-30 — how she teaches it): before any
+    rule, 2-3 everyday scenes the student pictures ("imagine: you wake up at
+    the same time every day…", "what did you do yesterday — you went to a
+    shop, didn't buy anything, had a coffee in a café", "a small child
+    learning to talk points at things: this is a dog") and tries to say in
+    target_lang; the answer is shown after they think. The rule then explains
+    what those situations had in common.
+
     Returns:
         {
+          "situations": [{"situation": str,               # in native_lang
+                          "target": str, "native": str}], # the answer
           "rule": str,                                    # in native_lang
           "examples": [{"target": str, "native": str}],    # 2-4 new pairs
           "exceptions": [str]                              # in native_lang, may be empty
         }
     """
-    cache_key = topic_key or topic
+    cache_key = f"{_EXPLANATION_VERSION}|{topic_key or topic}"
     cached = _lesson_explanation_from_db(cache_key, level, target_lang, native_lang)
     if cached is not None:
         return cached
@@ -686,14 +702,44 @@ def explain_lesson_rule(
         f"briefly and explain what {target_lang} actually does instead to "
         f"express the same meaning.\n\n"
         f"{context_note}"
-        f"Explain the rule simply enough for {level} level, write the "
-        f"explanation in {native_lang}. Give 2-4 NEW example sentences in "
+        f"Teach it the way a good teacher does: START WITH SITUATIONS, not with "
+        f"the rule. Write 2-3 short everyday situations, in {native_lang}, that "
+        f"the student can picture and in which THIS construction is exactly what "
+        f"a speaker needs — the situation must call for it, not merely contain it, "
+        f"and EVERY situation must show the exact use this topic teaches, not a "
+        f"neighbouring one (a lesson on habits needs something regular, never a "
+        f"one-off 'today'). "
+        f"Speak to the student directly with the polite/plural 'you' (Russian "
+        f"«вы», Ukrainian «ви», Spanish «usted»…) — in Slavic languages it also "
+        f"keeps verb forms free of gender (\"как бы вы сказали\", never \"как бы ты "
+        f"сказала\"); never assume the student's gender. Invite them to imagine the "
+        f"scene (\"Представьте себе…\"), then to think how they would say it in "
+        f"{target_lang}. Describe the scene and end with the question only "
+        f"(e.g. \"Как бы вы сказали это по-испански?\") — never put the "
+        f"{native_lang} sentence to say in quotes for them to translate; finding "
+        f"the words is the student's job. Keep the scenes "
+        f"concrete and close to life — their own day, home, family, friends, "
+        f"shops, work, a café — and simple enough for {level}. The kind of scene "
+        f"meant (do NOT reuse these unless they truly fit this topic): for habits "
+        f"— you wake up at the same time every day; for how often — people often "
+        f"give you toys, a child is rarely bought toys; for the past — what did "
+        f"you do yesterday: you were in a shop, didn't buy anything, then went "
+        f"into a café and had a coffee; for 'This is a …' — a small child just "
+        f"learning to talk points at things and names them. For each situation "
+        f"give what a speaker would say in {target_lang} (\"target\", one or two "
+        f"short sentences) and its {native_lang} translation (\"native\") — the "
+        f"answer the student checks after thinking.\n\n"
+        f"Then the rule: explain what those situations have in common — when "
+        f"and why {target_lang} uses this construction — and then how it is "
+        f"formed, simply enough for {level} level, in {native_lang}. Give 2-4 "
+        f"NEW example sentences in "
         f"{target_lang} (each with a {native_lang} translation) that "
         f"illustrate the rule. List common exceptions or mistakes learners "
         f"make with this rule, in {native_lang} -- an empty list if there "
         f"genuinely are none, don't invent one.\n\n"
         "Return JSON only — no markdown fences:\n"
         "{\n"
+        f'  "situations": [{{"situation": "... in {native_lang}", "target": "... in {target_lang}", "native": "... in {native_lang}"}}],\n'
         f'  "rule": "explanation in {native_lang}, about {target_lang} grammar",\n'
         f'  "examples": [{{"target": "... in {target_lang}", "native": "... in {native_lang}"}}],\n'
         '  "exceptions": ["..."]\n'
@@ -701,8 +747,13 @@ def explain_lesson_rule(
     )
     result = _parse_json(
         _model(_FLASH).generate_content(prompt).text,
-        fallback={"rule": "", "examples": [], "exceptions": []},
+        fallback={"situations": [], "rule": "", "examples": [], "exceptions": []},
     )
+    result["situations"] = [
+        x for x in result.get("situations") or []
+        if isinstance(x, dict) and str(x.get("situation") or "").strip()
+        and str(x.get("target") or "").strip()
+    ][:3]
     _save_lesson_explanation_to_db(cache_key, level, target_lang, native_lang, result)
     return result
 

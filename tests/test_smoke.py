@@ -1254,3 +1254,39 @@ def test_articles_i18n_keys_resolve_with_same_placeholders(lang):
     for k in keys:
         v = i18n.get(lang, k)
         assert v and ph(v) == ph(i18n.STRINGS["en"][k]), (lang, k, v)
+
+
+def test_rule_explanation_cache_is_versioned_and_situations_cleaned(monkeypatch):
+    """Situations-first explanations (2026-10-30) must not be shadowed by
+    rows cached under the old prompt, in Postgres or in the local diskcache."""
+    from engine import gemini
+    seen = {}
+    monkeypatch.setattr(gemini, "_lesson_explanation_from_db", lambda key, *a: seen.setdefault("key", key) and None)
+    monkeypatch.setattr(gemini, "_save_lesson_explanation_to_db", lambda *a: None)
+
+    class _Resp:
+        text = ('{"situations": [{"situation": "Представьте себе…", "target": "I wake up at 7.", "native": "…"},'
+                ' {"situation": "", "target": "x"}, {"situation": "no answer"}],'
+                ' "rule": "r", "examples": [], "exceptions": []}')
+    monkeypatch.setattr(gemini, "_model", lambda *a, **k: type("M", (), {"generate_content": lambda self, p: _Resp()})())
+    f = gemini.explain_lesson_rule
+    while hasattr(f, "__wrapped__"):
+        f = f.__wrapped__
+    r = f("Daily habits", "A1", "English", "Russian", [], topic_key="Daily habits")
+    assert seen["key"] == f"{gemini._EXPLANATION_VERSION}|Daily habits"
+    assert [s["target"] for s in r["situations"]] == ["I wake up at 7."]
+
+
+def test_rule_explanation_ui_renders_old_and_new_shapes():
+    from streamlit.testing.v1 import AppTest
+    script = (
+        "from engine import rule_explanation_ui as ui\n"
+        "ui.render({'rule': 'old rule', 'examples': [{'target': 'a', 'native': 'b'}], 'exceptions': []}, 'Russian')\n"
+        "ui.render({'situations': [{'situation': 'Представьте себе', 'target': 'I wake up.', 'native': 'Я просыпаюсь.'}],"
+        " 'rule': 'new rule', 'examples': [], 'exceptions': ['e']}, 'Russian')\n"
+    )
+    at = AppTest.from_string(script).run()
+    assert not at.exception
+    md = [m.value for m in at.markdown]
+    assert "old rule" in md and "new rule" in md and "🎬 Представьте себе" in md
+    assert len(at.expander) == 1 and "**I wake up.**" in md

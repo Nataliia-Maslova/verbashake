@@ -117,6 +117,7 @@ from engine import target_grammar_loader as _target_grammar_loader
 from engine import lesson_pairs as _lesson_pairs
 from engine.character_widget import show_character
 import inbox_app as _inbox_app
+from engine import rule_explanation_ui as _rule_explanation_ui
 
 _FULL_SEQ = [1, 2, 3, 4, 5, 6, 7, 8]
 
@@ -781,13 +782,7 @@ def _render_rule_explanation(session: LessonSession, phrases: list[dict]) -> Non
 
         explanation = st.session_state.get(state_key)
         if explanation:
-            st.markdown(explanation.get("rule", ""))
-            for ex in explanation.get("examples", []):
-                st.markdown(f"- **{ex.get('target', '')}** — {ex.get('native', '')}")
-            if explanation.get("exceptions"):
-                st.markdown(f"**{i18n.get(native_lang, 'rule_exceptions_label')}**")
-                for exc in explanation["exceptions"]:
-                    st.markdown(f"- {exc}")
+            _rule_explanation_ui.render(explanation, native_lang)
 
 
 def _render_vocab_wordlist(session: LessonSession, phrases: list[dict]) -> None:
