@@ -453,6 +453,25 @@ CREATE TABLE IF NOT EXISTS path_pins (
     PRIMARY KEY (user_id, target_lang, unit_id)
 );
 
+-- ── word_inbox ───────────────────────────────────────────────────────────────
+-- «Скарбничка» (2026-10-30, Наталья): words/phrases the student taps ➕ on
+-- while working (song vocabulary, lesson phrases, corrected mistakes, typed
+-- by hand), collected until they build a 5-15 item block from them -> a
+-- My Phrases lesson (custom_phrases) run through the usual 8 steps; the
+-- picked rows are then deleted. Her decisions: no source/context is stored
+-- (not even the song or sentence it came from), and every phrase is its own
+-- unit -- "run a company" and "run" are two rows; phrase_key is only the
+-- lowercased, space-collapsed phrase, never a lemma.
+CREATE TABLE IF NOT EXISTS word_inbox (
+    user_id      TEXT NOT NULL,
+    target_lang  TEXT NOT NULL,
+    phrase_key   TEXT NOT NULL,
+    phrase       TEXT NOT NULL,
+    translation  TEXT,
+    created_at   TIMESTAMPTZ NOT NULL DEFAULT now(),
+    PRIMARY KEY (user_id, target_lang, phrase_key)
+);
+
 -- ── Row-Level Security ──────────────────────────────────────────────────────
 -- Supabase auto-publishes every table in `public` over its PostgREST API
 -- under the (non-secret) anon key -- without RLS, anyone with the project URL
@@ -482,3 +501,4 @@ ALTER TABLE user_feedback        ENABLE ROW LEVEL SECURITY;
 ALTER TABLE app_errors           ENABLE ROW LEVEL SECURITY;
 ALTER TABLE user_mistakes         ENABLE ROW LEVEL SECURITY;
 ALTER TABLE path_pins            ENABLE ROW LEVEL SECURITY;
+ALTER TABLE word_inbox           ENABLE ROW LEVEL SECURITY;

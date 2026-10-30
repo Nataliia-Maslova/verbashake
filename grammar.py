@@ -116,6 +116,7 @@ from engine import target_grammar_paths as _target_grammar_paths
 from engine import target_grammar_loader as _target_grammar_loader
 from engine import lesson_pairs as _lesson_pairs
 from engine.character_widget import show_character
+import inbox_app as _inbox_app
 
 _FULL_SEQ = [1, 2, 3, 4, 5, 6, 7, 8]
 
@@ -970,6 +971,9 @@ def step1(session: LessonSession, tts_lang, wh_lang):
 
     # Phrase list
     phrase_table(phrases, show_native=True, show_target=True, scores=scores)
+    _inbox_app.render_collector([p["target"] for p in phrases], session.state.user_id,
+                                native_lang, session.state.target_lang,
+                                key=f"s1_inbox_{session.state.lesson_id}")
 
     # Next button — active only after the user has recorded at least once
     attempted = bool(audio) or bool(st.session_state.get("s1_scores"))
@@ -2268,6 +2272,10 @@ def _phase_error_review(
             st.error(f"❌ **{original}** → ✅ **{corrected}**")
             if expl:
                 st.caption(expl)
+        _inbox_app.render_collector(
+            [e.get("corrected", e.get("fixed", "")) for e in errors],
+            st.session_state.get("launcher_user", ""), native_lang, target_lang,
+            key=f"rev_inbox_{phase_key}")
         if st.button(i18n.get(native_lang, "error_review_start"), type="primary", key=f"rev_overview_next_{phase_key}"):
             st.session_state[overview_key] = True
             st.rerun()

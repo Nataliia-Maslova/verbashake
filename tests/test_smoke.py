@@ -37,11 +37,12 @@ ENGINE_MODULES = [
     "engine.mistakes", "engine.user_prefs", "engine.youtube_links",
     "engine.picker", "engine.client_tz", "engine.warmup_loader",
     "engine.constructions", "engine.analyzer", "engine.rate_limit",
+    "engine.word_inbox",
 ]
 
 TOP_LEVEL_MODULES = [
     "grammar", "reading_app", "app", "path_app", "search_app",
-    "custom_app", "mistakes_app",
+    "custom_app", "mistakes_app", "inbox_app", "songs_app",
 ]
 
 
@@ -1161,3 +1162,43 @@ def test_reading_step3_and_you_said_keys_resolve(lang):
         assert v and "Послухай" not in v or lang == "Ukrainian", (lang, k)
     assert i18n.get(lang, "reading_find_word").format(n=1)
     assert i18n.get(lang, "step7_not_passed_suffix").lstrip()[:1] in ".。", lang
+
+
+def test_word_inbox_keys_are_whole_phrases_not_lemmas():
+    """«Скарбничка» (2026-10-30): "run a company" and "run" are two items;
+    dedupe only folds case/spaces/edge punctuation; commas are dropped (the
+    block builder sends the list to Gemini comma-separated)."""
+    from engine import word_inbox
+    assert word_inbox.phrase_key("run a company") != word_inbox.phrase_key("run")
+    assert word_inbox.phrase_key("  Run   a Company! ") == "run a company"
+    assert word_inbox.clean_phrase("«give up»,") == "give up"
+    assert word_inbox.clean_phrase("salt, pepper") == "salt pepper"
+    assert len(word_inbox.clean_phrase("x" * 500)) == word_inbox.MAX_PHRASE_CHARS
+    assert not word_inbox.add("", "English", "run")          # no user -> nothing written
+    assert not word_inbox.add("u", "English", " ... ")       # empty after cleaning
+
+
+def test_word_inbox_tokens_keep_apostrophes_and_unicode():
+    import inbox_app
+    assert inbox_app.tokens("I don't want to run a company, really!") == \
+        ["I", "don't", "want", "to", "run", "a", "company", "really"]
+    assert inbox_app.tokens("Я прочитала книгу — «Кобзар».") == ["Я", "прочитала", "книгу", "Кобзар"]
+    assert inbox_app.tokens("well-known") == ["well-known"]
+
+
+def test_word_inbox_in_account_deletion():
+    from engine import account_deletion
+    assert {"word_inbox", "path_pins"} <= set(account_deletion._USER_OWNED_TABLES)
+
+
+@pytest.mark.parametrize("lang", sorted(i18n.LANG_TO_CODE))
+def test_inbox_i18n_keys_resolve_with_same_placeholders(lang):
+    import string
+    keys = [k for k in i18n.STRINGS["en"] if k.startswith("inbox_")]
+    assert len(keys) >= 20
+
+    def ph(s):
+        return {f for _, f, _, _ in string.Formatter().parse(s) if f}
+    for k in keys:
+        v = i18n.get(lang, k)
+        assert v and ph(v) == ph(i18n.STRINGS["en"][k]), (lang, k, v)

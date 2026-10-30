@@ -156,6 +156,10 @@ def render_setup():
 
     lang_pair = f"{WHISPER_LANG.get(native,'?')}-{WHISPER_LANG.get(target,'?')}-custom"
 
+    # «Скарбничка» (inbox_app.py): saved words -> a block -> a lesson here.
+    from path_app import _render_inbox_entry
+    _render_inbox_entry(user_id, st.session_state.get("launcher_native", native), target)
+
     # ── Existing lessons for this user + pair ─────────────────────────────
     lessons_df = list_user_lessons(user_id, native_lang=native, target_lang=target)
 

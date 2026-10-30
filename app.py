@@ -44,6 +44,7 @@ import custom_app                   # noqa: E402
 import path_app                     # noqa: E402
 import search_app                   # noqa: E402
 import mistakes_app                 # noqa: E402
+import inbox_app                    # noqa: E402
 import songs_app                    # noqa: E402
 from engine import auth_gate        # noqa: E402
 from engine import billing          # noqa: E402
@@ -1216,6 +1217,8 @@ def main():
             search_app.main()
         elif active == "mistakes":
             mistakes_app.main()
+        elif active == "inbox":
+            inbox_app.main()
         elif active == "songs":
             songs_app.main()
         else:

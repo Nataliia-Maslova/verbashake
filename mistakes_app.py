@@ -18,6 +18,7 @@ from __future__ import annotations
 import streamlit as st
 
 from engine import i18n
+import inbox_app as _inbox_app
 from engine import mistakes as _mistakes
 from engine import recommender as _recommender
 from engine.gamification import sidebar_widget as _gami_sidebar
@@ -134,6 +135,8 @@ def main() -> None:
     if not rows:
         st.info(i18n.get(native, "mistakes_none_resolved" if show_resolved else "mistakes_none_open"))
         return
+    _inbox_app.render_collector([m["corrected"] for m in rows], user, native, target,
+                                key="mistakes_inbox")
     for i, m in enumerate(rows):
         _render_row(m, i, user, native, target, show_resolved)
     if len(rows) == _MAX_ROWS:

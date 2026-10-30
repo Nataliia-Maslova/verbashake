@@ -26,7 +26,7 @@ _USER_OWNED_TABLES = (
     "user_prefs", "custom_phrases", "lesson_schedule",
     "subscriptions", "daily_feature_usage", "weekly_signup_gate",
     "user_feedback", "user_mistakes", "language_literacy", "language_level",
-    "reading_phase_off",
+    "reading_phase_off", "path_pins", "word_inbox",
 )
 
 

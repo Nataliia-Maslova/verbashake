@@ -30,6 +30,7 @@ import grammar as _grammar
 from engine import billing, i18n
 from engine import gemini as _gemini
 from engine import path_pins as _path_pins
+import inbox_app as _inbox_app
 from engine import rate_limit
 from engine import recommender as _recommender
 from engine import user_prefs as _user_prefs
@@ -281,13 +282,19 @@ def _esc(s: str) -> str:
 def _render_vocab_tab(native: str, target: str, work: dict) -> None:
     mine, other = split_vocab_by_level(work["result"]["vocab"], work["level"], target)
 
+    user = st.session_state.get("launcher_user", "")
+
     def _rows(items: list[dict]) -> None:
-        for v in items:
+        for i, v in enumerate(items):
             note = f"  \n<span style='color:var(--mova-ink-3)'>{_esc(v['note'])}</span>" if v.get("note") else ""
             lvl = f" `{v['level']}`" if v.get("level") else ""
-            st.markdown(f"**{_esc(v['word'])}**{lvl} — {_esc(v['native'])}"
-                        f"<span style='color:var(--mova-ink-3)'>{_line_ref(native, v.get('line'))}</span>{note}",
-                        unsafe_allow_html=True)
+            c_text, c_add = st.columns([12, 1], vertical_alignment="center")
+            c_text.markdown(f"**{_esc(v['word'])}**{lvl} — {_esc(v['native'])}"
+                            f"<span style='color:var(--mova-ink-3)'>{_line_ref(native, v.get('line'))}</span>{note}",
+                            unsafe_allow_html=True)
+            with c_add:
+                _inbox_app.render_save_button(v["word"], v.get("native"), user, native, target,
+                                              key=f"songs_inbox_{i}_{v['word']}")
 
     if mine:
         _rows(mine)

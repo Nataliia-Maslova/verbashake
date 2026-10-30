@@ -40,6 +40,7 @@ from engine import i18n
 from engine import user_prefs as _user_prefs
 from engine import literacy as _literacy
 from engine import mistakes as _mistakes
+from engine import word_inbox as _word_inbox
 from engine import path_pins as _path_pins
 
 ROOT        = Path(__file__).parent
@@ -158,6 +159,20 @@ def _render_mistakes_entry(user: str, native: str, target: str) -> None:
              else i18n.get(native, "mistakes_entry_none"))
     if st.button(label, key="path_mistakes_entry", use_container_width=True):
         _switch_module("mistakes", user, native, target)
+
+
+def _render_inbox_entry(user: str, native: str, target: str) -> None:
+    """«Скарбничка» (inbox_app.py) with the saved-item count; from 10 items
+    (Natalia's 10-15 per block) the label says a block is ready."""
+    n = _word_inbox.count(user, target) if user else 0
+    if n >= _word_inbox.BLOCK_MIN * 2:
+        label = i18n.get(native, "inbox_entry_ready").format(n=n)
+    elif n:
+        label = i18n.get(native, "inbox_entry_btn").format(n=n)
+    else:
+        label = i18n.get(native, "inbox_entry_none")
+    if st.button(label, key="path_inbox_entry", use_container_width=True):
+        _switch_module("inbox", user, native, target)
 
 
 _SELF_LEVELS = ["zero", "A1", "A2", "B1", "B2", "C1", "C2"]
@@ -594,6 +609,7 @@ def main() -> None:
     # plain buttons.
     _render_module_shortcuts(user, native, target)
     _render_mistakes_entry(user, native, target)
+    _render_inbox_entry(user, native, target)
 
     # ── Overall progress bar ─────────────────────────────────────────────────
     # Shows percentages only, not raw "done / total" counts -- the full catalog

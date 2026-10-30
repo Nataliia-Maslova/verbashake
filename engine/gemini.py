@@ -1900,8 +1900,10 @@ def generate_custom_word_drill(
         )
     prompt = (
         f"Generate one example sentence in {target_lang} for EACH of these "
-        f"words, using every word at least once across the sentences: "
-        f"{word_list}.\n"
+        f"words/phrases: {word_list}.\n"
+        f"Return exactly {len(words)} items, in the same order — item N is "
+        f"built around word/phrase N, used as given (a multi-word phrase is "
+        f"one unit; never merge two of them into one sentence).\n"
         f"{grammar_instruction}\n"
         f"Keep sentences short and natural — the kind a beginner student "
         f"would practice.\n\n"
