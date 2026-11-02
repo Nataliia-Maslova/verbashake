@@ -1368,3 +1368,11 @@ def test_dropped_connection_is_retried_but_bad_sql_is_not(monkeypatch):
     with pytest.raises(ProgrammingError):
         db._with_retry(bad_sql)
     assert tries == [2]
+
+
+def test_audio_player_frame_height_never_feeds_on_itself():
+    import grammar
+    html = grammar.autoplaylist_with_table([{"native": "a", "target": "b"}], [""], [1.0], uid="t", native_lang="Ukrainian")
+    assert "documentElement.scrollHeight" not in html   # grew forever, pushing the buttons below down
+    assert "document.body.getBoundingClientRect" in html
+
