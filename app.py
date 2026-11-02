@@ -152,15 +152,6 @@ DB_READING  = ROOT / "data" / "reading_lessons.xlsx"
 APP_IMG_DIR = ROOT / "static" / "app_images"
 
 
-def _img_b64(path) -> str:
-    """Return base64 data-URL for an image, or empty string if missing."""
-    import base64
-    p = Path(path)
-    if not p.exists():
-        return ""
-    return "data:image/png;base64," + base64.b64encode(p.read_bytes()).decode()
-
-
 MODULES = {
     "grammar": {
         "label":       "Grammar",
@@ -578,39 +569,6 @@ def render_launcher():
         min-width:36px !important;
         min-height:36px !important;
     }
-    .mode-card{
-        background:var(--mova-card);
-        border:1px solid var(--mova-line);
-        border-radius:18px;
-        padding:24px 12px 18px;
-        text-align:center;
-        transition:all .2s;
-        height:100%;
-    }
-    .mode-card:hover{
-        border-color:var(--mova-indigo);
-        background:var(--mova-surface-3);
-        transform:translateY(-3px);
-        box-shadow:var(--mova-shadow-3);
-    }
-    .mode-icon{font-size:2.4rem;margin-bottom:6px;}
-    .mode-title{
-        color:var(--mova-ink);
-        /* 6 equal columns leave ~78px of text width even on a wide desktop
-           viewport (vw-based sizing here doesn't track actual card width,
-           which stays roughly constant as columns grow) -- at the old
-           .85-1.1rem range, 10-letter labels like "Vocabulary" /
-           "Phrasebook" didn't fit and broke mid-word. Sized down so the
-           longest real label fits on one line without needing
-           word-break to fall back to a character split. */
-        font-size:clamp(.68rem, 1.6vw, .82rem);
-        font-weight:600;
-        line-height:1.25;
-        margin:6px 0;
-        white-space:nowrap;
-        overflow:visible;
-    }
-    .mode-tag{color:var(--mova-ink-2);font-size:.88rem;margin-bottom:14px;}
     .pb-wrap{background:var(--mova-surface-3);border-radius:8px;height:8px;margin:8px 0 6px;
              overflow:hidden;border:1px solid var(--mova-line-2);}
     .pb-fill{height:8px;border-radius:8px;
@@ -621,11 +579,13 @@ def render_launcher():
     .pb-done{color:var(--mova-mint) !important;}
     .pb-fill-done{background:linear-gradient(90deg,var(--mova-mint),var(--mova-mint)) !important;}
     .pb-empty{color:var(--mova-ink-3) !important;}
-    .menu-wrap{max-width:920px;margin:0 auto;}
     </style>
     """, unsafe_allow_html=True)
 
     st.markdown(brand.logo_lockup(), unsafe_allow_html=True)
+    # Filled at the end of this function: the card needs the chosen languages,
+    # but belongs above the language selectors (redesign stage 2, 2026-11-02).
+    hero_slot = st.container()
 
     # ── Account (Google, via st.login) + language preferences ───────────────
     # Defaults persist across reruns via session_state.
@@ -806,7 +766,6 @@ def render_launcher():
     # Path screen itself (path_app.py::_render_module_swipe_strip), not from
     # here — picking one is a "pure single-module view" action you take
     # once you're already looking at your recommended path, not instead of it.
-    info = MODULES["path"]
     pr   = _module_progress_card("path", native, target, user_id)
     tot, cur, pct, word = pr["total"], pr["current"], pr["pct"], pr["lesson_word"]
 
@@ -838,24 +797,12 @@ def render_launcher():
             f'<div class="pb-fill" style="width:{pct}%"></div></div>'
         )
 
-    _b64 = _img_b64(info.get("img", "")) if not st.session_state.get("_dark_mode") else ""
-    _img_html = (
-        f'<img src="{_b64}" style="width:100%;height:150px;'
-        f'object-fit:cover;border-radius:10px;margin-bottom:10px"/>'
-        if _b64 else
-        f'<div class="mode-icon">{info["icon"]}</div>'
-    )
     _path_label = i18n.get(native, "module_path")
-    with st.container():
-        st.markdown(f"""
-        <div class="mode-card" style="max-width:420px;margin:0 auto">
-          {_img_html}
-          <div class="mode-title" style="font-size:1.1rem;white-space:normal">{_path_label}</div>
-          {progress_html}
-        </div>
-        """, unsafe_allow_html=True)
-        _cta_col1, _cta_col2, _cta_col3 = st.columns([1, 2, 1])
-        with _cta_col2:
+    with hero_slot:
+        # Two containers joined in CSS, see path_app._render_next_lesson.
+        with st.container(key="home_hero"):
+            st.markdown(f'<div class="hero-title">{_path_label}</div>{progress_html}', unsafe_allow_html=True)
+        with st.container(key="home_hero_cta"):
             if st.button(f"▶ {i18n.get(native, 'start_prefix')} {_path_label}",
                          use_container_width=True, type="primary", key="pick_path"):
                 _switch_to("path")

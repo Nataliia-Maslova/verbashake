@@ -108,12 +108,96 @@ header[data-testid="stHeader"] {
   overflow-wrap: normal;
 }
 
-/* My Path's seven module buttons share one row: the default side padding
-   would leave too little room for a whole word like "Грамматика" */
-[class*="st-key-path_shortcut_"] button {
-  padding: 0 var(--mova-sp-1) !important;
-  font-size: clamp(0.74rem, 1.1vw, 0.88rem) !important;
+/* My Path's module tiles: four across, two on a phone (Streamlit would
+   stack seven columns into seven full-width rows there). */
+.st-key-path_modules [data-testid="stHorizontalBlock"] {
+  flex-wrap: wrap !important;
+  gap: var(--mova-sp-3) !important;
 }
+.st-key-path_modules [data-testid="stColumn"] {
+  flex: 1 1 calc(25% - var(--mova-sp-3)) !important;
+  min-width: calc(25% - var(--mova-sp-3)) !important;
+}
+@media (max-width: 640px) {
+  .st-key-path_modules [data-testid="stColumn"] {
+    flex-basis: calc(50% - var(--mova-sp-3)) !important;
+    min-width: calc(50% - var(--mova-sp-3)) !important;
+  }
+}
+[class*="st-key-path_shortcut_"] button {
+  flex-direction: column;
+  gap: var(--mova-sp-1);
+  min-height: 88px;
+  padding: var(--mova-sp-2) var(--mova-sp-1) !important;
+  font-size: 0.88rem !important;
+  border-radius: var(--mova-radius-3) !important;
+}
+[class*="st-key-path_shortcut_"] button [data-testid="stIconMaterial"],
+.st-key-path_mistakes_entry [data-testid="stIconMaterial"],
+.st-key-path_inbox_entry [data-testid="stIconMaterial"] {
+  color: var(--mova-indigo);
+}
+[class*="st-key-path_shortcut_"] button [data-testid="stIconMaterial"] { font-size: 28px; }
+[class*="st-key-path_shortcut_"] button > div > span {
+  flex-direction: column;
+  gap: var(--mova-sp-1);
+}
+
+/* Secondary lesson options: plain text, so the card above stays the one thing to press */
+.stApp .st-key-path_quiet_actions .stButton > button[kind="secondary"] {
+  background: transparent !important;
+  border-color: transparent !important;
+  box-shadow: none !important;
+  color: var(--mova-ink-2) !important;
+  min-height: 44px;
+}
+.st-key-path_quiet_actions .stButton > button p { font-weight: var(--mova-fw-medium); }
+@media (max-width: 640px) {
+  .st-key-path_quiet_actions [data-testid="stHorizontalBlock"] { flex-wrap: wrap !important; gap: 0 var(--mova-sp-2) !important; }
+  .st-key-path_quiet_actions [data-testid="stColumn"] {
+    flex: 1 1 calc(50% - var(--mova-sp-2)) !important;
+    min-width: calc(50% - var(--mova-sp-2)) !important;
+  }
+  .st-key-path_quiet_actions { gap: 0; }
+}
+
+/* The sidebar shows these bars whenever it can */
+@media (min-width: 769px) {
+  .st-key-path_overall { display: none; }
+}
+
+/* ---------- Yellow hero card: the one next action on a screen ---------- */
+
+/* Text and button are two containers (see path_app._render_next_lesson),
+   drawn as one card, covering Streamlit's 16px gap between blocks. */
+.st-key-home_hero, .st-key-path_hero, .st-key-home_hero_cta, .st-key-path_hero_cta {
+  background: var(--mova-amber);
+  color: var(--mova-on-yellow);
+}
+.st-key-home_hero, .st-key-path_hero {
+  border-radius: var(--mova-radius-4) var(--mova-radius-4) 0 0;
+  padding: var(--mova-sp-6) var(--mova-sp-6) 0;
+}
+.st-key-home_hero_cta, .st-key-path_hero_cta {
+  border-radius: 0 0 var(--mova-radius-4) var(--mova-radius-4);
+  padding: 17px var(--mova-sp-6) var(--mova-sp-6);
+  margin-top: -17px;   /* 1px overlap: no seam between the two halves */
+}
+.st-key-home_hero, .st-key-home_hero_cta { max-width: 520px; margin-left: auto; margin-right: auto; }
+.hero-eyebrow { font-size: var(--mova-fs-small); font-weight: var(--mova-fw-bold); color: var(--mova-on-yellow); }
+.hero-title {
+  font-size: var(--mova-fs-h1);
+  font-weight: var(--mova-fw-black);
+  line-height: var(--mova-lh-tight);
+  letter-spacing: var(--mova-tracking-tight);
+  color: var(--mova-on-yellow);
+  margin: var(--mova-sp-1) 0;
+}
+.hero-sub { font-size: var(--mova-fs-small); font-weight: var(--mova-fw-medium); color: var(--mova-on-yellow); margin-bottom: var(--mova-sp-3); }
+.st-key-home_hero .pb-info, .st-key-home_hero .pb-info span { color: var(--mova-on-yellow) !important; font-weight: var(--mova-fw-semi); }
+.st-key-home_hero .pb-wrap { background: var(--mova-card); border-color: transparent; margin-bottom: var(--mova-sp-4); }
+.st-key-home_hero_cta .stButton > button, .st-key-path_hero_cta .stButton > button { min-height: 56px; }
+.st-key-home_hero_cta .stButton > button p, .st-key-path_hero_cta .stButton > button p { font-size: 1.05rem; font-weight: var(--mova-fw-bold); }
 
 /* Streamlit puts its own weight on the label, not on the button */
 .stButton > button p,
