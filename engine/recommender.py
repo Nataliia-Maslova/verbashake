@@ -22,6 +22,8 @@ from __future__ import annotations
 import threading
 from datetime import date, timedelta
 
+import streamlit as st
+
 from engine import db
 from engine.curriculum_order import order_key
 
@@ -192,6 +194,14 @@ def vocab_topic_for_lesson(lesson_id: int, target_lang: str, db_path) -> str | N
 
 # ── Candidate scoring ───────────────────────────────────────────────────────
 
+@st.cache_data(ttl=3600, show_spinner=False)
+def _catalog_rows(sql: str, params: dict) -> list[dict]:
+    """The lesson catalog is the same for everyone and only changes when
+    scripts/seed_content_units.py runs: reboot the app after a seed to see it
+    straight away, otherwise it refreshes within the hour."""
+    return db.fetch_all(sql, params)
+
+
 def _candidates(target_lang: str, module: str | None = None) -> list[dict]:
     """
     content_units rows available for this target_lang. Most rows are
@@ -225,7 +235,7 @@ def _candidates(target_lang: str, module: str | None = None) -> list[dict]:
     if module:
         sql += " AND module = :module"
         params["module"] = module
-    rows = db.fetch_all(sql, params)
+    rows = _catalog_rows(sql, params)
     if target_lang != "English":
         # English verb-form lists are hidden for every other target language
         # (grammar.py::_load_grammar) -- keep them out of recommendations too.

@@ -67,6 +67,7 @@ def check_and_increment(user_id: str, feature: str, limit: int) -> None:
             "SELECT count FROM daily_feature_usage "
             "WHERE user_id = :u AND feature = :f AND usage_date = :d",
             {"u": user_id, "f": feature, "d": today},
+            fresh=True,
         )
         count = row["count"] if row else 1
     except Exception:
