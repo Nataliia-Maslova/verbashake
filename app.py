@@ -976,7 +976,13 @@ def main():
     # Mova design system — Phase 1. Loaded on every rerun so it overrides
     # the sub-apps' legacy CSS via cascade.
     _inject_mova_css()
-    _inject_pwa_head()
+    # Its own container, always emitted: the iframe appears only on the
+    # first run after each session_state wipe (_switch_to), and without this
+    # slot the next run shifted every page element up by one. A keyed block
+    # then existed at two positions at once, and React left the extra copy on
+    # screen for good (the faded yellow "Start" cards, 2026-11-02).
+    with st.container():
+        _inject_pwa_head()
 
     # 🌙 Dark mode — tokens.css already ships a full [data-theme="dark"]
     # palette (design review, 2026-08-23: it just had nothing that ever set
