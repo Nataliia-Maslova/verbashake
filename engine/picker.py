@@ -58,8 +58,9 @@ def _build_wave_html(lesson_data_json, default_gid, native, target, user_id, res
 
     return f"""<!DOCTYPE html><html><head><meta charset="utf-8">
 <style>
+@import url('https://fonts.googleapis.com/css2?family=Nunito:wght@400;500;600;700;800;900&display=swap');
 *{{box-sizing:border-box;margin:0;padding:0}}
-body{{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;
+body{{font-family:Nunito,-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;
     background:transparent;overflow-x:hidden}}
 .wo{{width:100%;overflow-x:auto;overflow-y:visible;padding:4px 0 8px;
     scrollbar-width:thin;scrollbar-color:#ccc transparent}}
@@ -74,18 +75,18 @@ body{{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;
 .nc{{width:64px;height:64px;border-radius:50%;margin:0 auto 5px;display:flex;
     align-items:center;justify-content:center;font-size:1.4rem;
     border:3px solid transparent;transition:border-color .15s;position:relative}}
-.ln.act .nc{{border-color:#7F77DD;box-shadow:0 0 0 4px rgba(127,119,221,.18)}}
-.nl{{font-size:11px;line-height:1.3;color:#777;max-width:86px;margin:0 auto}}
-.ln.act .nl{{color:#534AB7;font-weight:600}}
-.nb{{position:absolute;top:-5px;right:-5px;width:20px;height:20px;background:#534AB7;
+.ln.act .nc{{border-color:#7B5CFA;box-shadow:0 0 0 4px rgba(127,119,221,.18)}}
+.nl{{font-size:11px;line-height:1.3;color:#6A6380;max-width:86px;margin:0 auto}}
+.ln.act .nl{{color:#5B3BE6;font-weight:600}}
+.nb{{position:absolute;top:-5px;right:-5px;width:20px;height:20px;background:#5B3BE6;
     color:#fff;border-radius:50%;font-size:9px;font-weight:700;display:none;
     align-items:center;justify-content:center;border:2px solid #fff}}
 .ln.act .nb{{display:flex}}
-.sb{{display:block;width:200px;margin:6px auto 0;padding:9px 0;background:#7F77DD;
+.sb{{display:block;width:200px;margin:6px auto 0;padding:9px 0;background:#7B5CFA;
     color:#fff;border:none;border-radius:10px;font-size:13px;font-weight:600;
     cursor:pointer;transition:background .15s;text-align:center;text-decoration:none}}
-.sb:hover{{background:#534AB7;color:#fff}}
-.it{{text-align:center;font-size:11px;color:#999;margin-top:3px}}
+.sb:hover{{background:#5B3BE6;color:#fff}}
+.it{{text-align:center;font-size:11px;color:#6A6380;margin-top:3px}}
 </style></head><body>
 <div class="wo" id="wo"><div class="wi" id="wi">
   <svg class="wsvg" id="ws"></svg>
@@ -98,7 +99,7 @@ var DG={default_gid};
 var RS={resume_step};
 var NE="{n_enc}",TE="{t_enc}",UE="{u_enc}";
 var EP={ep_js};
-var CL=['#CECBF6','#9FE1CB','#F5C4B3','#B5D4F4','#C0DD97','#FAC775','#F4C0D1','#D3D1C7'];
+var CL=['#DDD3F6'];
 var EM=['📖','🌟','💡','🎯','🔤','🗣️','✏️','📝','🎓','💬','🔑','🏆'];
 var sg=DG;
 
@@ -126,7 +127,7 @@ function build(){{
     var mx=(pts[i-1].x+pts[i].x)/2;
     d+=' C '+mx+' '+pts[i-1].y+' '+mx+' '+pts[i].y+' '+pts[i].x+' '+pts[i].y;
   }}
-  svg.innerHTML='<path d="'+d+'" fill="none" stroke="#D3D1C7" stroke-width="4" stroke-linecap="round"/>';
+  svg.innerHTML='<path d="'+d+'" fill="none" stroke="#D3C9EE" stroke-width="4" stroke-linecap="round"/>';
   var wi2=document.getElementById('wi');
   var old=wi2.querySelectorAll('.ln');
   for(var j=0;j<old.length;j++)old[j].remove();
@@ -241,10 +242,10 @@ def _render_wave_plotly(
     # mova tokens (static/mova/tokens.css) — Plotly renders its own SVG and
     # won't resolve CSS custom properties, so these are the literal values of
     # --mova-surface-3 / --mova-mint-soft / --mova-mint / --mova-indigo.
-    FILL_NEW     = '#ECE6DE'
+    FILL_NEW     = '#DDD3F6'
     FILL_DONE    = '#DDF4EA'
     RING_DONE    = '#1FB888'
-    RING_CURRENT = '#4F46E5'
+    RING_CURRENT = '#5B3BE6'
     RING_NEUTRAL = '#FFFFFF'
     COLS  = 7     # lessons per row
     ROW_H = 120   # vertical distance between row baselines (data units)
@@ -309,7 +310,7 @@ def _render_wave_plotly(
     # ── Snake path (connects all lesson positions in order) ──────────────────
     fig.add_trace(go.Scatter(
         x=xs, y=ys, mode='lines',
-        line=dict(color='#D0D0D0', width=6),
+        line=dict(color='#D3C9EE', width=6),
         hoverinfo='skip', showlegend=False,
     ))
 
@@ -324,7 +325,7 @@ def _render_wave_plotly(
         ),
         text=shorts,
         textposition='bottom center',
-        textfont=dict(size=9, color='#444', family='Inter, sans-serif'),
+        textfont=dict(size=9, color='#4B4564', family='Nunito, sans-serif'),
         hovertext=hover,
         hoverinfo='text',
         showlegend=False,

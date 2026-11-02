@@ -603,15 +603,15 @@ def lessons_table(rows, active_idx=None, scores=None,
             pct   = int(s.get("score", 0) * 100)
             score_html = (f'<span style="background:{"var(--mova-mint-soft)" if s.get("passed") else "var(--mova-coral-soft)"};'
                           f'color:{color};border-radius:5px;padding:2px 9px;'
-                          f'font-family:JetBrains Mono,monospace;font-size:.78rem">{pct}%</span>')
+                          f'font-family:Nunito,sans-serif;font-size:.78rem">{pct}%</span>')
         style = ""
         if active_idx == i:
             style = "background:var(--mova-indigo-soft);border-left:3px solid var(--mova-indigo);"
         html_rows += (
             f'<div class="row-ok" style="{style}">'
-            f'<span style="min-width:28px;color:var(--mova-indigo-ink);font-family:JetBrains Mono,monospace;font-size:.75rem">{i+1:02d}</span>'
+            f'<span style="min-width:28px;color:var(--mova-indigo-ink);font-family:Nunito,sans-serif;font-size:.75rem">{i+1:02d}</span>'
             f'<span style="flex:1;color:var(--mova-ink);font-size:1.05rem">{word}</span>'
-            f'<span style="flex:1;color:var(--mova-indigo);font-family:JetBrains Mono,monospace;font-size:.9rem">{trans}</span>'
+            f'<span style="flex:1;color:var(--mova-indigo);font-family:Nunito,sans-serif;font-size:.9rem">{trans}</span>'
             f'{score_html}'
             f'</div>'
         )
@@ -703,7 +703,7 @@ def load(path: str, lang: str = "en", native_lang: str = "Ukrainian") -> pd.Data
 # st.set_page_config is set up by main_app.py when used as a launcher.
 # When this file is run directly, set it here too.
 try:
-    st.set_page_config(page_title="Reading Practice", page_icon="📖",
+    st.set_page_config(page_title="VerbaShake", page_icon="static/pwa/icon-192.png",
                        layout="wide", initial_sidebar_state="collapsed")
 except Exception:
     pass  # Already set by main_app.py
@@ -711,7 +711,7 @@ except Exception:
 st.markdown("""
 <style>
 /* Fonts loaded by app.py via _inject_mova_css — no extra @import needed */
-html,body,[class*="css"]{font-family:'Plus Jakarta Sans','Inter',sans-serif;}
+html,body,[class*="css"]{font-family:'Nunito',sans-serif;}
 /* removed: was fighting Mova surface; theme is now driven by tokens.css */
 #MainMenu,footer{visibility:hidden;}
 /* Keep Streamlit's sidebar collapse/expand control reachable on every device,
@@ -824,7 +824,7 @@ def pbar(val: float):
     val = max(0.0, min(1.0, val))
     st.markdown(
         f'<div style="background:var(--mova-card);border-radius:6px;height:6px;overflow:hidden;margin:6px 0">'
-        f'<div style="height:6px;background:linear-gradient(90deg, var(--mova-indigo), #6E66FF);width:{val*100:.0f}%"></div></div>',
+        f'<div style="height:6px;background:linear-gradient(90deg, var(--mova-indigo), var(--mova-indigo-light));width:{val*100:.0f}%"></div></div>',
         unsafe_allow_html=True,
     )
 
@@ -970,7 +970,7 @@ def do_step3(rows: pd.DataFrame) -> bool:
         html = "".join(
             f'<div class="row-ok">'
             f'<span style="color:{"var(--mova-mint)" if v else "var(--mova-coral-ink)"};flex:1">{"✓" if v else "✗"} {rows.iloc[i]["word"]}</span>'
-            f'<span style="color:var(--mova-ink-3);font-family:JetBrains Mono,monospace;font-size:.78rem">{rows.iloc[i]["transcription"]}</span>'
+            f'<span style="color:var(--mova-ink-3);font-family:Nunito,sans-serif;font-size:.78rem">{rows.iloc[i]["transcription"]}</span>'
             f'</div>'
             for i, v in sorted(scores.items())
         )
@@ -1085,7 +1085,7 @@ def do_step5(rows: pd.DataFrame) -> bool:
         f'padding:10px 16px;margin:4px;display:inline-block">'
         f'{row["word"]}'
         f'<span style="display:block;font-size:.75rem;color:var(--mova-ink-3);'
-        f'font-family:JetBrains Mono,monospace">{row["transcription"]}</span></span>'
+        f'font-family:Nunito,sans-serif">{row["transcription"]}</span></span>'
         for _, row in rows.iterrows()
     )
     st.markdown(
@@ -1567,9 +1567,9 @@ def _show_upsell_reading(key: str) -> None:
 _CONTENT_CSS = """
 .wcard{background:var(--mova-card);border:1px solid var(--mova-line);border-radius:14px;padding:28px 20px;margin:10px 0;text-align:center;}
 .wbig{font-size:3.2rem;font-weight:700;color:var(--mova-ink);}
-.tbig{font-size:2rem;color:var(--mova-indigo);font-family:'JetBrains Mono',monospace;margin-top:8px;}
+.tbig{font-size:2rem;color:var(--mova-indigo);font-family:Nunito,sans-serif;margin-top:8px;}
 .rule{background:var(--mova-card);border-left:3px solid var(--mova-indigo);border-radius:6px;padding:10px 14px;margin:8px 0;color:var(--mova-ink-2);font-size:.9rem;}
-.spill{font-family:'JetBrains Mono',monospace;font-size:.7rem;padding:3px 10px;border-radius:20px;margin:2px;display:inline-block;}
+.spill{font-family:Nunito,sans-serif;font-size:.7rem;padding:3px 10px;border-radius:20px;margin:2px;display:inline-block;}
 .row-ok{display:flex;gap:10px;padding:8px 14px;background:var(--mova-card);border-bottom:1px solid var(--mova-line);align-items:center;}
 """
 
@@ -1583,7 +1583,7 @@ def _inject_css():
     st.markdown("""
 <style>
 /* Fonts loaded by app.py via _inject_mova_css — no extra @import needed */
-html,body,[class*="css"]{font-family:'Plus Jakarta Sans','Inter',sans-serif;}
+html,body,[class*="css"]{font-family:'Nunito',sans-serif;}
 /* removed: was fighting Mova surface; theme is now driven by tokens.css */
 #MainMenu,footer{visibility:hidden;}
 .step-header{background:var(--mova-card);border:1px solid var(--mova-line);border-left:4px solid var(--mova-indigo);border-radius:14px;padding:18px 26px;margin-bottom:18px;}
@@ -1618,9 +1618,9 @@ header [data-testid="stDecoration"]{display:none;}
 }
 .wcard{background:var(--mova-card);border:1px solid var(--mova-line);border-radius:14px;padding:28px 20px;margin:10px 0;text-align:center;}
 .wbig{font-size:3.2rem;font-weight:700;color:var(--mova-ink);}
-.tbig{font-size:2rem;color:var(--mova-indigo);font-family:'JetBrains Mono',monospace;margin-top:8px;}
+.tbig{font-size:2rem;color:var(--mova-indigo);font-family:Nunito,sans-serif;margin-top:8px;}
 .rule{background:var(--mova-card);border-left:3px solid var(--mova-indigo);border-radius:6px;padding:10px 14px;margin:8px 0;color:#a0a0d0;font-size:.9rem;}
-.spill{font-family:'JetBrains Mono',monospace;font-size:.7rem;padding:3px 10px;border-radius:20px;margin:2px;display:inline-block;}
+.spill{font-family:Nunito,sans-serif;font-size:.7rem;padding:3px 10px;border-radius:20px;margin:2px;display:inline-block;}
 .row-ok{display:flex;gap:10px;padding:8px 14px;background:var(--mova-card);border-bottom:1px solid var(--mova-line);align-items:center;}
 /* Make Streamlit secondary buttons (e.g. step 3 choices) dark-themed for readability */
 .stApp .stButton > button[kind="secondary"]{
@@ -1648,12 +1648,12 @@ def _render_step_nav_inline(step: int) -> None:
     step_pct = round((step - 1) / 5 * 100, 0)
     st.markdown(
         f'<div style="display:flex;justify-content:space-between;'
-        f'font-family:\'JetBrains Mono\',monospace;font-size:.72rem;'
+        f'font-family:Nunito,sans-serif;font-size:.72rem;'
         f'color:var(--mova-ink-3);margin-bottom:2px">'
         f'<span>{_ui("step_word")} {step} / 5 — {_r_steps().get(step,"")}</span>'
         f'<span>{"🔒" if step in REQUIRED else ""}</span></div>'
         f'<div style="background:var(--mova-card);border-radius:6px;height:6px;overflow:hidden">'
-        f'<div style="height:6px;background:linear-gradient(90deg, var(--mova-mint), #34D0A0);'
+        f'<div style="height:6px;background:linear-gradient(90deg, var(--mova-mint), var(--mova-mint));'
         f'width:{step_pct}%"></div></div>',
         unsafe_allow_html=True,
     )
@@ -1899,18 +1899,18 @@ def main():
             f'<div style="background:var(--mova-card);border:1px solid var(--mova-line);'
             f'border-radius:10px;padding:10px 12px;margin:4px 0 10px">'
             f'<div style="color:var(--mova-ink-2);font-size:.7rem;'
-            f'font-family:\'JetBrains Mono\',monospace;'
+            f'font-family:Nunito,sans-serif;'
             f'text-transform:uppercase;letter-spacing:.05em;margin-bottom:4px">'
             f'{_ui("your_path")}</div>'
             f'<div style="color:var(--mova-ink);font-size:1.05rem;font-weight:600">'
             f'{_lesson_word} {lid} / {total}</div>'
             f'<div style="display:flex;justify-content:space-between;'
-            f'font-family:\'JetBrains Mono\',monospace;font-size:.72rem;'
+            f'font-family:Nunito,sans-serif;font-size:.72rem;'
             f'color:var(--mova-ink-3);margin:6px 0 2px">'
             f'<span>{completed} {_ui("done")} · {total - completed} {_ui("ahead")}</span>'
             f'<span>{pct}%</span></div>'
             f'<div style="background:var(--mova-card);border-radius:6px;height:6px;overflow:hidden">'
-            f'<div style="height:6px;background:linear-gradient(90deg, var(--mova-indigo), #6E66FF);'
+            f'<div style="height:6px;background:linear-gradient(90deg, var(--mova-indigo), var(--mova-indigo-light));'
             f'width:{pct}%"></div></div>'
             f'</div>',
             unsafe_allow_html=True,
@@ -2026,9 +2026,9 @@ def main():
             'padding:16px 20px;text-align:left;">' +
             '<div style="flex-shrink:0;text-align:center;">' +
             _img_tag +
-            '<div style="font-size:.75rem;font-weight:600;color:#E65100;margin-top:4px;">' +
+            '<div style="font-size:.75rem;font-weight:600;color:var(--mova-coral-ink);margin-top:4px;">' +
             _cname + '</div></div>' +
-            '<div style="font-size:.97rem;color:#333;line-height:1.55;">\U0001f4ac ' +
+            '<div style="font-size:.97rem;color:var(--mova-ink);line-height:1.55;">\U0001f4ac ' +
             _phrase + '</div></div></div>',
             unsafe_allow_html=True,
         )

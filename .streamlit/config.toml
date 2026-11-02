@@ -3,11 +3,14 @@
 # Matches tokens.css so Streamlit's native widgets render in the right
 # colors BEFORE our CSS overrides even kick in (no flash of dark UI).
 base                       = "light"
-primaryColor               = "#FF7B6B"   # Mova coral — primary CTA
-backgroundColor            = "#FAF7F5"   # Mova surface — page bg
-secondaryBackgroundColor   = "#F4F0EB"   # Mova surface-2 — chips, sidebar
-textColor                  = "#1B1730"   # Mova ink — primary text
-font                       = "sans serif"
+primaryColor               = "#5B3BE6"   # Mova violet — primary CTA
+backgroundColor            = "#F3EEFF"   # Mova surface — page bg
+secondaryBackgroundColor   = "#EAE3FB"   # Mova surface-2 — chips, sidebar
+textColor                  = "#1E1748"   # Mova ink — primary text
+font                       = "Nunito:https://fonts.googleapis.com/css2?family=Nunito:wght@400;500;600;700;800;900&display=swap"
+headingFont                = "Nunito:https://fonts.googleapis.com/css2?family=Nunito:wght@400;500;600;700;800;900&display=swap"
+baseFontSize               = 16
+baseRadius                 = "14px"
 
 [server]
 # Streamlit Cloud picks these up from secrets; this is a safe local default.

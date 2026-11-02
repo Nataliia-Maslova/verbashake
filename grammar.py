@@ -149,7 +149,7 @@ LANGUAGES      = [
 # st.set_page_config is set up by main_app.py when used as a launcher.
 # When this file is run directly, set it here too.
 try:
-    st.set_page_config(page_title="IMLLS", page_icon="🗣️",
+    st.set_page_config(page_title="VerbaShake", page_icon="static/pwa/icon-192.png",
                        layout="wide", initial_sidebar_state="collapsed")
 except Exception:
     pass  # Already set by main_app.py
@@ -405,45 +405,47 @@ def autoplaylist_with_table(phrases, audio_paths, pause_secs, uid="pl",
 
     return f"""
 <style>
+  @import url('https://fonts.googleapis.com/css2?family=Nunito:wght@400;500;600;700;800;900&display=swap');
+  body {{ font-family:Nunito,sans-serif; }}
   .ph-table {{
-    background:#FFFFFF; border:1px solid #DDD6CA; border-radius:12px;
+    background:#FFFFFF; border:1px solid #D3C9EE; border-radius:12px;
     overflow:hidden; margin:10px 0;
   }}
   .ph-row {{
     display:flex; align-items:center; padding:11px 18px;
-    border-bottom:1px solid #E8E2D8; gap:14px;
+    border-bottom:1px solid #E3DCF5; gap:14px;
     transition: background .15s, border-left-color .15s;
     border-left:3px solid transparent;
   }}
   .ph-row:last-child {{ border-bottom:none; }}
-  .ph-num {{ font-family:'JetBrains Mono',monospace; color:#2E27A8;
+  .ph-num {{ font-family:Nunito,sans-serif; color:#3E2AA8;
             font-size:.73rem; min-width:26px; }}
   .ph-nat {{ color:#6A6380; flex:1; font-size:.93rem; }}
   .ph-tgt {{ color:#4B4564; flex:1; font-size:.93rem; font-weight:500; }}
   .ph-row.active {{
-    background:#ECEBFB; border-left-color:#4F46E5;
+    background:#ECE6FF; border-left-color:#5B3BE6;
   }}
-  .ph-row.active .ph-nat {{ color:#1B1730; }}
-  .ph-row.active .ph-tgt {{ color:#1B1730; font-weight:600; }}
-  .ph-row.done {{ background:#F4F0EB; }}
+  .ph-row.active .ph-nat {{ color:#1E1748; }}
+  .ph-row.active .ph-tgt {{ color:#1E1748; font-weight:600; }}
+  .ph-row.done {{ background:#EAE3FB; }}
   .ph-row.done .ph-tgt {{ color:#0E6E50; }}
   .pl-wrap {{
-    background:#FFFFFF; border:1px solid #E8E2D8; border-radius:12px;
+    background:#FFFFFF; border:1px solid #E3DCF5; border-radius:12px;
     padding:14px 18px; margin:8px 0;
   }}
   .pl-btn {{
-    background:#ECEBFB; color:#4F46E5; border:1px solid #4F46E5;
+    background:#ECE6FF; color:#5B3BE6; border:1px solid #5B3BE6;
     border-radius:8px; padding:7px 18px; cursor:pointer;
-    font-family:'JetBrains Mono',monospace; font-size:.88rem;
+    font-family:Nunito,sans-serif; font-size:.88rem;
   }}
   .pl-stat {{
-    color:#6A6380; font-size:.8rem; font-family:'JetBrains Mono',monospace;
+    color:#6A6380; font-size:.8rem; font-family:Nunito,sans-serif;
     margin-left:12px;
   }}
   .pl-bar {{ margin-top:10px; display:flex; gap:4px; flex-wrap:wrap; }}
   .pl-dot {{
     width:10px; height:10px; border-radius:50%;
-    background:#ECEBFB; transition:.2s;
+    background:#ECE6FF; transition:.2s;
   }}
 </style>
 
@@ -472,8 +474,8 @@ def autoplaylist_with_table(phrases, audio_paths, pause_secs, uid="pl",
   function dot(i, c) {{
     const d = document.getElementById('dot-'+uid+'-'+i);
     if (!d) return;
-    d.style.background = c==='active' ? '#4F46E5'
-                       : c==='done'   ? '#1FB888' : '#ECEBFB';
+    d.style.background = c==='active' ? '#5B3BE6'
+                       : c==='done'   ? '#1FB888' : '#ECE6FF';
   }}
 
   // Highlight rows
@@ -511,7 +513,7 @@ def autoplaylist_with_table(phrases, audio_paths, pause_secs, uid="pl",
     if (tmr) {{ clearTimeout(tmr); tmr = null; }}
     playing = false; cur = -1;
     document.getElementById('pl-btn-'+uid).textContent = T.play_all;
-    document.getElementById('pl-btn-'+uid).style.color = '#4F46E5';
+    document.getElementById('pl-btn-'+uid).style.color = '#5B3BE6';
   }}
 
   function playIdx(i) {{
@@ -549,7 +551,7 @@ def autoplaylist_with_table(phrases, audio_paths, pause_secs, uid="pl",
       clearAllRows();
       for (let i=0; i<n; i++) dot(i, '');
       document.getElementById('pl-btn-'+uid).textContent = T.stop;
-      document.getElementById('pl-btn-'+uid).style.color = '#FF7B6B';
+      document.getElementById('pl-btn-'+uid).style.color = '#B23D2D';
       playIdx(0);
     }}
   }};
@@ -1863,7 +1865,7 @@ def _inject_css():
     st.markdown("""
 <style>
 /* Fonts loaded by app.py via _inject_mova_css — no extra @import needed */
-html,body,[class*="css"]{font-family:'Plus Jakarta Sans','Inter',sans-serif;}
+html,body,[class*="css"]{font-family:'Nunito',sans-serif;}
 /* removed: was fighting Mova surface; theme is now driven by tokens.css */
 #MainMenu,footer{visibility:hidden;}
 /* Keep Streamlit's sidebar collapse/expand control reachable on every device,
@@ -1893,11 +1895,11 @@ header [data-testid="stDecoration"]{display:none;}
 }
 
 .step-header{background:var(--mova-card);border:1px solid var(--mova-line);border-radius:14px;padding:18px 26px;margin-bottom:18px;}
-.step-num{font-family:'JetBrains Mono',monospace;color:var(--mova-indigo);font-size:.78rem;margin-bottom:4px;}
+.step-num{font-family:Nunito,sans-serif;color:var(--mova-indigo);font-size:.78rem;margin-bottom:4px;}
 .step-title{color:var(--mova-ink);font-size:1.25rem;font-weight:600;}
 .step-desc{color:var(--mova-ink-2);font-size:.88rem;margin-top:5px;}
 .step-pills{display:flex;gap:5px;flex-wrap:wrap;margin-bottom:10px;}
-.pill{font-family:'JetBrains Mono',monospace;font-size:.7rem;padding:3px 9px;border-radius:20px;background:var(--mova-card);color:var(--mova-ink-3);border:1px solid var(--mova-line);}
+.pill{font-family:Nunito,sans-serif;font-size:.7rem;padding:3px 9px;border-radius:20px;background:var(--mova-card);color:var(--mova-ink-3);border:1px solid var(--mova-line);}
 .pill-active{background:var(--mova-indigo-soft);color:var(--mova-indigo);border-color:var(--mova-indigo);}
 .pill-done{background:var(--mova-mint-soft);color:var(--mova-mint);border-color:var(--mova-mint);}
 
@@ -1905,19 +1907,14 @@ header [data-testid="stDecoration"]{display:none;}
 .prow{display:flex;align-items:center;padding:11px 18px;border-bottom:1px solid var(--mova-line);gap:14px;}
 .prow:last-child{border-bottom:none;}
 .prow:hover{background:var(--mova-surface-3);}
-.pnum{font-family:'JetBrains Mono',monospace;color:var(--mova-indigo);font-size:.78rem;min-width:26px;}
+.pnum{font-family:Nunito,sans-serif;color:var(--mova-indigo);font-size:.78rem;min-width:26px;}
 .pnat{color:var(--mova-ink);flex:1;font-size:.98rem;}
 .ptgt{color:var(--mova-ink);flex:1;font-size:.98rem;font-weight:500;}
 .phide{color:var(--mova-ink-4);flex:1;font-style:italic;font-size:.85rem;}
-.spass{background:var(--mova-mint-soft);color:var(--mova-mint);border-radius:5px;padding:2px 9px;font-size:.8rem;font-family:'JetBrains Mono',monospace;}
-.sfail{background:var(--mova-coral-soft);color:var(--mova-coral-ink);border-radius:5px;padding:2px 9px;font-size:.8rem;font-family:'JetBrains Mono',monospace;}
+.spass{background:var(--mova-mint-soft);color:var(--mova-mint);border-radius:5px;padding:2px 9px;font-size:.8rem;font-family:Nunito,sans-serif;}
+.sfail{background:var(--mova-coral-soft);color:var(--mova-coral-ink);border-radius:5px;padding:2px 9px;font-size:.8rem;font-family:Nunito,sans-serif;}
 
-/* Color-coded step type — left border tells the user what kind of step it is */
-.step-header.step-type-reading     { border-left: 4px solid var(--mova-indigo); }
-.step-header.step-type-listening   { border-left: 4px solid #8050b0; }
-.step-header.step-type-matching    { border-left: 4px solid #40a0a0; }
-.step-header.step-type-translation { border-left: 4px solid #40a060; }
-.step-header.step-type-composing   { border-left: 4px solid #c06080; }
+.step-header { border-left: 4px solid var(--mova-indigo); }
 
 /* Big icon next to the step title */
 .step-icon-row { display:flex; align-items:center; gap:16px; margin-top:6px; }
@@ -1946,14 +1943,14 @@ header [data-testid="stDecoration"]{display:none;}
     color:var(--mova-ink) !important;
 }
 
-.timer{font-family:'JetBrains Mono',monospace;font-size:2.4rem;color:var(--mova-indigo);text-align:center;padding:14px;background:var(--mova-card);border-radius:12px;border:1px solid var(--mova-line);margin:10px 0;}
+.timer{font-family:Nunito,sans-serif;font-size:2.4rem;color:var(--mova-indigo);text-align:center;padding:14px;background:var(--mova-card);border-radius:12px;border:1px solid var(--mova-line);margin:10px 0;}
 .prow-active{background:var(--mova-indigo-soft) !important;border-left:3px solid var(--mova-indigo);}
 .prow-active .pnat{color:var(--mova-ink) !important;}
 .prow-active .ptgt{color:var(--mova-ink) !important;font-weight:600;}
 .pill-required{background:var(--mova-amber-soft);color:var(--mova-amber-ink);border-color:var(--mova-amber);}
 .progress-bar-wrap{background:var(--mova-card);border-radius:8px;height:8px;margin:6px 0;overflow:hidden;}
-.progress-bar-fill{height:8px;border-radius:8px;background:linear-gradient(90deg, var(--mova-indigo), #6E66FF);transition:width .4s;}
-.progress-info{display:flex;justify-content:space-between;font-family:'JetBrains Mono',monospace;font-size:.72rem;color:var(--mova-ink-3);margin-bottom:2px;}
+.progress-bar-fill{height:8px;border-radius:8px;background:linear-gradient(90deg, var(--mova-indigo), var(--mova-indigo-light));transition:width .4s;}
+.progress-info{display:flex;justify-content:space-between;font-family:Nunito,sans-serif;font-size:.72rem;color:var(--mova-ink-3);margin-bottom:2px;}
 .cbanner{background:linear-gradient(135deg, var(--mova-mint-soft), var(--mova-indigo-soft));border:1px solid var(--mova-mint);border-radius:16px;padding:36px;text-align:center;}
 audio{width:100%;border-radius:8px;margin:4px 0;}
 </style>
@@ -4167,8 +4164,8 @@ def _render_step_nav_inline(cur_step: int) -> None:
     step_pct   = round(_adp_idx / max(_adp_total, 1) * 100, 0)
     _adp_mode  = st.session_state.get("_adaptive_mode", "cold_start")
     _adp_badge = (
-        ' <span style="background:#1a3a1a;color:#34d0a0;font-size:.62rem;'
-        'padding:1px 6px;border-radius:10px;font-family:\'JetBrains Mono\',monospace;'
+        ' <span style="background:var(--mova-mint-soft);color:var(--mova-mint-ink);font-size:.62rem;'
+        'padding:1px 6px;border-radius:10px;font-family:Nunito,sans-serif;'
         'vertical-align:middle">adaptive</span>'
         if _adp_mode == "adaptive" else ""
     )
@@ -4179,7 +4176,7 @@ def _render_step_nav_inline(cur_step: int) -> None:
         f'<span>{_step_progress_text}{_adp_badge}</span>'
         f'<span>{"🔒" if cur_step in REQUIRED_STEPS else ""}</span></div>'
         f'<div class="progress-bar-wrap">'
-        f'<div class="progress-bar-fill" style="width:{step_pct}%;background:linear-gradient(90deg, var(--mova-mint), #34D0A0)"></div></div>',
+        f'<div class="progress-bar-fill" style="width:{step_pct}%;background:linear-gradient(90deg, var(--mova-mint), var(--mova-mint))"></div></div>',
         unsafe_allow_html=True
     )
 

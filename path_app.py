@@ -63,8 +63,8 @@ _TYPE_ICON  = {"reading": "🔤", "grammar": "🗣️", "vocab": "📖", "phrase
 _TYPE_COLOR = {
     "reading": "var(--mova-mint)",
     "grammar": "var(--mova-indigo)",
-    "vocab":   "#f59e0b",
-    "phrasebook": "var(--mova-coral)",
+    "vocab":   "var(--mova-amber)",
+    "phrasebook": "var(--mova-indigo-light)",
 }
 
 # Single-module shortcuts, shown as plain buttons below My Path's own
@@ -565,10 +565,10 @@ def main() -> None:
         # target (Natalia's sister's feedback, 2026-09-06).
         pct = stats["pct"]
         st.markdown(
-            f'<div style="font-size:.7rem;color:#aaa;text-transform:uppercase;'
+            f'<div style="font-size:.7rem;color:var(--mova-ink-3);text-transform:uppercase;'
             f'letter-spacing:.06em;margin-bottom:3px">{i18n.get(native, "path_coverage_label")}</div>'
             f'{_pct_bar(pct)}'
-            f'<div style="font-size:.72rem;color:#aaa;margin-top:2px">'
+            f'<div style="font-size:.72rem;color:var(--mova-ink-3);margin-top:2px">'
             f'{pct:.0f}%</div>',
             unsafe_allow_html=True,
         )
@@ -577,7 +577,7 @@ def main() -> None:
         # Mini type breakdown
         for key, color in [
             ("grammar", "var(--mova-indigo)"),
-            ("vocab",   "#f59e0b"),
+            ("vocab",   "var(--mova-amber)"),
             ("reading", "var(--mova-mint)"),
         ]:
             label = i18n.get(native, _MODULE_I18N_KEY[key])
@@ -587,7 +587,7 @@ def main() -> None:
             st.markdown(
                 f'<div style="margin:6px 0">'
                 f'<div style="display:flex;justify-content:space-between;'
-                f'font-size:.75rem;color:#aaa;margin-bottom:2px">'
+                f'font-size:.75rem;color:var(--mova-ink-3);margin-bottom:2px">'
                 f'<span>{label}</span><span>{_pct}%</span></div>'
                 f'{_pct_bar(_pct, color)}'
                 f'</div>',

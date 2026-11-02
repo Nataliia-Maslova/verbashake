@@ -20,7 +20,7 @@
 // is enough for Chrome's installability check, which only requires a
 // controlling SW to exist, not that it control the whole origin.
 
-const CACHE_NAME = "verbashake-pwa-v1";
+const CACHE_NAME = "verbashake-pwa-v2";
 const PRECACHE_URLS = [
   "app/static/pwa/manifest.json",
   "app/static/pwa/icon-192.png",

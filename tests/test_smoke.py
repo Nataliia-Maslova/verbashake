@@ -452,7 +452,7 @@ def _contrast(a, b):
 def test_light_theme_text_contrast_meets_aa():
     t = _tokens(":root {")
     for fg, bg in [("ink", "surface"), ("ink-2", "surface"), ("ink-3", "surface"), ("ink-3", "surface-2"),
-                   ("ink-on-coral", "coral"), ("ink-on-coral", "coral-press"), ("indigo-ink", "indigo-soft"),
+                   ("on-primary", "primary"), ("on-primary", "primary-press"), ("indigo-ink", "indigo-soft"),
                    ("coral-ink", "coral-soft"), ("mint-ink", "mint-soft"), ("amber-ink", "amber-soft")]:
         assert _contrast(t[fg], t[bg]) >= 4.5, (fg, bg, _contrast(t[fg], t[bg]))
 
@@ -461,6 +461,7 @@ def test_dark_theme_text_contrast_meets_aa():
     light = _tokens(":root {")
     dark = {**light, **_tokens('[data-theme="dark"] {')}
     for fg, bg in [("ink", "surface"), ("ink-2", "card"), ("ink-3", "card"), ("indigo-ink", "indigo-soft"),
+                   ("on-primary", "primary"), ("on-primary", "primary-press"),
                    ("coral-ink", "coral-soft"), ("mint-ink", "mint-soft"), ("amber-ink", "amber-soft")]:
         assert _contrast(dark[fg], dark[bg]) >= 4.5, (fg, bg, _contrast(dark[fg], dark[bg]))
 
