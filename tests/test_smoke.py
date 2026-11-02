@@ -1376,3 +1376,9 @@ def test_audio_player_frame_height_never_feeds_on_itself():
     assert "documentElement.scrollHeight" not in html   # grew forever, pushing the buttons below down
     assert "document.body.getBoundingClientRect" in html
 
+
+def test_audio_player_frame_leaves_streamlits_wrapper_alone():
+    import grammar
+    html = grammar.autoplaylist_with_table([{"native": "a", "target": "b"}], [""], [1.0], uid="t", native_lang="Ukrainian")
+    assert "parentElement.style" not in html   # the next step's audio player inherited that height
+

@@ -476,8 +476,8 @@ def autoplaylist_with_table(phrases, audio_paths, pause_secs, uid="pl",
       if (h === fittedHeight) return;
       fittedHeight = h;
       const frame = window.frameElement;
+      frame.dataset.fitted = '1';  // lets the wrapper follow, see the rule in the app CSS
       frame.style.height = h + 'px';
-      frame.parentElement.style.height = h + 'px';  // Streamlit's wrapper keeps the Python height
     }} catch (e) {{}}
   }}
   fitFrame();
@@ -1927,6 +1927,11 @@ header [data-testid="stDecoration"]{display:none;}
 .progress-info{display:flex;justify-content:space-between;font-family:Nunito,sans-serif;font-size:.72rem;color:var(--mova-ink-3);margin-bottom:2px;}
 .cbanner{background:linear-gradient(135deg, var(--mova-mint-soft), var(--mova-indigo-soft));border:1px solid var(--mova-mint);border-radius:16px;padding:36px;text-align:center;}
 audio{width:100%;border-radius:8px;margin:4px 0;}
+/* Follows the phrase table's own height. A rule rather than a height written on
+   the wrapper: Streamlit reuses that wrapper for the next step's audio player,
+   which kept the height and showed a big gap above it (2026-11-02). */
+[data-testid="stElementContainer"]:has(> iframe[data-fitted]) { height: auto !important; flex: 0 0 auto !important; }
+iframe[data-fitted] { display: block; }
 </style>
 """, unsafe_allow_html=True)
 
