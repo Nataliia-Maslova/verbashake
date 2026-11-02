@@ -535,6 +535,13 @@ div[data-baseweb="popover"] li[role="option"][aria-selected="true"] {
   color: var(--mova-ink);
   padding: var(--mova-sp-3) var(--mova-sp-4);
 }
+/* Streamlit draws its own darker border on the inner <details>: a second outline inside ours */
+[data-testid="stExpander"] details { border: 0 !important; }
+
+/* "My routine" on My Path: same weight and violet icon as the buttons above it */
+.st-key-schedule_expander [data-testid="stExpander"] { border-color: var(--mova-line-2) !important; border-radius: var(--mova-radius-2) !important; }
+.st-key-schedule_expander summary p { font-weight: var(--mova-fw-bold); }
+.st-key-schedule_expander summary [data-testid="stExpanderIcon"] { color: var(--mova-indigo); }
 
 hr, [data-testid="stDivider"] {
   border: 0 !important;
