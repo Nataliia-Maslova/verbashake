@@ -408,7 +408,7 @@ def autoplaylist_with_table(phrases, audio_paths, pause_secs, uid="pl",
   @import url('https://fonts.googleapis.com/css2?family=Nunito:wght@400;500;600;700;800;900&display=swap');
   body {{ font-family:Nunito,sans-serif; }}
   .ph-table {{
-    background:#FFFFFF; border:1px solid #D3C9EE; border-radius:12px;
+    background:#FFFFFF; border:1px solid #E3DCF5; border-radius:18px;
     overflow:hidden; margin:10px 0;
   }}
   .ph-row {{
@@ -420,8 +420,8 @@ def autoplaylist_with_table(phrases, audio_paths, pause_secs, uid="pl",
   .ph-row:last-child {{ border-bottom:none; }}
   .ph-num {{ font-family:Nunito,sans-serif; color:#3E2AA8;
             font-size:.73rem; min-width:26px; }}
-  .ph-nat {{ color:#6A6380; flex:1; font-size:.93rem; }}
-  .ph-tgt {{ color:#4B4564; flex:1; font-size:.93rem; font-weight:500; }}
+  .ph-nat {{ color:#4B4564; flex:1; font-size:.98rem; }}
+  .ph-tgt {{ color:#5B3BE6; flex:1; font-size:.98rem; font-weight:800; }}
   .ph-row.active {{
     background:#ECE6FF; border-left-color:#5B3BE6;
   }}
@@ -447,6 +447,11 @@ def autoplaylist_with_table(phrases, audio_paths, pause_secs, uid="pl",
     width:10px; height:10px; border-radius:50%;
     background:#ECE6FF; transition:.2s;
   }}
+  @media (max-width: 480px) {{
+    .ph-row {{ display:grid; grid-template-columns:26px 1fr; gap:2px 12px; }}
+    .ph-num {{ grid-row:1 / span 2; align-self:center; }}
+    .ph-nat, .ph-tgt {{ grid-column:2; }}
+  }}
 </style>
 
 <!-- Player FIRST so mobile users see the Play All button without scrolling -->
@@ -460,6 +465,20 @@ def autoplaylist_with_table(phrases, audio_paths, pause_secs, uid="pl",
 
 <script>
 (function(){{
+  // The height passed from Python is a guess: long phrases wrap on a phone.
+  function fitFrame() {{
+    try {{
+      const h = (document.documentElement.scrollHeight + 4) + 'px';
+      const frame = window.frameElement;
+      frame.style.height = h;
+      frame.parentElement.style.height = h;  // Streamlit's wrapper keeps the Python height
+    }} catch (e) {{}}
+  }}
+  fitFrame();
+  window.addEventListener('load', fitFrame);
+  window.addEventListener('resize', fitFrame);
+  if (document.fonts) document.fonts.ready.then(fitFrame);
+
   const srcs={srcs_js}, pauses={pauses_js}, n={n}, uid='{uid}', T={_T_js};
   let cur=-1, playing=false, aud=null, tmr=null;
 
@@ -620,8 +639,8 @@ def step_hdr(step, title=None, desc=None, total=8, show_image=False):
 
     Title and hint are read from engine.i18n based on the current session's
     native language. Adaptive step sequence (if active) is read from
-    session_state so every step function gets correct pill rendering
-    without changing its own signature.
+    session_state, so the progress bar is right without changing each step
+    function's signature.
     """
     # Look up the user's native language from the active session
     sess = st.session_state.get("session")
@@ -632,80 +651,40 @@ def step_hdr(step, title=None, desc=None, total=8, show_image=False):
     if desc is None:
         desc = i18n.get(native_lang, "hints", step)
 
-    icon       = i18n.step_icon(step)
-    s_type     = i18n.step_type(step)
-    step_label = i18n.get(native_lang, "step_label")
-    req_word   = i18n.get(native_lang, "required")
-
-    # ── Adaptive-aware pill rendering ──────────────────────────────────────
     adp_steps = st.session_state.get("_adaptive_steps")
-    adp_idx   = st.session_state.get("_adaptive_idx", 0)
-
     if adp_steps:
-        seq       = adp_steps
-        adp_total = len(seq)
-        pos_label = adp_idx + 1        # 1-based position shown to user
-
-        # Deduplicate while preserving order (handles EXTRA_REPEAT)
-        seen_s: set = set()
-        unique_seq = [s for s in seq if not (s in seen_s or seen_s.add(s))]  # type: ignore[func-returns-value]
-
-        def _pcls(s: int) -> str:
-            occurrences = [i for i, x in enumerate(seq) if x == s]
-            if s == step and any(i == adp_idx for i in occurrences):
-                return "pill-active"
-            if max(occurrences) < adp_idx:
-                return "pill-done"
-            if s in REQUIRED_STEPS:
-                return "pill-required"
-            return ""
-
-        def _plbl(s: int) -> str:
-            occurrences = [i for i, x in enumerate(seq) if x == s]
-            pending = max(occurrences) >= adp_idx and not any(i == adp_idx for i in occurrences)
-            return "🔒" if (pending and s in REQUIRED_STEPS) else str(s)
-
-        pills = "".join(
-            f'<span class="pill {_pcls(s)}">{_plbl(s)}</span>'
-            for s in unique_seq
-        )
+        pos, count = st.session_state.get("_adaptive_idx", 0) + 1, len(adp_steps)
     else:
-        adp_total = total
-        pos_label = step
-        pills = "".join(
-            f'<span class="pill {"pill-active" if s==step else "pill-done" if s<step else "pill-required" if s in REQUIRED_STEPS and s>step else ""}">'
-            f'{"🔒" if s in REQUIRED_STEPS and s > step else s}</span>'
-            for s in range(1, total + 1)
-        )
-
-    req_note = (f' <span style="color:var(--mova-amber-ink);font-size:.72rem;">🔒 {req_word}</span>'
-                if step in REQUIRED_STEPS else '')
+        pos, count = step, total
+    progress_text = i18n.get(native_lang, "step_progress_label").format(n=pos, total=count)
+    st.markdown(
+        f'<div class="progress-info"><span>{progress_text}</span></div>'
+        f'<div class="progress-bar-wrap"><div class="progress-bar-fill" '
+        f'style="width:{pos / count * 100:.0f}%"></div></div>',
+        unsafe_allow_html=True,
+    )
 
     # Lesson illustration above the instruction, step 1 only (2026-10-22,
     # Natalia: "картинку хочу отображать над инструкцией" / "только в шаге 1").
     if show_image and sess:
-        _mod = _current_module()
-        if _mod == "vocab" and len(sess.df) > 0:
-            topic = sess.df.iloc[0].get("topic", "")
-            _show_vocab_image(topic)
-        elif _mod == "grammar":
-            _show_lesson_image(sess.state.lesson_id)
-        elif _mod == "custom" and not st.session_state.get("_dark_mode"):
-            _p = APP_IMG_DIR / "my_phrases_banner.jpg"
-            if _p.exists():
-                _, _mid, _ = st.columns([1, 2, 1])
-                with _mid:
-                    st.image(str(_p), use_container_width=True)
+        with st.container(key="step_image"):
+            _mod = _current_module()
+            if _mod == "vocab" and len(sess.df) > 0:
+                topic = sess.df.iloc[0].get("topic", "")
+                _show_vocab_image(topic)
+            elif _mod == "grammar":
+                _show_lesson_image(sess.state.lesson_id)
+            elif _mod == "custom" and not st.session_state.get("_dark_mode"):
+                _p = APP_IMG_DIR / "my_phrases_banner.jpg"
+                if _p.exists():
+                    _, _mid, _ = st.columns([1, 2, 1])
+                    with _mid:
+                        st.image(str(_p), use_container_width=True)
 
     st.markdown(f"""
-    <div class="step-header step-type-{s_type}">
-      <div class="step-icon-row">
-        <span class="mova-icon-tile" data-step="{step}">{icon}</span>
-        <div style="flex:1">
-          <div class="step-title">{title}</div>
-          <div class="step-desc">{desc}</div>
-        </div>
-      </div>
+    <div class="step-header">
+      <div class="step-title">{title}</div>
+      <div class="step-desc">{desc}</div>
     </div>""", unsafe_allow_html=True)
 
 
@@ -1895,13 +1874,8 @@ header [data-testid="stDecoration"]{display:none;}
 }
 
 .step-header{background:var(--mova-card);border:1px solid var(--mova-line);border-radius:14px;padding:18px 26px;margin-bottom:18px;}
-.step-num{font-family:Nunito,sans-serif;color:var(--mova-indigo);font-size:.78rem;margin-bottom:4px;}
 .step-title{color:var(--mova-ink);font-size:1.25rem;font-weight:600;}
 .step-desc{color:var(--mova-ink-2);font-size:.88rem;margin-top:5px;}
-.step-pills{display:flex;gap:5px;flex-wrap:wrap;margin-bottom:10px;}
-.pill{font-family:Nunito,sans-serif;font-size:.7rem;padding:3px 9px;border-radius:20px;background:var(--mova-card);color:var(--mova-ink-3);border:1px solid var(--mova-line);}
-.pill-active{background:var(--mova-indigo-soft);color:var(--mova-indigo);border-color:var(--mova-indigo);}
-.pill-done{background:var(--mova-mint-soft);color:var(--mova-mint);border-color:var(--mova-mint);}
 
 .ptable{background:var(--mova-card);border:1px solid var(--mova-line-2);border-radius:12px;overflow:hidden;margin:10px 0;}
 .prow{display:flex;align-items:center;padding:11px 18px;border-bottom:1px solid var(--mova-line);gap:14px;}
@@ -1914,11 +1888,6 @@ header [data-testid="stDecoration"]{display:none;}
 .spass{background:var(--mova-mint-soft);color:var(--mova-mint);border-radius:5px;padding:2px 9px;font-size:.8rem;font-family:Nunito,sans-serif;}
 .sfail{background:var(--mova-coral-soft);color:var(--mova-coral-ink);border-radius:5px;padding:2px 9px;font-size:.8rem;font-family:Nunito,sans-serif;}
 
-.step-header { border-left: 4px solid var(--mova-indigo); }
-
-/* Big icon next to the step title */
-.step-icon-row { display:flex; align-items:center; gap:16px; margin-top:6px; }
-.step-icon-big { font-size:2.4rem; line-height:1; flex-shrink:0; }
 
 /* Subtle pulse so users notice the 'record yourself' control */
 @keyframes pulse-soft {
@@ -1947,7 +1916,6 @@ header [data-testid="stDecoration"]{display:none;}
 .prow-active{background:var(--mova-indigo-soft) !important;border-left:3px solid var(--mova-indigo);}
 .prow-active .pnat{color:var(--mova-ink) !important;}
 .prow-active .ptgt{color:var(--mova-ink) !important;font-weight:600;}
-.pill-required{background:var(--mova-amber-soft);color:var(--mova-amber-ink);border-color:var(--mova-amber);}
 .progress-bar-wrap{background:var(--mova-card);border-radius:8px;height:8px;margin:6px 0;overflow:hidden;}
 .progress-bar-fill{height:8px;border-radius:8px;background:linear-gradient(90deg, var(--mova-indigo), var(--mova-indigo-light));transition:width .4s;}
 .progress-info{display:flex;justify-content:space-between;font-family:Nunito,sans-serif;font-size:.72rem;color:var(--mova-ink-3);margin-bottom:2px;}
@@ -4146,40 +4114,19 @@ def _init_adaptive_session(sess) -> None:
 
 def _render_step_nav_inline(cur_step: int) -> None:
     """
-    Step progress + Previous/Repeat/Jump-to-step, rendered in the lesson
+    Previous/Repeat/Jump-to-step, rendered in the lesson
     content itself instead of the sidebar (design review, 2026-08-27,
     Natalia: the sidebar was overloaded -- this is exactly the part meant to
     move to "where New Material/Reading actually trains, step by step").
     Called from main()'s Phase 2 dispatch, right after the current step's
     own content renders. Same session_state keys and logic the old sidebar
-    block used (_adaptive_steps/_adaptive_idx from _init_adaptive_session,
-    REQUIRED_STEPS lock icons) -- only where it renders changed.
+    block used (_adaptive_steps/_adaptive_idx from _init_adaptive_session)
+    -- only where it renders changed. The progress bar is in step_hdr().
     """
     _sess_nav  = st.session_state.get("session")
     native_lang = _sess_nav.state.native_lang if _sess_nav else "English"
     _adp_steps = st.session_state.get("_adaptive_steps", list(range(1, 9)))
     _adp_idx   = st.session_state.get("_adaptive_idx", cur_step - 1)
-    _adp_total = len(_adp_steps)
-    _adp_pos   = _adp_idx + 1
-    step_pct   = round(_adp_idx / max(_adp_total, 1) * 100, 0)
-    _adp_mode  = st.session_state.get("_adaptive_mode", "cold_start")
-    _adp_badge = (
-        ' <span style="background:var(--mova-mint-soft);color:var(--mova-mint-ink);font-size:.62rem;'
-        'padding:1px 6px;border-radius:10px;font-family:Nunito,sans-serif;'
-        'vertical-align:middle">adaptive</span>'
-        if _adp_mode == "adaptive" else ""
-    )
-    _step_progress_text = i18n.get(native_lang, "step_progress_label").format(
-        n=_adp_pos, total=_adp_total)
-    st.markdown(
-        f'<div class="progress-info">'
-        f'<span>{_step_progress_text}{_adp_badge}</span>'
-        f'<span>{"🔒" if cur_step in REQUIRED_STEPS else ""}</span></div>'
-        f'<div class="progress-bar-wrap">'
-        f'<div class="progress-bar-fill" style="width:{step_pct}%;background:linear-gradient(90deg, var(--mova-mint), var(--mova-mint))"></div></div>',
-        unsafe_allow_html=True
-    )
-
     with st.expander(i18n.get(native_lang, "step_navigation_expander"), expanded=False):
         nav_c1, nav_c2 = st.columns(2)
         with nav_c1:
@@ -4459,28 +4406,13 @@ def main(module: str = "grammar"):
             sess.state.user_id, sess.state.target_lang)
     _reading_off = st.session_state[_roff_key]
     _reading_done = bool(st.session_state.get("reading_step_done")) or _reading_off
-    # Clickable phase navigation. Scoped font-size cut for this row only --
-    # some translated single-word labels ("Висловлювання") are long enough
-    # that the global button font-size (--mova-fs-body, 15px bold) makes
-    # them wider than a quarter of the row, and since a single word has no
-    # space to wrap at, the browser's overflow-wrap fallback was splitting
-    # it mid-syllable ("Висловлюван|ня") no matter what word-break says
-    # (design review, 2026-08-23). Two-word labels ("Новий матеріал") still
-    # wrap normally at the space -- only the font shrank.
+    # Clickable phase navigation: a row of chips, styled in streamlit-overrides.css.
+    # Full-size buttons took up a phone's whole first screen (six stacked rows).
     with st.container(key="phase_nav_row"):
-        st.markdown(
-            """<style>
-            .st-key-phase_nav_row .stButton > button,
-            .st-key-phase_nav_row .stButton > button p,
-            .st-key-phase_nav_row .stMarkdown p {
-                font-size: 0.7rem !important;
-            }
-            </style>""",
-            unsafe_allow_html=True,
-        )
         _nav_cols = st.columns(len(_PHASE_LABELS))
         for col, (k, v) in zip(_nav_cols, _PHASE_LABELS.items()):
             with col:
+                v = i18n.plain_label(v)
                 if k == _phase:
                     st.markdown(f"**{v}**", help=None)
                 else:

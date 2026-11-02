@@ -20,18 +20,6 @@ from pathlib import Path
 import streamlit as st
 from engine.characters import get_phrase
 
-# ── Кольорова схема ──────────────────────────────────────────────────────────
-CHARACTER_COLORS: dict[str, dict[str, str]] = {
-    "natalia":  {"bg": "#FFF3E0", "border": "#FF8C00", "name": "#E65100"},
-    "mark":     {"bg": "#E3F2FD", "border": "#1976D2", "name": "#0D47A1"},
-    "sophie":   {"bg": "#FCE4EC", "border": "#E91E63", "name": "#880E4F"},
-    "ai_bot":   {"bg": "#E8F5E9", "border": "#43A047", "name": "#1B5E20"},
-    "polyglot": {"bg": "#EDE7F6", "border": "#7B1FA2", "name": "#4A148C"},
-}
-_DEFAULT_COLORS: dict[str, str] = {
-    "bg": "#F5F5F5", "border": "#9E9E9E", "name": "#212121",
-}
-
 _EMOJI_FALLBACK: dict[str, str] = {
     "natalia":  "👩‍🏫",
     "mark":     "😰",
@@ -92,7 +80,6 @@ def show_character(
     if data is None:
         return
 
-    colors = CHARACTER_COLORS.get(character_key, _DEFAULT_COLORS)
     img_path = _ASSETS_ROOT / Path(data["image"]).name if data.get("image") else None
     img_exists = img_path is not None and img_path.exists()
 
@@ -107,7 +94,7 @@ def show_character(
             b64 = _img_to_b64(str(img_path))
             st.markdown(
                 f'<img src="data:image/png;base64,{b64}" '
-                f'style="width:90px;height:auto;display:block;margin:0 auto;" '
+                f'style="width:72px;height:72px;object-fit:cover;border-radius:50%;display:block;margin:0 auto;" '
                 f'loading="lazy">',
                 unsafe_allow_html=True,
             )
@@ -119,8 +106,8 @@ def show_character(
                 unsafe_allow_html=True,
             )
         name_html = (
-            "<p style='text-align:center;font-weight:600;"
-            "color:" + colors["name"] + ";margin:2px 0 0 0;font-size:.78rem;'>"
+            "<p style='text-align:center;font-weight:800;"
+            "color:var(--mova-indigo-ink);margin:2px 0 0 0;font-size:.78rem;'>"
             + data["name"] + "</p>"
         )
         st.markdown(name_html, unsafe_allow_html=True)
@@ -129,15 +116,14 @@ def show_character(
         phrase = data["phrase"].replace("<", "&lt;").replace(">", "&gt;")
         bubble_html = (
             "<div style='"
-            "background:" + colors["bg"] + ";"
-            "border-left:4px solid " + colors["border"] + ";"
-            "border-radius:0 12px 12px 0;"
+            "background:var(--mova-indigo-soft);"
+            "border-radius:18px;"
             "padding:14px 18px;"
             "margin-top:8px;"
             "font-size:.95rem;"
-            "color:#333;"
+            "font-weight:600;"
+            "color:var(--mova-ink);"
             "line-height:1.5;"
-            "box-shadow:0 2px 6px rgba(0,0,0,.07);"
-            "'>&#128172; " + phrase + "</div>"
+            "'>" + phrase + "</div>"
         )
         st.markdown(bubble_html, unsafe_allow_html=True)
