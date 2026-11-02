@@ -19,7 +19,7 @@ import time
 import streamlit as st
 from sqlalchemy import create_engine, text
 from sqlalchemy.engine import Engine
-from sqlalchemy.exc import OperationalError
+from sqlalchemy.exc import DBAPIError, OperationalError
 
 _IDENTIFIER_RE = re.compile(r"^[A-Za-z_][A-Za-z0-9_]*$")
 
@@ -41,11 +41,15 @@ _RETRY_BASE_DELAY = 0.5
 
 
 def _with_retry(fn):
-    last_exc: OperationalError | None = None
+    last_exc: DBAPIError | None = None
     for attempt in range(_MAX_RETRIES):
         try:
             return fn()
-        except OperationalError as e:
+        except DBAPIError as e:
+            # A dropped connection also surfaces as InterfaceError ("connection
+            # already closed"); this is what replaces pool_pre_ping, see get_engine().
+            if not (isinstance(e, OperationalError) or e.connection_invalidated):
+                raise
             last_exc = e
             if attempt < _MAX_RETRIES - 1:
                 time.sleep(_RETRY_BASE_DELAY * (attempt + 1))
@@ -66,8 +70,7 @@ def _safe_identifier(name: str) -> str:
     return name
 
 
-@st.cache_resource(show_spinner=False)
-def get_engine() -> Engine:
+def _database_url() -> str:
     try:
         url = st.secrets.get("DATABASE_URL")
     except Exception:
@@ -75,19 +78,77 @@ def get_engine() -> Engine:
     url = url or os.environ.get("DATABASE_URL")
     if not url:
         raise RuntimeError("DATABASE_URL not found in secrets.toml or environment")
-    return create_engine(url, pool_pre_ping=True, pool_recycle=300)
+    return url
 
 
-def fetch_all(sql: str, params: dict | None = None) -> list[dict]:
+# Two small pools, at most 15 connections between them: Supabase's session
+# pooler allows 15 per project by default. No pool_pre_ping on either: it added
+# a round trip to Ireland to every query, and a connection the pooler dropped
+# is already retried by _with_retry (checked by killing one, 2026-11-02).
+@st.cache_resource(show_spinner=False)
+def get_engine() -> Engine:
+    return create_engine(_database_url(), pool_recycle=300, pool_size=2, max_overflow=3)
+
+
+@st.cache_resource(show_spinner=False)
+def _read_engine() -> Engine:
+    """Autocommit from the start: one round trip for a read instead of three.
+    A pool of its own, because switching a shared connection's mode costs a
+    round trip of its own."""
+    return create_engine(_database_url(), pool_recycle=300, pool_size=5, max_overflow=5,
+                         isolation_level="AUTOCOMMIT")
+
+
+# One click reruns the whole script, and My Path alone asked for the same rows
+# up to 8 times: 24 queries, 6.2 s of a 6.3 s click (measured 2026-11-02).
+# So a SELECT reaches the database once per run; begin_run() starts each run
+# empty and any write through this module empties it again.
+_RUN_CACHE_KEY = "_db_run_cache"
+
+
+def begin_run() -> None:
+    """Called first thing in app.main() on every rerun."""
+    st.session_state[_RUN_CACHE_KEY] = {}
+
+
+def _run_cache() -> dict | None:
+    """This run's cache, or None outside a Streamlit run (scripts, tests)."""
+    try:
+        from streamlit.runtime.scriptrunner import get_script_run_ctx
+        if get_script_run_ctx(suppress_warning=True) is None:
+            return None
+        return st.session_state.setdefault(_RUN_CACHE_KEY, {})
+    except Exception:
+        return None
+
+
+def _clear_run_cache() -> None:
+    cache = _run_cache()
+    if cache:
+        cache.clear()
+
+
+def _query(sql: str, params: dict | None) -> list[dict]:
     def _do():
-        with get_engine().connect() as conn:
+        with _read_engine().connect() as conn:
             rows = conn.execute(text(sql), params or {})
             return [dict(r._mapping) for r in rows]
     return _with_retry(_do)
 
 
-def fetch_one(sql: str, params: dict | None = None) -> dict | None:
-    rows = fetch_all(sql, params)
+def fetch_all(sql: str, params: dict | None = None, fresh: bool = False) -> list[dict]:
+    """`fresh` skips this run's cache, for a counter other threads are raising."""
+    cache = None if fresh or sql.lstrip()[:6].upper() != "SELECT" else _run_cache()
+    if cache is None:
+        return _query(sql, params)
+    key = (sql, repr(sorted((params or {}).items())))
+    if key not in cache:
+        cache[key] = _query(sql, params)
+    return [dict(r) for r in cache[key]]  # callers may change what they get
+
+
+def fetch_one(sql: str, params: dict | None = None, fresh: bool = False) -> dict | None:
+    rows = fetch_all(sql, params, fresh=fresh)
     return rows[0] if rows else None
 
 
@@ -96,6 +157,7 @@ def execute(sql: str, params: dict | None = None) -> None:
         with get_engine().begin() as conn:
             conn.execute(text(sql), params or {})
     _with_retry(_do)
+    _clear_run_cache()
 
 
 def execute_many(sql: str, param_list: list[dict]) -> None:
@@ -105,6 +167,7 @@ def execute_many(sql: str, param_list: list[dict]) -> None:
         with get_engine().begin() as conn:
             conn.execute(text(sql), param_list)
     _with_retry(_do)
+    _clear_run_cache()
 
 
 def upsert(table: str, keys: dict, values: dict, touch_updated_at: bool = True) -> None:

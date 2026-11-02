@@ -1298,3 +1298,73 @@ def test_rule_explanation_ui_renders_old_and_new_shapes():
     md = [m.value for m in at.markdown]
     assert "old rule" in md and "new rule" in md and "🎬 Представьте себе" in md
     assert len(at.expander) == 1 and "**I wake up.**" in md
+
+
+# ---------------------------------------------------------------------------
+# Per-run read cache (2026-11-02): one click must not ask for the same rows
+# twice, and a write must never be followed by a stale read.
+# ---------------------------------------------------------------------------
+
+@pytest.fixture
+def db_run(monkeypatch):
+    from engine import db
+    calls, cache = [], {}
+    monkeypatch.setattr(db, "_run_cache", lambda: cache)
+    monkeypatch.setattr(db, "_query", lambda sql, params: calls.append(sql) or [{"n": len(calls)}])
+    return db, calls
+
+
+def test_same_select_reaches_db_once_per_run(db_run):
+    db, calls = db_run
+    assert db.fetch_all("SELECT 1", {"u": "a"}) == db.fetch_all("SELECT 1", {"u": "a"})
+    assert len(calls) == 1
+    db.fetch_all("SELECT 1", {"u": "b"})
+    assert len(calls) == 2
+
+
+def test_cached_rows_are_safe_to_change(db_run):
+    db, _ = db_run
+    db.fetch_all("SELECT 1")[0]["n"] = 99
+    assert db.fetch_all("SELECT 1")[0]["n"] == 1
+
+
+def test_write_empties_the_run_cache(db_run, monkeypatch):
+    db, calls = db_run
+    monkeypatch.setattr(db, "_with_retry", lambda fn: None)
+    db.fetch_all("SELECT 1")
+    db.execute("UPDATE t SET a = 1")
+    db.fetch_all("SELECT 1")
+    assert len(calls) == 2
+
+
+def test_only_plain_selects_are_cached(db_run):
+    db, calls = db_run
+    db.fetch_all("INSERT INTO t VALUES (1) RETURNING id")
+    db.fetch_all("INSERT INTO t VALUES (1) RETURNING id")
+    db.fetch_one("SELECT 1", fresh=True)
+    db.fetch_one("SELECT 1", fresh=True)
+    assert len(calls) == 4
+
+
+def test_dropped_connection_is_retried_but_bad_sql_is_not(monkeypatch):
+    from sqlalchemy.exc import InterfaceError, ProgrammingError
+    from engine import db
+    monkeypatch.setattr(db, "_RETRY_BASE_DELAY", 0)
+    tries = []
+
+    def dropped():
+        tries.append(1)
+        if len(tries) == 1:
+            raise InterfaceError("SELECT 1", {}, Exception("connection already closed"), connection_invalidated=True)
+        return "ok"
+
+    assert db._with_retry(dropped) == "ok"
+
+    def bad_sql():
+        tries.append(2)
+        raise ProgrammingError("SELEC", {}, Exception("syntax error"))
+
+    tries.clear()
+    with pytest.raises(ProgrammingError):
+        db._with_retry(bad_sql)
+    assert tries == [2]

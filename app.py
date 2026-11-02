@@ -48,6 +48,7 @@ import inbox_app                    # noqa: E402
 import songs_app                    # noqa: E402
 from engine import auth_gate        # noqa: E402
 from engine import brand            # noqa: E402
+from engine import db               # noqa: E402
 from engine import billing          # noqa: E402
 from engine import user_prefs       # noqa: E402
 from engine import client_tz        # noqa: E402
@@ -970,6 +971,8 @@ def _inject_pwa_head() -> None:
 
 
 def main():
+    db.begin_run()
+
     # Mova design system — Phase 1. Loaded on every rerun so it overrides
     # the sub-apps' legacy CSS via cascade.
     _inject_mova_css()
