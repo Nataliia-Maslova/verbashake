@@ -1638,6 +1638,12 @@ header [data-testid="stDecoration"]{display:none;}
 """, unsafe_allow_html=True)
 
 
+def _apply_step_jump() -> None:
+    """on_change of the "Go to step" dropdown: choosing a step goes there."""
+    clear_step_state()
+    st.session_state["r_step"] = st.session_state["r_nav_jump"]
+
+
 def _render_step_nav_inline(step: int) -> None:
     """
     Step progress + Previous/Repeat/Jump-to-step, rendered in the lesson
@@ -1675,21 +1681,15 @@ def _render_step_nav_inline(step: int) -> None:
                 clear_step_state()
                 st.rerun()
 
-        jump_default = min(max(step, 1), 5) - 1
         _sw = _ui("step_word")
-        jump_to = st.selectbox(
+        st.session_state["r_nav_jump"] = min(max(step, 1), 5)
+        st.selectbox(
             _ui("go_to_step"),
             options=list(range(1, 6)),
-            index=jump_default,
             format_func=lambda s: f"{_sw} {s}" + (" 🔒" if s in REQUIRED else ""),
             key="r_nav_jump",
+            on_change=_apply_step_jump,
         )
-        if jump_to != step:
-            if st.button(f"{_ui('go_to_step')} {jump_to}",
-                         use_container_width=True, key="r_nav_go"):
-                clear_step_state()
-                st.session_state["r_step"] = jump_to
-                st.rerun()
 
 
 # ═══════════════════════════════════════════════════════════════════════════

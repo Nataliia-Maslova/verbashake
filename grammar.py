@@ -4123,6 +4123,23 @@ def _init_adaptive_session(sess) -> None:
     })
 
 
+def _apply_step_jump() -> None:
+    """on_change of the "Jump to step" dropdown: choosing a step goes there."""
+    jump_to = st.session_state["nav_jump"]
+    seq = st.session_state.get("_adaptive_steps", list(range(1, 9)))
+    _clear_lesson()
+    if jump_to in seq:
+        # Step is in adaptive sequence -- use its index normally
+        st.session_state["_adaptive_idx"] = seq.index(jump_to)
+    else:
+        # Optional step (skipped by adaptive) -- insert it after
+        # current position so adaptive flow continues after it
+        cur_pos = st.session_state.get("_adaptive_idx", 0)
+        st.session_state["_adaptive_steps"] = seq[:cur_pos] + [jump_to] + seq[cur_pos:]
+        st.session_state["_adaptive_idx"]   = cur_pos
+    st.session_state["lesson_step"] = jump_to
+
+
 def _render_step_nav_inline(cur_step: int) -> None:
     """
     Previous/Repeat/Jump-to-step, rendered in the lesson
@@ -4163,7 +4180,6 @@ def _render_step_nav_inline(cur_step: int) -> None:
         # Quick-jump dropdown — all 8 steps always visible;
         # steps skipped by adaptive are marked "(+ optional)"
         _adp_seq_nav  = st.session_state.get("_adaptive_steps", list(range(1, 9)))
-        _adp_idx_jump = st.session_state.get("_adaptive_idx", 0)
         # Deduplicate adaptive seq (EXTRA_REPEAT may repeat step 2)
         _seen_j: set = set()
         _adp_unique = [s for s in _adp_seq_nav
@@ -4181,36 +4197,16 @@ def _render_step_nav_inline(cur_step: int) -> None:
                 base += "  " + i18n.get(native_lang, "step_optional_suffix")
             return base
 
-        jump_default = min(_adp_idx_jump, len(_full_options) - 1)
-        jump_to = st.selectbox(
+        # Follows the current step even after Next/Previous moved it, and
+        # lets on_change fire only on a real choice by the student.
+        st.session_state["nav_jump"] = cur_step
+        st.selectbox(
             i18n.get(native_lang, "jump_to_step_label"),
             options=_full_options,
-            index=jump_default,
             format_func=_step_label,
             key="nav_jump",
+            on_change=_apply_step_jump,
         )
-        if jump_to != cur_step:
-            if st.button(i18n.get(native_lang, "go_to_step_btn").format(n=jump_to),
-                         use_container_width=True,
-                         key="nav_go"):
-                _clear_lesson()
-                if jump_to in _adp_seq_nav:
-                    # Step is in adaptive sequence -- use its index normally
-                    _new_idx = _adp_seq_nav.index(jump_to)
-                    st.session_state["_adaptive_idx"] = _new_idx
-                else:
-                    # Optional step (skipped by adaptive) -- insert it after
-                    # current position so adaptive flow continues after it
-                    _cur_pos = st.session_state.get("_adaptive_idx", 0)
-                    _new_seq = (
-                        _adp_seq_nav[:_cur_pos] +
-                        [jump_to] +
-                        _adp_seq_nav[_cur_pos:]
-                    )
-                    st.session_state["_adaptive_steps"] = _new_seq
-                    st.session_state["_adaptive_idx"]   = _cur_pos
-                st.session_state["lesson_step"] = jump_to
-                st.rerun()
 
 
 def main(module: str = "grammar"):
