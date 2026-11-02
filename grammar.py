@@ -466,12 +466,18 @@ def autoplaylist_with_table(phrases, audio_paths, pause_secs, uid="pl",
 <script>
 (function(){{
   // The height passed from Python is a guess: long phrases wrap on a phone.
+  // Measured from the content, never from the document: the document is at
+  // least as tall as the frame, so that value only ever grows and the frame
+  // pushed the buttons below it down without end (2026-11-02).
+  let fittedHeight = 0;
   function fitFrame() {{
     try {{
-      const h = (document.documentElement.scrollHeight + 4) + 'px';
+      const h = Math.ceil(document.body.getBoundingClientRect().height) + 20;
+      if (h === fittedHeight) return;
+      fittedHeight = h;
       const frame = window.frameElement;
-      frame.style.height = h;
-      frame.parentElement.style.height = h;  // Streamlit's wrapper keeps the Python height
+      frame.style.height = h + 'px';
+      frame.parentElement.style.height = h + 'px';  // Streamlit's wrapper keeps the Python height
     }} catch (e) {{}}
   }}
   fitFrame();
