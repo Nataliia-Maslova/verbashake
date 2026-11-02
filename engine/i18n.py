@@ -24,6 +24,7 @@ yet, or a brand-new key was added to "en" but not translated).
 from __future__ import annotations
 
 import json
+import re
 from pathlib import Path
 
 # Same 14-language name->code mapping as engine/loader.py / engine/vocab_loader.py.
@@ -47,30 +48,6 @@ LANG_TO_CODE = {
     "Czech":      "cs",
     "Turkish":    "tr",
     "Swedish":    "sv",
-}
-
-# Big icon shown next to the step title. Universal across languages.
-STEP_ICONS = {
-    1: "👀",
-    2: "🎧",
-    3: "🎧",
-    4: "⚡",
-    5: "🗣️",
-    6: "🔄",
-    7: "⚡",
-    8: "✍️",
-}
-
-# Activity type → drives the left-border colour of the step header.
-STEP_TYPES = {
-    1: "reading",
-    2: "listening",
-    3: "matching",
-    4: "reading",
-    5: "listening",
-    6: "translation",
-    7: "translation",
-    8: "composing",
 }
 
 # Per-language strings.
@@ -1621,8 +1598,7 @@ def get(lang: str, key: str, step: int | None = None) -> str:
     return val
 
 
-def step_icon(step: int) -> str:
-    return STEP_ICONS.get(step, "📝")
-
-def step_type(step: int) -> str:
-    return STEP_TYPES.get(step, "reading")
+def plain_label(label: str) -> str:
+    """Drops the emoji at either end of a label, for places that carry a
+    Material icon or no icon at all."""
+    return re.sub(r"^\W+|\W+$", "", label)

@@ -466,6 +466,13 @@ def test_dark_theme_text_contrast_meets_aa():
         assert _contrast(dark[fg], dark[bg]) >= 4.5, (fg, bg, _contrast(dark[fg], dark[bg]))
 
 
+def test_plain_label_keeps_text_and_drops_edge_emoji():
+    assert i18n.plain_label("▶ Следующий урок") == "Следующий урок"
+    assert i18n.plain_label("Сложнее ➡") == "Сложнее"
+    assert i18n.plain_label("✏️ Мои ошибки · 6 открыто") == "Мои ошибки · 6 открыто"
+    assert i18n.plain_label("🎬 動画") == "動画"
+
+
 PLAYER_I18N_KEYS = ["player_play_all", "player_ready", "player_done", "player_phrase",
                     "player_stopped", "player_stop", "player_label"]
 

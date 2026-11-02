@@ -26,7 +26,6 @@ from __future__ import annotations
 
 import html as _html
 import datetime as _dt
-import re
 from pathlib import Path
 from urllib.parse import quote as _quote
 
@@ -109,12 +108,6 @@ def _render_module_shortcuts(user: str, native: str, target: str) -> None:
                     _switch_module(key, user, native, target)
 
 
-def _plain_label(label: str) -> str:
-    """Drops the emoji at either end of a generated label, for buttons that
-    carry a Material icon instead."""
-    return re.sub(r"^\W+|\W+$", "", label)
-
-
 def _render_mistakes_entry(user: str, native: str, target: str) -> None:
     """One button to the "My mistakes" screen (mistakes_app.py), with the
     open-mistake count when there is one. Not part of _SHORTCUT_MODULES --
@@ -122,7 +115,7 @@ def _render_mistakes_entry(user: str, native: str, target: str) -> None:
     n = _mistakes.counts(user, target)["open"] if user else 0
     label = (i18n.get(native, "mistakes_entry_btn").format(n=n) if n
              else i18n.get(native, "mistakes_entry_none"))
-    if st.button(_plain_label(label), icon=":material/edit_note:",
+    if st.button(i18n.plain_label(label), icon=":material/edit_note:",
                  key="path_mistakes_entry", use_container_width=True):
         _switch_module("mistakes", user, native, target)
 
@@ -137,7 +130,7 @@ def _render_inbox_entry(user: str, native: str, target: str) -> None:
         label = i18n.get(native, "inbox_entry_btn").format(n=n)
     else:
         label = i18n.get(native, "inbox_entry_none")
-    if st.button(_plain_label(label), icon=":material/inbox:",
+    if st.button(i18n.plain_label(label), icon=":material/inbox:",
                  key="path_inbox_entry", use_container_width=True):
         _switch_module("inbox", user, native, target)
 
@@ -470,7 +463,7 @@ def _render_topic_explanation(unit: dict, native_lang: str, target_lang: str) ->
     # in a live check). What's shown now depends only on session_state, and
     # Skip now sits above this button anyway.
     open_key = f"path_explain_open_{unit['unit_id']}"
-    if st.button(_plain_label(i18n.get(native_lang, "rule_explanation_title")), icon=":material/lightbulb:",
+    if st.button(i18n.plain_label(i18n.get(native_lang, "rule_explanation_title")), icon=":material/lightbulb:",
                  key="path_explain_btn", use_container_width=True):
         st.session_state[open_key] = not st.session_state.get(open_key, False)
     if not st.session_state.get(open_key):
@@ -541,7 +534,7 @@ def _render_next_lesson(stats: dict, user: str, native: str, target: str) -> Non
 
     with st.container(key="path_hero"):
         st.markdown(
-            f'<div class="hero-eyebrow">{_plain_label(i18n.get(native, "path_next_lesson_title"))}</div>'
+            f'<div class="hero-eyebrow">{i18n.plain_label(i18n.get(native, "path_next_lesson_title"))}</div>'
             f'<div class="hero-title">{topic}</div>'
             f'<div class="hero-sub">{sub}</div>',
             unsafe_allow_html=True,
@@ -560,17 +553,17 @@ def _render_next_lesson(stats: dict, user: str, native: str, target: str) -> Non
             easier = _recommender.grammar_neighbor(target, lid, -1)
             harder = _recommender.grammar_neighbor(target, lid, +1)
             with ec:
-                if st.button(_plain_label(i18n.get(native, "path_easier_btn")), icon=":material/arrow_back:",
+                if st.button(i18n.plain_label(i18n.get(native, "path_easier_btn")), icon=":material/arrow_back:",
                              disabled=easier is None, use_container_width=True, key="path_easier"):
                     _launch_unit(easier, user, native, target)
             with hc:
-                if st.button(_plain_label(i18n.get(native, "path_harder_btn")), icon=":material/arrow_forward:",
+                if st.button(i18n.plain_label(i18n.get(native, "path_harder_btn")), icon=":material/arrow_forward:",
                              disabled=harder is None, use_container_width=True, key="path_harder"):
                     _launch_unit(harder, user, native, target)
         else:
             sc = st.container()
         with sc:
-            if st.button(_plain_label(i18n.get(native, "path_skip_btn")), icon=":material/skip_next:",
+            if st.button(i18n.plain_label(i18n.get(native, "path_skip_btn")), icon=":material/skip_next:",
                          use_container_width=True, key="path_skip"):
                 # No fixed sequence to advance past — nudge this unit's SRS due
                 # date forward so a different lesson surfaces next time.
@@ -645,7 +638,7 @@ def main() -> None:
             )
 
     # ── Page header ──────────────────────────────────────────────────────────
-    st.markdown(f"## {_plain_label(i18n.get(native, 'path_title'))}")
+    st.markdown(f"## {i18n.plain_label(i18n.get(native, 'path_title'))}")
 
     # ── Literacy check for this target_lang, if not answered yet ────────────
     if not _render_level_prompt(user, native, target):

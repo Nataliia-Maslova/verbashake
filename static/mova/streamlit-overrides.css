@@ -166,6 +166,102 @@ header[data-testid="stHeader"] {
   .st-key-path_overall { display: none; }
 }
 
+/* ---------- Lesson screen ---------- */
+
+/* Phases as a row of chips. Wraps instead of stacking six full-width rows on a phone. */
+.st-key-phase_nav_row [data-testid="stHorizontalBlock"] {
+  flex-wrap: wrap !important;
+  gap: var(--mova-sp-2) !important;
+}
+.st-key-phase_nav_row [data-testid="stColumn"] {
+  flex: 0 0 auto !important;
+  width: auto !important;
+  min-width: 0 !important;
+}
+.st-key-phase_nav_row .stButton > button {
+  min-height: 36px;
+  padding: 0 var(--mova-sp-3) !important;
+  border-radius: var(--mova-radius-full) !important;
+  font-size: 0.82rem !important;
+  box-shadow: none;
+}
+.st-key-phase_nav_row .stButton > button p { font-size: 0.82rem; white-space: nowrap; }
+.st-key-phase_nav_row .stMarkdown p {
+  display: inline-flex;
+  align-items: center;
+  height: 36px;
+  margin: 0;
+  padding: 0 var(--mova-sp-3);
+  border-radius: var(--mova-radius-full);
+  background: var(--mova-indigo);
+  color: var(--mova-on-primary);
+  font-size: 0.82rem;
+  white-space: nowrap;
+}
+.st-key-phase_nav_row .stMarkdown strong { font-weight: var(--mova-fw-bold); }
+
+/* Skip is an escape hatch, not a step */
+.stApp [class*="st-key-phase_skip_"] .stButton > button[kind="secondary"],
+.stApp .st-key-warmup_skip .stButton > button[kind="secondary"] {
+  background: transparent !important;
+  border-color: transparent !important;
+  box-shadow: none !important;
+  color: var(--mova-ink-2) !important;
+}
+[class*="st-key-phase_skip_"] button p, .st-key-warmup_skip button p { font-weight: var(--mova-fw-medium); }
+
+/* Step header: same card-less look as the reels, shared by grammar and reading */
+.stApp .step-header {
+  background: transparent !important;
+  border: none !important;
+  box-shadow: none !important;
+  padding: 0 !important;
+  margin: var(--mova-sp-2) 0 var(--mova-sp-4);
+}
+.stApp .step-title {
+  font-size: var(--mova-fs-h1) !important;
+  font-weight: var(--mova-fw-black) !important;
+  line-height: var(--mova-lh-tight);
+  letter-spacing: var(--mova-tracking-tight);
+}
+.stApp .step-desc { font-size: var(--mova-fs-body) !important; margin-top: var(--mova-sp-1); }
+.stApp .progress-info { font-size: var(--mova-fs-small) !important; font-weight: var(--mova-fw-bold); color: var(--mova-indigo-ink) !important; }
+.stApp .progress-bar-wrap { background: var(--mova-surface-3) !important; }
+
+/* Lesson picture: a small accent, not a full screen on a phone */
+.st-key-step_image [data-testid="stColumn"]:not(:has(img)) { display: none; }
+.st-key-step_image [data-testid="stFullScreenFrame"] { display: flex; justify-content: center; }
+.st-key-step_image img {
+  max-height: 200px;
+  width: auto !important;
+  margin: 0 auto;
+  border-radius: var(--mova-radius-4);
+}
+
+/* Phrase list: the phrase being learned in violet, as in the reels */
+.stApp .ptable { border-color: var(--mova-line) !important; border-radius: var(--mova-radius-3) !important; }
+.stApp .pnat { color: var(--mova-ink-2) !important; }
+.stApp .ptgt { color: var(--mova-indigo-ink) !important; font-weight: var(--mova-fw-bold) !important; }
+.stApp .pnum { color: var(--mova-ink-3) !important; }
+@media (max-width: 640px) {
+  .stApp .prow { display: grid; grid-template-columns: auto 1fr auto; column-gap: var(--mova-sp-3); row-gap: 2px; }
+  .stApp .pnum { grid-row: 1 / span 2; align-self: center; }
+  .stApp .pnat, .stApp .ptgt, .stApp .phide { grid-column: 2; }
+  .stApp .spass, .stApp .sfail { grid-column: 3; grid-row: 1 / span 2; align-self: center; }
+}
+
+/* "Next" after a recording: the yellow of the reels, so it stands apart from the violet Check */
+.st-key-s1_next button, .st-key-s4_done button, .st-key-s6_next button {
+  background: var(--mova-amber) !important;
+  border-color: var(--mova-amber) !important;
+  color: var(--mova-on-yellow) !important;
+}
+.st-key-s1_next button p, .st-key-s4_done button p, .st-key-s6_next button p {
+  color: var(--mova-on-yellow) !important;
+  font-weight: var(--mova-fw-bold);
+}
+.st-key-s1_next button:disabled, .st-key-s4_done button:disabled, .st-key-s6_next button:disabled { opacity: .45; }
+
 /* ---------- Yellow hero card: the one next action on a screen ---------- */
 
 /* Text and button are two containers (see path_app._render_next_lesson),
