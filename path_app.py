@@ -254,7 +254,8 @@ def _render_schedule_section(user: str, native: str) -> None:
     click. The setup-prompt banner's CTA (see _render_schedule_prompt above)
     forces it open by setting the same session_state key directly, before
     this widget is instantiated in the same script run."""
-    with st.expander(i18n.get(native, "schedule_section_title"),
+    with st.expander(i18n.plain_label(i18n.get(native, "schedule_section_title")),
+                      icon=":material/calendar_month:",
                       expanded=False, key="schedule_expander"):
         st.caption(i18n.get(native, "schedule_section_intro"))
 
