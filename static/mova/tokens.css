@@ -38,6 +38,7 @@
 
   --mova-amber:          #FFD233;   /* brand yellow: warning, streak, attention */
   --mova-amber-ink:      #8A5A0A;
+  --mova-on-yellow:      #1E1748;   /* text ON the yellow fill, same in both themes */
   --mova-amber-soft:     #FBEDCC;
 
   /* ---------- Radius scale (soft, matches the Instagram look) ---------- */

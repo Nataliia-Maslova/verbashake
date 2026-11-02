@@ -24,9 +24,9 @@ Flow:
 """
 from __future__ import annotations
 
-import base64
 import html as _html
 import datetime as _dt
+import re
 from pathlib import Path
 from urllib.parse import quote as _quote
 
@@ -45,27 +45,7 @@ from engine import path_pins as _path_pins
 from engine import rule_explanation_ui as _rule_explanation_ui
 
 ROOT        = Path(__file__).parent
-APP_IMG_DIR = ROOT / "static" / "app_images"
 
-
-def _img_b64(path) -> str:
-    """Return base64 data-URL for an image, or empty string if missing.
-    Duplicated from app.py::_img_b64 (not imported) for the same reason
-    _switch_module() below duplicates _switch_to() -- app.py already
-    imports path_app for its router, so the reverse import would be
-    circular."""
-    p = Path(path)
-    if not p.exists():
-        return ""
-    return "data:image/png;base64," + base64.b64encode(p.read_bytes()).decode()
-
-_TYPE_ICON  = {"reading": "🔤", "grammar": "🗣️", "vocab": "📖", "phrasebook": "💬"}
-_TYPE_COLOR = {
-    "reading": "var(--mova-mint)",
-    "grammar": "var(--mova-indigo)",
-    "vocab":   "var(--mova-amber)",
-    "phrasebook": "var(--mova-indigo-light)",
-}
 
 # Single-module shortcuts, shown as plain buttons below My Path's own
 # content (design review, 2026-08-27). First tried a custom swipeable
@@ -76,17 +56,16 @@ _TYPE_COLOR = {
 # swipe for her. Real st.button widgets have none of that fragility --
 # guaranteed to work everywhere Streamlit itself works, at the cost of a
 # tap instead of a swipe.
-# Images match app.py::MODULES' "img" entries -- same artwork the launcher
-# grid used to show, reused here instead of the plain emoji (design review,
-# 2026-08-27, Natalia).
+# One icon set instead of watercolour crops next to emoji (redesign stage 2,
+# 2026-11-02). The tile layout lives in streamlit-overrides.css.
 _SHORTCUT_MODULES = [
-    ("grammar",    "🗣️", APP_IMG_DIR / "vocab_school.jpg"),
-    ("vocab",      "📖", APP_IMG_DIR / "vocab_basic.jpg"),
-    ("phrasebook", "💬", APP_IMG_DIR / "vocab_greetings.jpg"),
-    ("reading",    "🔤", APP_IMG_DIR / "reading_banner.jpg"),
-    ("custom",     "📝", APP_IMG_DIR / "my_phrases_banner.jpg"),
-    ("search",     "🔍", APP_IMG_DIR / "search_banner.jpg"),
-    ("songs",      "🎵", APP_IMG_DIR / "songs_banner.jpg"),
+    ("grammar",    ":material/menu_book:"),
+    ("vocab",      ":material/abc:"),
+    ("phrasebook", ":material/forum:"),
+    ("reading",    ":material/record_voice_over:"),
+    ("custom",     ":material/bookmark:"),
+    ("search",     ":material/search:"),
+    ("songs",      ":material/music_note:"),
 ]
 
 # Module display names all route through this instead of a 4th hardcoded
@@ -121,44 +100,30 @@ def _switch_module(module_key: str, user: str, native: str, target: str) -> None
 
 def _render_module_shortcuts(user: str, native: str, target: str) -> None:
     st.markdown(f"### {i18n.get(native, 'path_shortcuts_label')}")
-    cols = st.columns(len(_SHORTCUT_MODULES))
-    for col, (key, icon, img_path) in zip(cols, _SHORTCUT_MODULES):
-        with col:
-            label = i18n.get(native, _MODULE_I18N_KEY[key])
-            b64 = _img_b64(img_path) if not st.session_state.get("_dark_mode") else ""
-            if b64:
-                # Shorter than the first pass (72px -> 44px, design review,
-                # 2026-08-27): on a real phone st.columns(5) stacks into 5
-                # full-width rows (Streamlit switches multi-column layouts to
-                # a vertical stack below ~640px viewport width, regardless of
-                # column count/ratio -- confirmed on Natalia's own screenshot,
-                # not a workaround-able CSS quirk) -- 5x a wide banner crop
-                # pushed the actual "Next lesson" card a full screen down.
-                # Roughly button-height now, so the block reads as a compact
-                # icon list instead of 5 stacked banners.
-                st.markdown(
-                    f'<img src="{b64}" style="width:100%;height:44px;'
-                    f'object-fit:cover;border-radius:8px;margin-bottom:4px"/>',
-                    unsafe_allow_html=True,
-                )
-                btn_label = label
-            else:
-                # Missing file (shouldn't happen -- these ship with the repo)
-                # falls back to the emoji instead of a broken/blank image.
-                btn_label = f"{icon}\n\n{label}"
-            if st.button(btn_label, key=f"path_shortcut_{key}",
-                         use_container_width=True):
-                _switch_module(key, user, native, target)
+    with st.container(key="path_modules"):
+        cols = st.columns(len(_SHORTCUT_MODULES))
+        for col, (key, icon) in zip(cols, _SHORTCUT_MODULES):
+            with col:
+                if st.button(i18n.get(native, _MODULE_I18N_KEY[key]), icon=icon,
+                             key=f"path_shortcut_{key}", use_container_width=True):
+                    _switch_module(key, user, native, target)
+
+
+def _plain_label(label: str) -> str:
+    """Drops the emoji at either end of a generated label, for buttons that
+    carry a Material icon instead."""
+    return re.sub(r"^\W+|\W+$", "", label)
 
 
 def _render_mistakes_entry(user: str, native: str, target: str) -> None:
     """One button to the "My mistakes" screen (mistakes_app.py), with the
     open-mistake count when there is one. Not part of _SHORTCUT_MODULES --
-    that row is learning modules with artwork; this is a review view."""
+    that row is learning modules; this is a review view."""
     n = _mistakes.counts(user, target)["open"] if user else 0
     label = (i18n.get(native, "mistakes_entry_btn").format(n=n) if n
              else i18n.get(native, "mistakes_entry_none"))
-    if st.button(label, key="path_mistakes_entry", use_container_width=True):
+    if st.button(_plain_label(label), icon=":material/edit_note:",
+                 key="path_mistakes_entry", use_container_width=True):
         _switch_module("mistakes", user, native, target)
 
 
@@ -172,7 +137,8 @@ def _render_inbox_entry(user: str, native: str, target: str) -> None:
         label = i18n.get(native, "inbox_entry_btn").format(n=n)
     else:
         label = i18n.get(native, "inbox_entry_none")
-    if st.button(label, key="path_inbox_entry", use_container_width=True):
+    if st.button(_plain_label(label), icon=":material/inbox:",
+                 key="path_inbox_entry", use_container_width=True):
         _switch_module("inbox", user, native, target)
 
 
@@ -501,10 +467,11 @@ def _render_topic_explanation(unit: dict, native_lang: str, target_lang: str) ->
     # background and Streamlit re-created the expander collapsed — the
     # "⏭ Skip this lesson" button below then slid up under the cursor, and a
     # click meant for "Explain this rule" skipped the lesson (happened twice
-    # in a live check). What's shown now depends only on session_state.
+    # in a live check). What's shown now depends only on session_state, and
+    # Skip now sits above this button anyway.
     open_key = f"path_explain_open_{unit['unit_id']}"
-    if st.button(i18n.get(native_lang, "rule_explanation_title"), key="path_explain_btn",
-                 use_container_width=True):
+    if st.button(_plain_label(i18n.get(native_lang, "rule_explanation_title")), icon=":material/lightbulb:",
+                 key="path_explain_btn", use_container_width=True):
         st.session_state[open_key] = not st.session_state.get(open_key, False)
     if not st.session_state.get(open_key):
         return
@@ -531,6 +498,89 @@ def _pct_bar(pct: float, color: str = "var(--mova-indigo)") -> str:
         f'<div style="height:7px;border-radius:6px;background:{color};'
         f'width:{min(pct, 100):.1f}%;transition:width .4s"></div></div>'
     )
+
+
+def _render_next_lesson(stats: dict, user: str, native: str, target: str) -> None:
+    """The yellow card with the one thing to do next, plus its quiet options."""
+    if stats["total_units"] == 0:
+        # Dev/ops-facing state (an unseeded DB) -- a real production student
+        # never sees this, left in English (the same rationale as the
+        # seed-script's own console output).
+        st.info(
+            "No content is tagged yet — run `python scripts/seed_content_units.py` "
+            "against the database to populate the learning path."
+        )
+        return
+
+    unit = stats.get("current_unit")
+
+    if unit is None:
+        st.success(i18n.get(native, "path_all_caught_up"))
+        if st.button(i18n.get(native, "path_start_over_btn"), type="secondary"):
+            _recommender.reset_user(user, target)
+            st.rerun()
+        return
+
+    _render_schedule_badge(user, native)
+
+    utype  = unit["module"]
+    u_lbl  = i18n.get(native, _MODULE_I18N_KEY.get(utype, "module_grammar"))
+    topic  = _localized_topic(unit, utype, native, target)
+    parsed = _recommender.parse_unit_id(unit["unit_id"])
+    lid    = parsed["lesson_id"]
+
+    try:
+        _num = _recommender.lesson_position(target, utype, lid) or lid
+    except Exception:
+        _num = lid
+    sub = f"{u_lbl} · {i18n.get(native, 'word_lesson')} {_num}"
+    if unit.get("level"):
+        sub += f" · {unit['level']}"
+    if unit.get("pinned_source"):
+        sub += " · " + i18n.get(native, "songs_pinned_badge").format(song=_html.escape(unit["pinned_source"]))
+
+    with st.container(key="path_hero"):
+        st.markdown(
+            f'<div class="hero-eyebrow">{_plain_label(i18n.get(native, "path_next_lesson_title"))}</div>'
+            f'<div class="hero-title">{topic}</div>'
+            f'<div class="hero-sub">{sub}</div>',
+            unsafe_allow_html=True,
+        )
+    # Its own container, joined to the card in CSS: a second element in
+    # path_hero stayed on the next screen as a faded ghost button after a
+    # module switch (Streamlit keeps a reused block's leftover children).
+    with st.container(key="path_hero_cta"):
+        _start_label = f"▶ {i18n.get(native, 'start_prefix')}"
+        if st.button(_start_label, type="primary", use_container_width=True, key="path_start"):
+            _launch_unit(unit, user, native, target)
+
+    with st.container(key="path_quiet_actions"):
+        if utype == "grammar":
+            ec, hc, sc = st.columns(3)
+            easier = _recommender.grammar_neighbor(target, lid, -1)
+            harder = _recommender.grammar_neighbor(target, lid, +1)
+            with ec:
+                if st.button(_plain_label(i18n.get(native, "path_easier_btn")), icon=":material/arrow_back:",
+                             disabled=easier is None, use_container_width=True, key="path_easier"):
+                    _launch_unit(easier, user, native, target)
+            with hc:
+                if st.button(_plain_label(i18n.get(native, "path_harder_btn")), icon=":material/arrow_forward:",
+                             disabled=harder is None, use_container_width=True, key="path_harder"):
+                    _launch_unit(harder, user, native, target)
+        else:
+            sc = st.container()
+        with sc:
+            if st.button(_plain_label(i18n.get(native, "path_skip_btn")), icon=":material/skip_next:",
+                         use_container_width=True, key="path_skip"):
+                # No fixed sequence to advance past — nudge this unit's SRS due
+                # date forward so a different lesson surfaces next time.
+                _recommender.record_result(user, target, unit["unit_id"], correct=True)
+                # A lesson the student pinned themselves (e.g. from a song) would
+                # otherwise stay first until mastered -- skipping it means "not now".
+                _path_pins.remove(user, target, unit["unit_id"])
+                st.rerun()
+        if utype == "grammar":
+            _render_topic_explanation(unit, native, target)
 
 
 # ── Main ─────────────────────────────────────────────────────────────────────
@@ -595,7 +645,7 @@ def main() -> None:
             )
 
     # ── Page header ──────────────────────────────────────────────────────────
-    st.markdown(f"## {i18n.get(native, 'path_title')}")
+    st.markdown(f"## {_plain_label(i18n.get(native, 'path_title'))}")
 
     # ── Literacy check for this target_lang, if not answered yet ────────────
     if not _render_level_prompt(user, native, target):
@@ -603,114 +653,27 @@ def main() -> None:
 
     # ── Routine: delayed setup prompt + settings (engine/schedule.py) ───────
     _render_schedule_prompt(user, native)
+
+    # The next lesson leads the screen (redesign stage 2, 2026-11-02): it used
+    # to sit under modules, mistakes, the box and stats, a full screen down on
+    # a phone. Modules stay right below it, where Natalia asked for them
+    # (2026-08-27) once the header was the only thing above them.
+    _render_next_lesson(stats, user, native, target)
+
+    _render_module_shortcuts(user, native, target)
+    entry_mistakes, entry_inbox = st.columns(2)
+    with entry_mistakes:
+        _render_mistakes_entry(user, native, target)
+    with entry_inbox:
+        _render_inbox_entry(user, native, target)
+
     _render_schedule_section(user, native)
 
-    # ── Single-module shortcuts ─────────────────────────────────────────────
-    # Moved back up here (2026-08-27, Natalia) -- her first request was "add
-    # them after My Path", read at the time as after all of My Path's OWN
-    # content; turned out she meant right at the top, under the header,
-    # where the swipe strip used to live before it got replaced with these
-    # plain buttons.
-    _render_module_shortcuts(user, native, target)
-    _render_mistakes_entry(user, native, target)
-    _render_inbox_entry(user, native, target)
-
-    # ── Overall progress bar ─────────────────────────────────────────────────
-    # Shows percentages only, not raw "done / total" counts -- the full catalog
-    # size (1000+ lessons) read as a discouragingly huge, unreachable target
-    # (Natalia's sister's feedback, 2026-09-06).
-    col1, col2, col3 = st.columns(3)
-    for col, key in [(col1, "grammar"), (col2, "vocab"), (col3, "reading")]:
-        label = i18n.get(native, _MODULE_I18N_KEY[key])
-        total = stats[f"total_{key}"]
-        done  = stats[f"done_{key}"]
-        _pct  = round(done / total * 100) if total else 0
-        with col:
-            st.metric(label, f"{_pct}%")
-
-    st.progress(stats["pct"] / 100)
-    st.caption(i18n.get(native, "path_overall_progress").format(pct=f"{stats['pct']:.0f}"))
-
-    if stats["total_units"] == 0:
-        # Dev/ops-facing state (an unseeded DB) -- a real production student
-        # never sees this, left in English (the same rationale as the
-        # seed-script's own console output).
-        st.info(
-            "No content is tagged yet — run `python scripts/seed_content_units.py` "
-            "against the database to populate the learning path."
-        )
-        return
-
-    unit = stats.get("current_unit")
-
-    if unit is None:
-        st.success(i18n.get(native, "path_all_caught_up"))
-        if st.button(i18n.get(native, "path_start_over_btn"), type="secondary"):
-            _recommender.reset_user(user, target)
-            st.rerun()
-        return
-
-    # ── Next lesson card ─────────────────────────────────────────────────────
-    _render_schedule_badge(user, native)
-    st.markdown(f"### {i18n.get(native, 'path_next_lesson_title')}")
-
-    utype  = unit["module"]
-    u_icon = _TYPE_ICON.get(utype, "📚")
-    u_lbl  = i18n.get(native, _MODULE_I18N_KEY.get(utype, "module_grammar"))
-    u_col  = _TYPE_COLOR.get(utype, "var(--mova-indigo)")
-    topic  = _localized_topic(unit, utype, native, target)
-    parsed = _recommender.parse_unit_id(unit["unit_id"])
-    lid    = parsed["lesson_id"]
-
-    try:
-        _num = _recommender.lesson_position(target, utype, lid) or lid
-    except Exception:
-        _num = lid
-    sub = f"{i18n.get(native, 'word_lesson')} {_num}"
-    if unit.get("level"):
-        sub += f" · {unit['level']}"
-    if unit.get("pinned_source"):
-        sub += " · " + i18n.get(native, "songs_pinned_badge").format(song=_html.escape(unit["pinned_source"]))
-
-    left, right = st.columns([4, 1])
-    with left:
-        st.markdown(
-            f'<div style="background:var(--mova-card);border:2px solid {u_col};'
-            f'border-radius:12px;padding:20px 24px">'
-            f'<div style="font-size:.75rem;color:{u_col};text-transform:uppercase;'
-            f'letter-spacing:.08em;margin-bottom:6px">{u_icon} {u_lbl}</div>'
-            f'<div style="font-size:1.25rem;font-weight:700">{topic}</div>'
-            f'<div style="color:var(--mova-ink-2);font-size:.88rem;margin-top:4px">{sub}</div>'
-            f'</div>',
-            unsafe_allow_html=True,
-        )
-    with right:
-        st.markdown("<div style='height:24px'></div>", unsafe_allow_html=True)
-        _start_label = f"▶ {i18n.get(native, 'start_prefix')}"
-        if st.button(_start_label, type="primary", use_container_width=True, key="path_start"):
-            _launch_unit(unit, user, native, target)
-
-    if utype == "grammar":
-        easier = _recommender.grammar_neighbor(target, lid, -1)
-        harder = _recommender.grammar_neighbor(target, lid, +1)
-        ec, hc = st.columns(2)
-        with ec:
-            if st.button(i18n.get(native, "path_easier_btn"), disabled=easier is None,
-                         use_container_width=True, key="path_easier"):
-                _launch_unit(easier, user, native, target)
-        with hc:
-            if st.button(i18n.get(native, "path_harder_btn"), disabled=harder is None,
-                         use_container_width=True, key="path_harder"):
-                _launch_unit(harder, user, native, target)
-        _render_topic_explanation(unit, native, target)
-
-    # ── Skip button ──────────────────────────────────────────────────────────
-    st.markdown("")
-    if st.button(i18n.get(native, "path_skip_btn"), type="secondary", key="path_skip"):
-        # No fixed sequence to advance past — nudge this unit's SRS due date
-        # forward so a different lesson surfaces next time.
-        _recommender.record_result(user, target, unit["unit_id"], correct=True)
-        # A lesson the student pinned themselves (e.g. from a song) would
-        # otherwise stay first until mastered -- skipping it means "not now".
-        _path_pins.remove(user, target, unit["unit_id"])
-        st.rerun()
+    # Phones hide the sidebar and its progress bars; the wide layout keeps
+    # only those (streamlit-overrides.css hides this block there). Percentages
+    # only, not raw "done / total" counts -- the full catalog size (1000+
+    # lessons) read as a discouragingly huge, unreachable target (Natalia's
+    # sister's feedback, 2026-09-06).
+    with st.container(key="path_overall"):
+        st.progress(stats["pct"] / 100)
+        st.caption(i18n.get(native, "path_overall_progress").format(pct=f"{stats['pct']:.0f}"))
