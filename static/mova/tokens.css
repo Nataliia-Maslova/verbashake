@@ -7,49 +7,53 @@
 
 :root {
   /* ---------- Brand palette ---------- */
-  --mova-surface:        #FAF7F5;   /* page background */
-  --mova-surface-2:      #F4F0EB;   /* recessed surface (chip rail, table stripe) */
-  --mova-surface-3:      #ECE6DE;   /* hover/pressed on surface */
+  --mova-surface:        #F3EEFF;   /* page background */
+  --mova-surface-2:      #EAE3FB;   /* recessed surface (chip rail, table stripe) */
+  --mova-surface-3:      #DDD3F6;   /* hover/pressed on surface */
   --mova-card:           #FFFFFF;   /* card fill */
-  --mova-ink:            #1B1730;   /* primary text */
+  --mova-ink:            #1E1748;   /* primary text */
   --mova-ink-2:          #4B4564;   /* secondary text */
   --mova-ink-3:          #6A6380;   /* tertiary text / placeholder (was #7A7390 = 4.2:1 on surface, below WCAG AA 4.5; 2026-09-25) */
   --mova-ink-4:          #B7B0C4;   /* disabled / divider-on-card */
-  --mova-line:           #E8E2D8;   /* hairline on surface */
-  --mova-line-2:         #DDD6CA;   /* hairline emphasis */
+  --mova-line:           #E3DCF5;   /* hairline on surface */
+  --mova-line-2:         #D3C9EE;   /* hairline emphasis */
 
-  --mova-indigo:         #4F46E5;   /* navigation, links, focus */
-  --mova-indigo-ink:     #2E27A8;   /* indigo text on light bg */
-  --mova-indigo-soft:    #ECEBFB;   /* indigo background tint */
+  /* Brand violet. The "indigo" name is historic: same role (navigation, links, focus). */
+  --mova-indigo:         #5B3BE6;   /* navigation, links, focus */
+  --mova-indigo-ink:     #3E2AA8;   /* violet text on light bg */
+  --mova-indigo-soft:    #ECE6FF;   /* violet background tint */
+  --mova-indigo-light:   #8B6CFF;   /* lighter end of progress fills */
 
-  --mova-coral:          #FF7B6B;   /* PRIMARY CTA only */
-  --mova-coral-press:    #E86553;
+  --mova-primary:        #5B3BE6;   /* PRIMARY CTA only */
+  --mova-primary-press:  #4A2DC9;
+  --mova-on-primary:     #FFFFFF;   /* text ON the primary fill: 6.7:1 */
+
+  --mova-coral:          #FF7B6B;   /* errors, "wrong answer" (no longer the CTA, 2026-11) */
   --mova-coral-ink:      #B23D2D;
-  --mova-ink-on-coral:   #1B1730;   /* text ON a coral fill: white was 2.5:1 (fail), this is 6.9:1 (2026-09-25) */
   --mova-coral-soft:     #FFE7E2;
 
   --mova-mint:           #1FB888;   /* success, "saved", correct */
   --mova-mint-ink:       #0E6E50;
   --mova-mint-soft:      #DDF4EA;
 
-  --mova-amber:          #F4B740;   /* warning, streak, attention */
+  --mova-amber:          #FFD233;   /* brand yellow: warning, streak, attention */
   --mova-amber-ink:      #8A5A0A;
   --mova-amber-soft:     #FBEDCC;
 
-  /* ---------- Radius scale (NOT iOS-pill) ---------- */
-  --mova-radius-1:  4px;   /* chips, badges */
-  --mova-radius-2:  6px;   /* buttons, inputs (matches Streamlit defaults) */
-  --mova-radius-3:  10px;  /* small cards, tiles */
-  --mova-radius-4:  14px;  /* large cards, banners */
-  --mova-radius-5:  20px;  /* hero / icon tile */
+  /* ---------- Radius scale (soft, matches the Instagram look) ---------- */
+  --mova-radius-1:  8px;   /* chips, badges */
+  --mova-radius-2:  14px;   /* buttons, inputs */
+  --mova-radius-3:  18px;  /* small cards, tiles */
+  --mova-radius-4:  24px;  /* large cards, banners */
+  --mova-radius-5:  28px;  /* hero / icon tile */
   --mova-radius-full: 999px;
 
   /* ---------- Shadow scale ---------- */
-  --mova-shadow-1: 0 1px 0 rgba(27, 23, 48, 0.04), 0 1px 2px rgba(27, 23, 48, 0.04);
-  --mova-shadow-2: 0 2px 4px rgba(27, 23, 48, 0.05), 0 4px 12px rgba(27, 23, 48, 0.06);
-  --mova-shadow-3: 0 4px 12px rgba(27, 23, 48, 0.08), 0 12px 32px rgba(27, 23, 48, 0.08);
-  --mova-shadow-focus: 0 0 0 3px rgba(79, 70, 229, 0.25);
-  --mova-shadow-coral-focus: 0 0 0 3px rgba(255, 123, 107, 0.30);
+  --mova-shadow-1: 0 2px 8px rgba(60, 40, 150, 0.08);
+  --mova-shadow-2: 0 6px 16px rgba(60, 40, 150, 0.12);
+  --mova-shadow-3: 0 12px 32px rgba(60, 40, 150, 0.16);
+  --mova-shadow-focus: 0 0 0 3px rgba(91, 59, 230, 0.25);
+  --mova-shadow-primary-focus: 0 0 0 3px rgba(91, 59, 230, 0.30);
 
   /* ---------- Spacing scale (4-pt) ---------- */
   --mova-sp-1:  4px;
@@ -64,23 +68,24 @@
   --mova-sp-10: 72px;
 
   /* ---------- Type ---------- */
-  --mova-font-sans: 'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
-  --mova-font-mono: 'JetBrains Mono', ui-monospace, 'SF Mono', Menlo, monospace;
+  --mova-font-sans: 'Nunito', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  --mova-font-mono: var(--mova-font-sans);   /* one family everywhere; the name stays for existing rules */
 
   /* Type scale — mobile baseline, scales up via clamp() at desktop */
   --mova-fs-display: clamp(34px, 4.5vw, 44px);  /* hero "mova." */
   --mova-fs-h1:      clamp(26px, 3.2vw, 32px);  /* screen title */
   --mova-fs-h2:      clamp(20px, 2.4vw, 24px);  /* section header */
   --mova-fs-h3:      18px;                       /* card title */
-  --mova-fs-body:    15px;                       /* body */
-  --mova-fs-small:   13px;                       /* caption */
-  --mova-fs-micro:   11px;                       /* uppercase label */
+  --mova-fs-body:    16px;                       /* body */
+  --mova-fs-small:   14px;                       /* caption */
+  --mova-fs-micro:   12px;                       /* uppercase label */
 
-  --mova-fw-regular: 400;
-  --mova-fw-medium:  500;
-  --mova-fw-semi:    600;
-  --mova-fw-bold:    700;
-  --mova-fw-black:   800;
+  /* One step heavier than the names say: Nunito reads thin at its nominal weights */
+  --mova-fw-regular: 500;
+  --mova-fw-medium:  600;
+  --mova-fw-semi:    700;
+  --mova-fw-bold:    800;
+  --mova-fw-black:   900;
 
   --mova-lh-tight:   1.15;
   --mova-lh-snug:    1.30;
@@ -100,15 +105,15 @@
   --mova-container-max: 720px;   /* main column max width on desktop */
   --mova-sidebar-w:     264px;   /* left nav, matches Streamlit's default */
 
-  /* ---------- Exercise palette (eight steps) ---------- */
-  --mova-step-1-from: #FF8A7A; --mova-step-1-to: #FF6A5A; /* Read */
-  --mova-step-2-from: #6E8BFF; --mova-step-2-to: #4F46E5; /* Listen & Repeat */
-  --mova-step-3-from: #34D0A0; --mova-step-3-to: #1FB888; /* Listen & Match */
-  --mova-step-4-from: #FFC966; --mova-step-4-to: #F4B740; /* Speed Read */
-  --mova-step-5-from: #B58CFF; --mova-step-5-to: #8A5CFF; /* Shadow */
-  --mova-step-6-from: #FFA487; --mova-step-6-to: #FF7B6B; /* Active Translate */
-  --mova-step-7-from: #FFD37A; --mova-step-7-to: #F4B740; /* Speed Translate */
-  --mova-step-8-from: #7BC8FF; --mova-step-8-to: #3D8DE0; /* Create */
+  /* ---------- Exercise palette: every step shares the brand violet ---------- */
+  --mova-step-1-from: #8B6CFF; --mova-step-1-to: #5B3BE6;
+  --mova-step-2-from: #8B6CFF; --mova-step-2-to: #5B3BE6;
+  --mova-step-3-from: #8B6CFF; --mova-step-3-to: #5B3BE6;
+  --mova-step-4-from: #8B6CFF; --mova-step-4-to: #5B3BE6;
+  --mova-step-5-from: #8B6CFF; --mova-step-5-to: #5B3BE6;
+  --mova-step-6-from: #8B6CFF; --mova-step-6-to: #5B3BE6;
+  --mova-step-7-from: #8B6CFF; --mova-step-7-to: #5B3BE6;
+  --mova-step-8-from: #8B6CFF; --mova-step-8-to: #5B3BE6;
 }
 
 /* ============================================================
@@ -119,10 +124,10 @@
    ============================================================ */
 
 [data-theme="dark"] {
-  --mova-surface:   #15121E;
-  --mova-surface-2: #1E1A2B;
-  --mova-surface-3: #2A2540;
-  --mova-card:      #1E1A2B;
+  --mova-surface:   #151129;
+  --mova-surface-2: #1F1A3A;
+  --mova-surface-3: #2B2450;
+  --mova-card:      #1F1A3A;
   --mova-ink:       #F6F2EC;
   --mova-ink-2:     #C8C0D6;
   --mova-ink-3:     #948CA6;
@@ -132,12 +137,16 @@
 
   /* text-on-soft-tint colours were only defined for light mode, so dark-mode alerts/banners/badges
      rendered dark ink on a dark tint (~1.5-2.7:1). Light equivalents, all >= 7.6:1 on their tint (2026-09-25). */
-  --mova-indigo-ink: #B4AFFF;
+  --mova-indigo:     #8B6CFF;
+  --mova-primary:    #8B6CFF;
+  --mova-primary-press: #A48CFF;
+  --mova-on-primary: #151129;   /* white on #8B6CFF is only 3.7:1 */
+  --mova-indigo-ink: #C4B6FF;
   --mova-coral-ink:  #FF9C8F;
   --mova-mint-ink:   #6FE3BE;
-  --mova-amber-ink:  #F4B740;
+  --mova-amber-ink:  #FFD233;
 
-  --mova-indigo-soft: #1F1B3A;
+  --mova-indigo-soft: #2B2450;
   --mova-coral-soft:  #3A1C1A;
   --mova-mint-soft:   #102E26;
   --mova-amber-soft:  #2F2410;

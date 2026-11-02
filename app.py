@@ -28,8 +28,8 @@ sys.path.insert(0, str(ROOT))
 
 # IMPORTANT: page config must be the very first Streamlit call
 st.set_page_config(
-    page_title="IMLLS",
-    page_icon="🎓",
+    page_title="VerbaShake",
+    page_icon=str(ROOT / "static" / "pwa" / "icon-192.png"),
     layout="wide",
     # 'auto' lets the user keep the sidebar open inside lessons (for nav)
     # while still allowing them to collapse it on the launcher.
@@ -47,6 +47,7 @@ import mistakes_app                 # noqa: E402
 import inbox_app                    # noqa: E402
 import songs_app                    # noqa: E402
 from engine import auth_gate        # noqa: E402
+from engine import brand            # noqa: E402
 from engine import billing          # noqa: E402
 from engine import user_prefs       # noqa: E402
 from engine import client_tz        # noqa: E402
@@ -131,7 +132,7 @@ def _inject_mova_css() -> None:
     css = _read_mova_css()
     st.markdown(
         f"""<style>
-@import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;700&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Nunito:wght@400;500;600;700;800;900&display=swap');
 {css}
 </style>""",
         unsafe_allow_html=True,
@@ -613,10 +614,10 @@ def render_launcher():
     .pb-wrap{background:var(--mova-surface-3);border-radius:8px;height:8px;margin:8px 0 6px;
              overflow:hidden;border:1px solid var(--mova-line-2);}
     .pb-fill{height:8px;border-radius:8px;
-             background:linear-gradient(90deg, var(--mova-indigo), #6E66FF);transition:width .4s;}
+             background:linear-gradient(90deg, var(--mova-indigo), var(--mova-indigo-light));transition:width .4s;}
     .pb-info{display:flex;justify-content:space-between;
-             font-family:'JetBrains Mono',monospace;font-size:.72rem;
-             color:#9090c0;margin-bottom:2px;}
+             font-family:Nunito,sans-serif;font-size:.72rem;
+             color:var(--mova-ink-3);margin-bottom:2px;}
     .pb-done{color:var(--mova-mint) !important;}
     .pb-fill-done{background:linear-gradient(90deg,var(--mova-mint),var(--mova-mint)) !important;}
     .pb-empty{color:var(--mova-ink-3) !important;}
@@ -624,36 +625,7 @@ def render_launcher():
     </style>
     """, unsafe_allow_html=True)
 
-    st.markdown("""
-    <div style="text-align:center;padding:40px 0 20px">
-      <div style="display:inline-block;width:200px;height:200px">
-        <svg viewBox="0 0 400 400" xmlns="http://www.w3.org/2000/svg" font-family="'Segoe UI', Arial, sans-serif">
-          <rect width="400" height="400" fill="#FFFDF7" rx="40"/>
-          <ellipse cx="200" cy="175" rx="90" ry="85" fill="#FFE08A" opacity="0.35"/>
-          <rect x="105" y="90" width="190" height="130" rx="30" fill="#FF8C42"/>
-          <polygon points="145,218 125,255 175,218" fill="#FF8C42"/>
-          <rect x="115" y="100" width="170" height="110" rx="22" fill="#FFA563" opacity="0.5"/>
-          <path d="M130 140 Q145 125 160 140 Q175 155 190 140 Q205 125 220 140 Q235 155 250 140 Q260 130 270 140" stroke="white" stroke-width="5" fill="none" stroke-linecap="round"/>
-          <path d="M130 165 Q145 150 160 165 Q175 180 190 165 Q205 150 220 165 Q235 180 250 165 Q260 155 270 165" stroke="white" stroke-width="5" fill="none" stroke-linecap="round" opacity="0.6"/>
-          <circle cx="310" cy="100" r="5" fill="#FFD166"/>
-          <circle cx="325" cy="85" r="3" fill="#FF8C42"/>
-          <circle cx="295" cy="82" r="4" fill="#FFD166" opacity="0.7"/>
-          <circle cx="90" cy="105" r="4" fill="#FFD166"/>
-          <circle cx="75" cy="90" r="3" fill="#FF8C42" opacity="0.8"/>
-          <circle cx="105" cy="80" r="5" fill="#FFD166" opacity="0.6"/>
-          <text x="200" y="300" text-anchor="middle" font-size="38" font-weight="800" letter-spacing="-1">
-            <tspan fill="#FF8C42">Verba</tspan><tspan fill="#2D2D2D">Shake</tspan>
-          </text>
-          <text x="200" y="328" text-anchor="middle" font-size="13" fill="#AAA" letter-spacing="2.5" font-weight="500">LANGUAGE LEARNING</text>
-          <circle cx="168" cy="355" r="4" fill="#FFD166"/>
-          <circle cx="185" cy="355" r="4" fill="#FF8C42"/>
-          <circle cx="200" cy="355" r="6" fill="#FF8C42"/>
-          <circle cx="215" cy="355" r="4" fill="#FF8C42"/>
-          <circle cx="232" cy="355" r="4" fill="#FFD166"/>
-        </svg>
-      </div>
-    </div>
-    """, unsafe_allow_html=True)
+    st.markdown(brand.logo_lockup(), unsafe_allow_html=True)
 
     # ── Account (Google, via st.login) + language preferences ───────────────
     # Defaults persist across reruns via session_state.
@@ -1033,7 +1005,7 @@ def _inject_pwa_head() -> None:
         "  d.head.appendChild(manifest);"
         "  const theme = d.createElement('meta');"
         "  theme.name = 'theme-color';"
-        "  theme.content = '#FF7B6B';"
+        "  theme.content = '#5B3BE6';"
         "  d.head.appendChild(theme);"
         "  const touchIcon = d.createElement('link');"
         "  touchIcon.rel = 'apple-touch-icon';"

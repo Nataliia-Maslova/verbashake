@@ -13,6 +13,9 @@
 
 /* ---------- App shell ---------- */
 
+/* Numbers that count up must not shift the layout */
+.timer, .tbig { font-variant-numeric: tabular-nums; }
+
 .stApp {
   background: var(--mova-surface) !important;
   color: var(--mova-ink);
@@ -95,35 +98,48 @@ header[data-testid="stHeader"] {
 }
 
 /* Streamlit wraps button labels at any character when the column is
-   narrower than the text ("Vocabulary" -> "Vocabular/y"). Prefer breaking
-   at word boundaries in every UI language; only fall back to a mid-word
-   break if a single word truly can't fit on its own line. */
+   narrower than the text ("Vocabulary" -> "Vocabular/y"). Break at word
+   boundaries only, in every UI language. */
 .stButton > button,
 .stButton > button p,
 .stButton > button div,
 .stButton > button span {
   word-break: keep-all;
-  overflow-wrap: break-word;
+  overflow-wrap: normal;
 }
 
-/* Primary — Coral, single per screen */
+/* My Path's seven module buttons share one row: the default side padding
+   would leave too little room for a whole word like "Грамматика" */
+[class*="st-key-path_shortcut_"] button {
+  padding: 0 var(--mova-sp-1) !important;
+  font-size: clamp(0.74rem, 1.1vw, 0.88rem) !important;
+}
+
+/* Streamlit puts its own weight on the label, not on the button */
+.stButton > button p,
+.stFormSubmitButton > button p,
+.stLinkButton a p {
+  font-weight: var(--mova-fw-semi);
+}
+
+/* Primary — violet, single per screen */
 .stButton > button[kind="primary"],
 .stFormSubmitButton > button[kind="primary"] {
-  background: var(--mova-coral) !important;
-  color: var(--mova-ink-on-coral) !important;
-  border-color: var(--mova-coral) !important;
-  box-shadow: 0 1px 0 rgba(0,0,0,.04), 0 2px 6px rgba(255, 123, 107, 0.28);
+  background: var(--mova-primary) !important;
+  color: var(--mova-on-primary) !important;
+  border-color: var(--mova-primary) !important;
+  box-shadow: 0 1px 0 rgba(0,0,0,.04), 0 2px 6px rgba(91, 59, 230, 0.28);
 }
 .stButton > button[kind="primary"]:hover,
 .stFormSubmitButton > button[kind="primary"]:hover {
-  background: var(--mova-coral-press) !important;
-  border-color: var(--mova-coral-press) !important;
+  background: var(--mova-primary-press) !important;
+  border-color: var(--mova-primary-press) !important;
 }
 .stButton > button[kind="primary"]:active {
   transform: translateY(1px);
 }
 .stButton > button[kind="primary"]:focus-visible {
-  box-shadow: var(--mova-shadow-coral-focus) !important;
+  box-shadow: var(--mova-shadow-primary-focus) !important;
   outline: none;
 }
 
@@ -277,17 +293,17 @@ div[data-baseweb="popover"] li[role="option"][aria-selected="true"] {
   padding: var(--mova-sp-4);
 }
 [data-testid="stAudioInput"] button {
-  background: var(--mova-coral) !important;
-  color: var(--mova-ink-on-coral) !important;
+  background: var(--mova-primary) !important;
+  color: var(--mova-on-primary) !important;
   border: none !important;
   border-radius: var(--mova-radius-full) !important;
   width: 64px;
   height: 64px;
-  box-shadow: 0 4px 16px rgba(255, 123, 107, 0.35);
+  box-shadow: 0 4px 16px rgba(91,59,230, 0.35);
   transition: transform var(--mova-dur-1) var(--mova-ease);
 }
 [data-testid="stAudioInput"] button:hover {
-  background: var(--mova-coral-press) !important;
+  background: var(--mova-primary-press) !important;
   transform: scale(1.03);
 }
 [data-testid="stAudioInput"] button[aria-pressed="true"] {
@@ -299,15 +315,18 @@ div[data-baseweb="popover"] li[role="option"][aria-selected="true"] {
 
 /* ---------- Progress bar ---------- */
 
-.stProgress > div > div > div {
+[data-testid="stProgressBarTrack"] {
   background: var(--mova-surface-3) !important;
   border-radius: var(--mova-radius-full);
-  height: 8px;
 }
-.stProgress > div > div > div > div {
-  background: linear-gradient(90deg, var(--mova-indigo), #6E66FF) !important;
+[data-testid="stProgressBarTrack"] > div {
+  background: linear-gradient(90deg, var(--mova-indigo), var(--mova-indigo-light)) !important;
   border-radius: var(--mova-radius-full);
 }
+
+/* Streamlit colours these from config.toml, which only knows the light theme */
+[data-testid="stMetricLabel"] *, [data-testid="stMetricValue"] * { color: var(--mova-ink); }
+[data-testid="stExpandSidebarButton"], [data-testid="stExpandSidebarButton"] * { color: var(--mova-ink-2) !important; }
 
 /* ---------- Alerts (st.success / st.info / st.warning / st.error) ---------- */
 
@@ -317,10 +336,11 @@ div[data-baseweb="popover"] li[role="option"][aria-selected="true"] {
   padding: var(--mova-sp-4) var(--mova-sp-4) var(--mova-sp-4) var(--mova-sp-5) !important;
   font-family: var(--mova-font-sans);
 }
-[data-testid="stAlert"][kind="info"]    { background: var(--mova-indigo-soft); border-color: rgba(79,70,229,.18); color: var(--mova-indigo-ink); }
-[data-testid="stAlert"][kind="success"] { background: var(--mova-mint-soft);   border-color: rgba(31,184,136,.22); color: var(--mova-mint-ink); }
-[data-testid="stAlert"][kind="warning"] { background: var(--mova-amber-soft);  border-color: rgba(244,183,64,.30); color: var(--mova-amber-ink); }
-[data-testid="stAlert"][kind="error"]   { background: var(--mova-coral-soft);  border-color: rgba(255,123,107,.30); color: var(--mova-coral-ink); }
+[data-testid="stAlertContainer"]:has([data-testid="stAlertContentInfo"])    { background: var(--mova-indigo-soft) !important; color: var(--mova-indigo-ink) !important; }
+[data-testid="stAlertContainer"]:has([data-testid="stAlertContentSuccess"]) { background: var(--mova-mint-soft) !important;   color: var(--mova-mint-ink) !important; }
+[data-testid="stAlertContainer"]:has([data-testid="stAlertContentWarning"]) { background: var(--mova-amber-soft) !important;  color: var(--mova-amber-ink) !important; }
+[data-testid="stAlertContainer"]:has([data-testid="stAlertContentError"])   { background: var(--mova-coral-soft) !important;  color: var(--mova-coral-ink) !important; }
+[data-testid^="stAlertContent"], [data-testid^="stAlertContent"] * { color: inherit !important; }
 
 /* ---------- Expander, divider, caption ---------- */
 
@@ -385,8 +405,8 @@ hr, [data-testid="stDivider"] {
 /* mic-pulse keyframe lives in components.css; reference it here in case
    you load overrides without components.css */
 @keyframes mova-mic-pulse {
-  0%, 100% { box-shadow: 0 0 0 0 rgba(255,123,107,.55), 0 4px 16px rgba(255,123,107,.35); }
-  50%      { box-shadow: 0 0 0 14px rgba(255,123,107,0), 0 4px 16px rgba(255,123,107,.35); }
+  0%, 100% { box-shadow: 0 0 0 0 rgba(91,59,230,.55), 0 4px 16px rgba(91,59,230,.35); }
+  50%      { box-shadow: 0 0 0 14px rgba(91,59,230,0), 0 4px 16px rgba(91,59,230,.35); }
 }
 
 /* "Press Ctrl+Enter / Enter to apply" hint under text inputs and text areas

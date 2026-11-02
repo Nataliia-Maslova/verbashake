@@ -73,15 +73,6 @@ STEP_TYPES = {
     8: "composing",
 }
 
-# Hex colour per type (used in CSS).
-TYPE_COLORS = {
-    "reading":     "#5060c0",
-    "listening":   "#8050b0",
-    "matching":    "#40a0a0",
-    "translation": "#40a060",
-    "composing":   "#c06080",
-}
-
 # Per-language strings.
 STRINGS = {
     "en": {
@@ -380,7 +371,7 @@ STRINGS = {
         "path_coverage_label":   "Coverage",
         "path_next_lesson_title": "▶ Next lesson",
         "path_easier_btn":       "⬅ Easier",
-        "path_harder_btn":       "Try harder ➡",
+        "path_harder_btn":       "Harder ➡",
         "path_skip_btn":         "⏭ Skip this lesson",
         "path_start_over_btn":   "🔄 Start over",
         "path_all_caught_up":    "🎉 **You're all caught up!** No lessons are due for review right now.",
@@ -1635,6 +1626,3 @@ def step_icon(step: int) -> str:
 
 def step_type(step: int) -> str:
     return STEP_TYPES.get(step, "reading")
-
-def step_color(step: int) -> str:
-    return TYPE_COLORS.get(step_type(step), "#5060c0")

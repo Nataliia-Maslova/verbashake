@@ -17,7 +17,7 @@ from pathlib import Path
 
 import streamlit as st
 
-from engine import signup_gate
+from engine import brand, signup_gate
 
 _PRIVACY_HTML_PATH = Path(__file__).parent.parent / "static" / "legal" / "privacy.html"
 
@@ -72,7 +72,7 @@ def show() -> None:
     _, mid, _ = st.columns([1, 2, 1])
     with mid:
         st.markdown(
-            '<div class="gate-logo">🗣️</div>'
+            f'<div class="gate-logo">{brand.logo_mark(72)}</div>'
             '<div class="gate-title">VerbaShake</div>'
             '<div class="gate-sub">Sign in to start learning</div>',
             unsafe_allow_html=True,

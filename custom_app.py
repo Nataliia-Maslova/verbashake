@@ -346,7 +346,7 @@ def render_setup():
                     f'<div style="display:flex;gap:14px;padding:6px 10px;'
                     f'background:var(--mova-card);border-bottom:1px solid var(--mova-line)">'
                     f'<span style="color:var(--mova-indigo-ink);min-width:28px;'
-                    f'font-family:\'JetBrains Mono\',monospace;font-size:.72rem">{i:02d}</span>'
+                    f'font-family:Nunito,sans-serif;font-size:.72rem">{i:02d}</span>'
                     f'<span style="flex:1;color:var(--mova-ink)">{nat}</span>'
                     f'<span style="flex:1;color:var(--mova-ink);font-weight:600">{tgt}</span>'
                     f'</div>'
