@@ -1,0 +1,41 @@
+# VerbaShake on a single VPS: the Streamlit app + Caddy (automatic HTTPS
+# via Let's Encrypt). See deploy/DEPLOY_HETZNER.md for the full setup.
+services:
+  app:
+    build: .
+    restart: unless-stopped
+    volumes:
+      # secrets.toml is copied to the server separately, never baked into the image
+      - ./.streamlit/secrets.toml:/app/.streamlit/secrets.toml:ro
+      - app_cache:/app/.cache
+      - audio_cache:/app/audio_cache
+      - app_logs:/app/logs
+    expose:
+      - "8501"
+
+  caddy:
+    image: caddy:2
+    restart: unless-stopped
+    ports:
+      - "80:80"
+      - "443:443"
+      - "443:443/udp"
+    environment:
+      - DOMAIN=${DOMAIN}
+    volumes:
+      - ./deploy/Caddyfile:/etc/caddy/Caddyfile:ro
+      # /.well-known/* files (e.g. assetlinks.json for the future Google Play TWA)
+      - ./deploy/well-known:/srv/well-known:ro
+      # /privacy, /terms, /delete-account (see deploy/Caddyfile)
+      - ./static/legal:/srv/legal:ro
+      - caddy_data:/data
+      - caddy_config:/config
+    depends_on:
+      - app
+
+volumes:
+  app_cache:
+  audio_cache:
+  app_logs:
+  caddy_data:
+  caddy_config:

@@ -1,0 +1,26 @@
+# DOMAIN comes from the .env file next to docker-compose.yml (e.g. DOMAIN=verbashake.app).
+# Caddy gets and renews the HTTPS certificate on its own.
+{$DOMAIN}, www.{$DOMAIN} {
+	@www host www.{$DOMAIN}
+	redir @www https://{$DOMAIN}{uri} permanent
+
+	# Served from deploy/well-known/ -- Google Play TWA needs assetlinks.json here.
+	handle_path /.well-known/* {
+		root * /srv/well-known
+		file_server
+	}
+
+	# Legal pages at short URLs (Google Play needs plain links to the privacy
+	# policy and account deletion page), served from static/legal/.
+	@legal path /privacy /terms /delete-account
+	handle @legal {
+		root * /srv/legal
+		rewrite * {path}.html
+		file_server
+	}
+
+	# Streamlit, including its websocket (/_stcore/stream) -- Caddy proxies websockets as-is.
+	handle {
+		reverse_proxy app:8501
+	}
+}
