@@ -49,12 +49,24 @@ def _launchable_unit(unit_id: str | None) -> bool:
     return parsed.get("module") in _LAUNCHABLE and "lesson_id" in parsed
 
 
+def _topic(label: str | None, native: str) -> str | None:
+    """Mistake categories are stored as Gemini wrote them, in English;
+    shown in the student's language (cached, see translate_ui_label)."""
+    if not label:
+        return label
+    try:
+        from engine import gemini
+        return gemini.translate_ui_label(label, native)
+    except Exception:
+        return label
+
+
 def _render_row(m: dict, idx: int, user: str, native: str, target: str, resolved: bool) -> None:
     with st.container(border=True):
         st.markdown(f"~~{m['original']}~~ → **{m['corrected']}**")
         if m.get("explanation"):
             st.caption(m["explanation"])
-        meta = [x for x in (m.get("topic_en"),
+        meta = [x for x in (_topic(m.get("topic_en"), native),
                             (m["resolved_at"] if resolved else m["created_at"]).strftime("%Y-%m-%d")) if x]
         st.caption(" · ".join(meta))
         if not resolved and _launchable_unit(m.get("unit_id")):
@@ -123,7 +135,7 @@ def main() -> None:
     if top:
         st.markdown(f"#### {i18n.get(native, 'mistakes_topics_title')}")
         for t in top:
-            st.markdown(f"- **{t['topic_en']}** · {t['n']}")
+            st.markdown(f"- **{_topic(t['topic_en'], native)}** · {t['n']}")
 
     _opt_open = i18n.get(native, "mistakes_open")
     _opt_done = i18n.get(native, "mistakes_resolved")

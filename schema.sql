@@ -364,6 +364,21 @@ CREATE TABLE IF NOT EXISTS reading_phase_off (
 );
 ALTER TABLE reading_phase_off ENABLE ROW LEVEL SECURITY;
 
+-- ── reading_texts_mode ──────────────────────────────────────────────────────
+-- (2026-11-06, Natalia: a student's feedback "читання супер легке") Which
+-- stage the lesson's "Читання" step starts from: letters / words / texts.
+-- Letters vs words is language_literacy; this row adds texts. texts_on=TRUE
+-- -> AI texts with questions instead of word lessons; FALSE -> the student
+-- chose word lessons explicitly; no row -> by level (B1+ texts, else words).
+CREATE TABLE IF NOT EXISTS reading_texts_mode (
+    user_id      TEXT NOT NULL,
+    target_lang  TEXT NOT NULL,
+    texts_on     BOOLEAN NOT NULL,
+    updated_at   TIMESTAMPTZ NOT NULL DEFAULT now(),
+    PRIMARY KEY (user_id, target_lang)
+);
+ALTER TABLE reading_texts_mode ENABLE ROW LEVEL SECURITY;
+
 -- ── language_level ──────────────────────────────────────────────────────────
 -- Per-(user, target_lang) self-reported level (2026-10-15). Onboarding used
 -- to ask "how much {target} do you know?" once and store it in the single

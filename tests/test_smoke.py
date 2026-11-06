@@ -1063,6 +1063,50 @@ def test_reading_skips_letters_when_student_says_they_know_them():
         assert skips_letters(level, None) is False
 
 
+def test_reading_tier_letters_words_texts():
+    """Three starts for the lesson's "Читання" step (2026-11-06)."""
+    from engine.reading_start import reading_tier
+    assert reading_tier("A1", True, None) == "letters"
+    assert reading_tier("C1", True, True) == "letters"       # asked for letters
+    assert reading_tier("A1", False, None) == "words"
+    assert reading_tier("A1", False, True) == "texts"
+    assert reading_tier("B2", False, False) == "words"       # chose words explicitly
+    assert reading_tier("B1", None, None) == "texts"         # B1+ without a choice
+    assert reading_tier("B1", False, None) == "texts"        # old "can read" answer at B1
+    assert reading_tier(None, None, None) == "letters"
+
+
+def test_next_reading_unit_is_none_on_texts(monkeypatch):
+    from engine import recommender
+    monkeypatch.setattr(recommender, "reading_tier", lambda u, l: "texts")
+    monkeypatch.setattr(recommender, "_reading_progress", lambda u, l: (0, 30))
+    assert recommender.next_reading_unit("u", "French") is None
+
+
+def test_reading_passage_questions_validated_and_shuffled(monkeypatch):
+    import json as _json
+    from engine import gemini
+    reply = {"title": "T", "sentences": [{"target": "a", "native": "b"}], "questions": [
+        {"question": "Q1", "options": ["x", "RIGHT", "z"], "answer": 1},
+        {"question": "Q2", "options": ["only"], "answer": 0},          # too few options
+        {"question": "Q3", "options": ["a", "b"], "answer": 5},        # answer out of range
+        {"options": ["a", "b"], "answer": 0},                          # no question
+    ]}
+    _sequenced_model(monkeypatch, [_json.dumps(reply)])
+    r = gemini.generate_reading_passage.__wrapped__("English", "Ukrainian", "A1")
+    assert len(r["questions"]) == 1
+    q = r["questions"][0]
+    assert q["options"][q["answer"]] == "RIGHT"
+
+
+def test_reading_start_question_has_three_answers_everywhere():
+    from engine import i18n
+    for lang in ("English", "Ukrainian", "Russian", "Spanish", "Korean"):
+        for k in ("literacy_needs_letters", "literacy_can_read", "literacy_reads_texts",
+                  "reading_too_easy_btn", "ai_text_score"):
+            assert i18n.get(lang, k) and i18n.get(lang, k) != k, (lang, k)
+
+
 def test_reading_letter_lessons_exist_and_leave_word_lessons():
     import reading_app
     from engine.reading_start import LETTER_LESSONS

@@ -127,6 +127,9 @@ def lang_name(code: str) -> str:
 _client: genai.Client | None = None
 
 
+_API_VERSION = "v1beta"
+
+
 def _configure():
     """
     Lazy Gemini client init — reads from st.secrets or env at call time,
@@ -150,7 +153,12 @@ def _configure():
     )
     if not key:
         raise RuntimeError("GEMINI_API_KEY not found in secrets.toml or environment")
-    _client = genai.Client(api_key=key)
+    # api_version pinned (2026-11-06): google-genai 3.0 (what the VPS's
+    # Docker build installed) defaults to "v1", which rejects thinking_config
+    # ("Thinking is not enabled for api version v1") -- every AI call on
+    # verbashake.app failed while the Mac's 2.19 used v1beta.
+    _client = genai.Client(api_key=key,
+                           http_options=types.HttpOptions(api_version=_API_VERSION))
 
 
 class _ModelHandle:
@@ -192,11 +200,13 @@ class _ModelHandle:
         # timeout_ms (classify_mistake_topics) is a tighter single attempt.
         if timeout_ms is not None:
             http_options = types.HttpOptions(
+                api_version=_API_VERSION,
                 timeout=timeout_ms,
                 retry_options=types.HttpRetryOptions(attempts=1),
             )
         else:
             http_options = types.HttpOptions(
+                api_version=_API_VERSION,
                 timeout=_DEFAULT_TIMEOUT_MS,
                 retry_options=types.HttpRetryOptions(attempts=2),
             )
@@ -1099,6 +1109,18 @@ def generate_practice_test(
             f"practice (for reference only — do not reuse them verbatim, "
             f"write NEW original sentences in the same style):\n{phrase_block}\n\n"
         )
+        # The phrases alone weren't enough (2026-11-05): for a Spanish
+        # "Niños corriendo / Personas trabajando" lesson the model fell back to
+        # generic verb-conjugation items ("Juan ___ al parque" -> fue). Name
+        # the lesson's point and require every item to test it.
+        if module == "grammar" and topic:
+            material_ctx = (
+                f"Lesson topic: {topic}.\n"
+                f"Every item must practise exactly the construction these "
+                f"phrases share (same structure, its gap/answer inside that "
+                f"construction). Do not test other tenses or structures — they "
+                f"may appear only as wrong options.\n\n" + material_ctx
+            )
     else:
         material_ctx = f"Topic: {topic}.\n\n"
 
@@ -2373,47 +2395,62 @@ def _clean_article_analysis(out: dict, n_paras: int, lesson_ids: set[int],
     return res
 
 
+# Text length per level for the lesson's "Читання" texts (2026-11-06).
+_PASSAGE_SENTENCES = {"A1": 5, "A2": 6, "B1": 8, "B2": 10, "C1": 12, "C2": 12}
+
+
 @_gated("generate_reading_passage", 5)
 def generate_reading_passage(
     target_lang: str,
     native_lang: str,
     level: str,
     grammar_topics: list[str] | None = None,
-    n_sentences: int = 8,
+    n_sentences: int | None = None,
+    words: list[str] | None = None,
+    n_questions: int = 3,
 ) -> dict:
     """
-    A short, connected reading passage at the student's CEFR level — the
-    follow-up Natalia asked for once a language's curated reading_lessons.xlsx
-    track (letters/phonics/words) runs out (CLAUDE.md, 2026-08-27): rather
-    than reading dropping straight into pure spaced-repetition review, keep
-    it alive as level-appropriate comprehension practice.
+    A short, connected reading passage at the student's CEFR level, with
+    comprehension questions. First built 2026-08-27 as the follow-up once a
+    language's curated reading_lessons.xlsx track runs out; since 2026-11-06
+    also the lesson's "Читання" step for a student who reads fluently
+    (engine.reading_start.reading_tier == "texts").
 
-    Unlike reading_lessons.xlsx's fixed lesson list, this has no unit_id / no
-    catalog row — ephemeral like generate_practice_test and
-    generate_lesson_construction_drill (no @_cache.memoize(): the point is a
-    fresh text each time, not one shared cached passage repeated forever), so
-    it isn't recorded in mastery/srs_state either.
+    Ephemeral like generate_practice_test (no @_cache.memoize(): a fresh
+    text each time), not recorded in mastery/srs_state.
 
-    grammar_topics (optional): plain-text names of grammar the student has
-    recently studied (e.g. from grammar.py::get_grammar_topics) — when given,
-    nudges Gemini to naturally weave those constructions in, so the passage
-    doubles as grammar review instead of only fresh vocabulary exposure.
+    grammar_topics: grammar the student has already studied
+    (recommender.learned_grammar_topics) -- woven in where natural.
+    words: words/phrases the student collected (engine.word_inbox) -- used
+    where they fit. n_sentences: defaults by level (_PASSAGE_SENTENCES).
+    Questions are in the target language from B1, in native_lang below.
 
-    Returns: {"title": str, "sentences": [{"target": str, "native": str}, ...]}
+    Returns: {"title": str, "sentences": [{"target","native"}, ...],
+              "questions": [{"question": str, "options": [str, ...], "answer": int}, ...]}
     """
-    topic_instruction = ""
+    n = n_sentences or _PASSAGE_SENTENCES.get(level, 8)
+    extra = ""
     if grammar_topics:
-        topics_str = ", ".join(grammar_topics[:5])
-        topic_instruction = (
-            f" Where it fits naturally, use grammar the student has recently "
-            f"studied: {topics_str}."
+        extra += (
+            " Where it fits naturally, use grammar the student has already "
+            f"studied: {', '.join(grammar_topics[:5])}. Do not use grammar "
+            f"clearly above {level}."
         )
+    if words:
+        extra += (
+            " Where they fit naturally, use some of these words/phrases the "
+            f"student is learning: {', '.join(words[:8])}."
+        )
+    q_lang = target_lang if level in ("B1", "B2", "C1", "C2") else native_lang
     prompt = (
         f"Write a short, coherent reading passage in {target_lang} for a "
-        f"{level} CEFR-level language learner — {n_sentences} simple, "
-        f"connected sentences forming one short story or description (not a "
-        f"list of unrelated facts), using vocabulary and grammar appropriate "
-        f"for {level}.{topic_instruction}\n\n"
+        f"{level} CEFR-level language learner — {n} connected sentences "
+        f"forming one short story or description (not a list of unrelated "
+        f"facts), with vocabulary and grammar appropriate for {level}.{extra}\n\n"
+        f"Then write {n_questions} multiple-choice comprehension questions in "
+        f"{q_lang} about the passage's content, 3 options each, exactly one "
+        "correct; the answer must follow from the passage itself, not from "
+        "general knowledge.\n\n"
         "Return JSON only — no markdown fences:\n"
         "{\n"
         f'  "title": "short title in {target_lang}",\n'
@@ -2422,13 +2459,34 @@ def generate_reading_passage(
         f'      "target": "sentence in {target_lang}",\n'
         f'      "native": "translation in {native_lang}"\n'
         "    }\n"
+        "  ],\n"
+        '  "questions": [\n'
+        f'    {{"question": "question in {q_lang}", "options": ["...", "...", "..."], '
+        '"answer": 0}\n'
         "  ]\n"
-        "}"
+        "}\n"
+        '"answer" is the 0-based index of the correct option.'
     )
-    return _parse_json(
+    out = _parse_json(
         _model(_FLASH).generate_content(prompt).text,
-        fallback={"title": "", "sentences": []},
+        fallback={"title": "", "sentences": [], "questions": []},
     )
+    qs = []
+    for q in out.get("questions") or []:
+        try:
+            opts = [str(o) for o in q["options"]]
+            ans = int(q["answer"])
+            if q.get("question") and len(opts) >= 2 and 0 <= ans < len(opts):
+                # Shuffle so the right option isn't always in the model's
+                # favourite position.
+                right = opts[ans]
+                random.shuffle(opts)
+                qs.append({"question": str(q["question"]), "options": opts,
+                           "answer": opts.index(right)})
+        except (KeyError, TypeError, ValueError):
+            continue
+    out["questions"] = qs
+    return out
 
 
 @_gated("check_practice_answer", 40)
@@ -2943,6 +3001,37 @@ def translate_phrase(phrase: str, from_lang: str, to_lang: str) -> str:
         f"Phrase: {phrase}"
     ))
     _save_translation_to_db(phrase, from_lang, to_lang, result)
+    return result
+
+
+@_cache.memoize()
+def translate_ui_label(label: str, to_lang: str) -> str:
+    """
+    Short English UI label (e.g. a mistake category Gemini wrote while
+    correcting, "Reflexive verbs") into the student's language, for display
+    only (2026-11-05). Deliberately NOT @_gated: it is the app's own interface
+    text, shared through the same phrase_translations cache as
+    translate_phrase (so each label is paid for once across all users), and
+    the free-plan daily counter would otherwise be spent on every rerender
+    of the Mistakes page. Falls back to the English label on any failure.
+    """
+    if not label or to_lang == "English":
+        return label
+    cached = _translation_from_db(label, "English", to_lang)
+    if cached is not None:
+        return cached
+    try:
+        _configure()
+        result = _safe_text(_model(_LITE).generate_content(
+            f"Translate this short grammar/vocabulary category label from English "
+            f"to {to_lang}, as it would appear in a language-learning app. "
+            f"Return ONLY the translation.\n\nLabel: {label}"
+        )).strip()
+    except Exception:
+        return label
+    if not result:
+        return label
+    _save_translation_to_db(label, "English", to_lang, result)
     return result
 
 

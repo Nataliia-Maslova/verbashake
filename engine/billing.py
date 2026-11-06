@@ -173,6 +173,26 @@ def create_checkout_session(user_id: str, email: str, return_url: str) -> str:
     return session.url
 
 
+def create_portal_session(user_id: str, return_url: str) -> str:
+    """
+    Stripe Customer Portal session URL -- where a subscriber cancels (at
+    period end), changes card, or downloads invoices (2026-11-05). Uses the
+    account's default portal configuration, which has to exist in each
+    Stripe mode separately (test mode: bpc_1UYQDEJxQf9C7MELr0U14lPM, created
+    via API; live mode: Dashboard -> Settings -> Billing -> Customer portal).
+    A cancellation reaches the subscriptions table through the normal
+    _STALE_AFTER re-sync, same as any other status change.
+    """
+    row = db.fetch_one(
+        "SELECT stripe_customer_id FROM subscriptions WHERE user_id = :uid", {"uid": user_id}
+    )
+    customer_id = row.get("stripe_customer_id") if row else None
+    if not customer_id:
+        raise RuntimeError(f"no stripe_customer_id for {user_id}")
+    session = _stripe().billing_portal.Session.create(customer=customer_id, return_url=return_url)
+    return session.url
+
+
 def handle_checkout_return() -> None:
     """Call once near the top of app.py's main() — finalises a successful Checkout."""
     params = st.query_params

@@ -138,6 +138,10 @@ def _render_inbox_entry(user: str, native: str, target: str) -> None:
 _SELF_LEVELS = ["zero", "A1", "A2", "B1", "B2", "C1", "C2"]
 
 
+# "How do you read {target}?" answers -> engine.reading_start stage (2026-11-06).
+_READING_START = {"needs_letters": "letters", "can_read": "words", "reads_texts": "texts"}
+
+
 def _render_level_prompt(user: str, native: str, target: str) -> bool:
     """Per-target_lang level question (2026-10-15, Natalia: "не питає рівень
     знань учня"). Onboarding asks it once, for the pair picked at signup;
@@ -164,7 +168,7 @@ def _render_level_prompt(user: str, native: str, target: str) -> bool:
         if ask_letters:
             letters = st.radio(
                 i18n.get(native, "onboarding_literacy_label").format(target=target),
-                ["can_read", "needs_letters"],
+                ["needs_letters", "can_read", "reads_texts"],
                 format_func=lambda c: i18n.get(native, f"literacy_{c}"),
                 index=None,
                 key=f"level_prompt_letters_{target}",
@@ -173,7 +177,7 @@ def _render_level_prompt(user: str, native: str, target: str) -> bool:
                      type="primary", disabled=ask_letters and letters is None):
             _user_prefs.set_language_level(user, target, level)
             if letters is not None:
-                _user_prefs.set_language_literacy(user, target, letters == "needs_letters")
+                _user_prefs.set_reading_start(user, target, _READING_START[letters])
             if (level in _recommender.CEFR_RANK
                     and _recommender.CEFR_RANK[level] >= _recommender.CEFR_RANK["B1"]
                     and not _literacy.needs_literacy_question(native, target, level)
@@ -208,16 +212,10 @@ def _render_literacy_prompt(user: str, native: str, target: str) -> None:
         return
     with st.container(border=True):
         st.markdown(f"**{i18n.get(native, 'onboarding_literacy_label').format(target=target)}**")
-        c1, c2 = st.columns(2)
-        with c1:
-            if st.button(i18n.get(native, "literacy_can_read"),
-                         key="literacy_prompt_can_read", use_container_width=True):
-                _user_prefs.set_language_literacy(user, target, False)
-                st.rerun()
-        with c2:
-            if st.button(i18n.get(native, "literacy_needs_letters"),
-                         key="literacy_prompt_needs_letters", use_container_width=True):
-                _user_prefs.set_language_literacy(user, target, True)
+        for choice, start in _READING_START.items():
+            if st.button(i18n.get(native, f"literacy_{choice}"),
+                         key=f"literacy_prompt_{choice}", use_container_width=True):
+                _user_prefs.set_reading_start(user, target, start)
                 st.rerun()
 
 

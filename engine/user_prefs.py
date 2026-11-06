@@ -187,6 +187,42 @@ def set_reading_phase_off(user_id: str, target_lang: str, off: bool) -> None:
         pass
 
 
+def get_reading_texts(user_id: str, target_lang: str) -> bool | None:
+    """Does the "Читання" step start from texts for this target_lang
+    (schema.sql's reading_texts_mode)? True / False as chosen, None if the
+    student never chose (then engine.reading_start decides by level)."""
+    if not user_id or not target_lang:
+        return None
+    try:
+        row = db.fetch_one(
+            "SELECT texts_on FROM reading_texts_mode "
+            "WHERE user_id = :uid AND target_lang = :lang",
+            {"uid": user_id, "lang": target_lang},
+        )
+        return row["texts_on"] if row else None
+    except Exception:
+        return None
+
+
+def set_reading_texts(user_id: str, target_lang: str, on: bool) -> None:
+    """Best-effort save, same fail-silent convention as save_prefs()."""
+    if not user_id or not target_lang:
+        return
+    try:
+        db.upsert("reading_texts_mode",
+                  keys={"user_id": user_id, "target_lang": target_lang},
+                  values={"texts_on": on})
+    except Exception:
+        pass
+
+
+def set_reading_start(user_id: str, target_lang: str, start: str) -> None:
+    """Save the answer to "how do you read {target}?": "letters", "words" or
+    "texts" (engine.reading_start.reading_tier reads it back)."""
+    set_language_literacy(user_id, target_lang, start == "letters")
+    set_reading_texts(user_id, target_lang, start == "texts")
+
+
 def get_language_level(user_id: str, target_lang: str) -> str | None:
     """Per-(user, target_lang) self-reported level ("zero"/"A1".."C2"), or
     None if this target_lang hasn't been asked about yet (or DB unavailable)

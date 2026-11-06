@@ -426,6 +426,11 @@ _SELF_LEVELS = ["zero", "A1", "A2", "B1", "B2", "C1", "C2"]
 from engine.literacy import needs_literacy_question as _needs_literacy_question
 
 
+# "How do you read {target}?" answers -> engine.reading_start stage
+# (2026-11-06: a third answer, "I read fluently", starts Reading with texts).
+_READING_START = {"needs_letters": "letters", "can_read": "words", "reads_texts": "texts"}
+
+
 def _render_onboarding(user_id: str) -> None:
     """
     First-run screen (2026-09-06) — replaces the old "_prefs_is_new_user"
@@ -469,14 +474,16 @@ def _render_onboarding(user_id: str) -> None:
     )
 
     literacy_required = None
+    reading_start = None
     if _needs_literacy_question(native, target, self_level):
         choice = st.radio(
             i18n.get(native, "onboarding_literacy_label").format(target=target),
-            ["can_read", "needs_letters"],
+            ["needs_letters", "can_read", "reads_texts"],
             format_func=lambda c: i18n.get(native, f"literacy_{c}"),
             key="ob_literacy",
         )
         literacy_required = (choice == "needs_letters")
+        reading_start = _READING_START[choice]
 
     if st.button(i18n.get(native, "onboarding_submit_btn"),
                  type="primary", key="ob_submit", disabled=not name.strip()):
@@ -504,8 +511,8 @@ def _render_onboarding(user_id: str) -> None:
         # so they still get the short intro; only a real question-not-asked
         # AND a real B1+ self-report together produce this.
         user_prefs.set_language_level(user_id, target, self_level)
-        if literacy_required is not None:
-            user_prefs.set_language_literacy(user_id, target, literacy_required)
+        if reading_start is not None:
+            user_prefs.set_reading_start(user_id, target, reading_start)
         elif self_level in _recommender.CEFR_RANK and \
                 _recommender.CEFR_RANK[self_level] >= _recommender.CEFR_RANK["B1"]:
             user_prefs.set_language_literacy(user_id, target, False)
@@ -707,6 +714,23 @@ def render_launcher():
         st.markdown("---")
         if billing.is_paid(user_id):
             st.markdown(f"**{i18n.get(_sb_native, 'sidebar_premium')}**")
+            # Same two-click pattern as checkout below: Streamlit can't
+            # redirect, so the first click creates the Stripe session and the
+            # second is a plain link to it.
+            portal_url = st.session_state.get("_portal_url")
+            if portal_url:
+                st.link_button(i18n.get(_sb_native, "sidebar_continue_portal_btn"),
+                               portal_url, use_container_width=True)
+            elif st.button(i18n.get(_sb_native, "sidebar_manage_subscription_btn"),
+                           use_container_width=True, key="launcher_manage_subscription"):
+                try:
+                    st.session_state["_portal_url"] = billing.create_portal_session(
+                        user_id, return_url=_app_url()
+                    )
+                    st.rerun()
+                except Exception as e:
+                    print(f"[app] portal session error: {e}")
+                    st.error(i18n.get(_sb_native, "portal_unavailable_error"))
         else:
             st.markdown(i18n.get(_sb_native, "sidebar_free_plan"))
             checkout_url = st.session_state.get("_checkout_url")
@@ -1009,8 +1033,14 @@ def main():
         st.session_state["_dark_mode_loaded"] = True
         st.session_state["_dark_mode_saved_value"] = st.session_state.get("_dark_mode", False)
 
+    # launcher_native is only hydrated from user_prefs further down main(),
+    # so read the saved choice here too -- otherwise the label shows in
+    # English on the first render of every new session.
+    _dm_native = st.session_state.get("launcher_native")
+    if not _dm_native and _dm_user_id:
+        _dm_native = (user_prefs.get_prefs(_dm_user_id) or {}).get("native_lang")
     with st.sidebar:
-        _dark = st.toggle("🌙 Dark mode", key="_dark_mode")
+        _dark = st.toggle(i18n.get(_dm_native or "English", "dark_mode_toggle"), key="_dark_mode")
     if _dm_user_id and st.session_state.get("_dark_mode_saved_value") != _dark:
         user_prefs.save_dark_mode(_dm_user_id, _dark)
         st.session_state["_dark_mode_saved_value"] = _dark

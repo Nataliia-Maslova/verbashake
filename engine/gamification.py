@@ -983,8 +983,9 @@ def sidebar_widget(user_id: str) -> None:
     # Cloud (2026-09-16).
     try:
         import streamlit as st
-        from engine import auth_gate
-        with st.expander("🔒 Privacy Policy"):
+        from engine import auth_gate, i18n
+        _native = st.session_state.get("launcher_native", "English")
+        with st.expander(i18n.get(_native, "privacy_policy_title")):
             auth_gate.render_privacy_policy(height=300)
     except Exception:
         pass

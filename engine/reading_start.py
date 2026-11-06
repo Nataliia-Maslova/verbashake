@@ -65,5 +65,23 @@ def skips_letters(level: str | None, literacy_required: bool | None) -> bool:
     return level in _B1_PLUS
 
 
+def reading_tier(level: str | None, literacy_required: bool | None,
+                 texts_on: bool | None) -> str:
+    """Where the lesson's "Читання" step starts (2026-11-06, Natalia: "учиться
+    читать буквы — начало с букв, читать слова — со слов, уже умеет читать —
+    с текстов"): "letters", "words" or "texts".
+
+    - chose texts / words explicitly (reading_texts_mode) -> that, unless
+      they asked for the letters
+    - no choice yet: letters as skips_letters() says; B1+ -> texts
+      (a reader at that level found the word lists "super easy"), else words
+    """
+    if not skips_letters(level, literacy_required):
+        return "letters"
+    if texts_on is not None:
+        return "texts" if texts_on else "words"
+    return "texts" if level in _B1_PLUS else "words"
+
+
 def letter_lessons(lang_code: str) -> set[int]:
     return LETTER_LESSONS.get(lang_code, set())

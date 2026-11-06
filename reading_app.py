@@ -915,6 +915,11 @@ def do_step2(rows: pd.DataFrame) -> bool:
                                similarity=r["score"],
                                response_time_ms=t_ms,
                                success=bool(r["passed"]))
+                    # 90%+ on a word lesson -> the "Читання" step offers texts
+                    # (render_reading_tier_controls, 2026-11-06).
+                    if r["score"] >= 0.9:
+                        st.session_state["r_easy_hint"] = (
+                            _reading_target_lang(), st.session_state.get("r_lesson"))
                     st.rerun()
                 else:
                     st.error(_ui("audio_not_recognized"))
@@ -1514,7 +1519,13 @@ def render_setup():
     # dedicated phase and it becomes background SRS review only. Natalia
     # asked for a follow-up so "reading" stays alive as active practice
     # instead: level-appropriate passages generated on demand.
-    if _r_done_lids and len(_r_done_lids) >= len(_r_int_lessons):
+    # Also for a student who reads fluently ("texts" stage, 2026-11-06).
+    try:
+        _r_texts_tier = bool(user_id) and _recommender.reading_tier(
+            user_id, _r_target_lang_name) == "texts"
+    except Exception:
+        _r_texts_tier = False
+    if _r_texts_tier or (_r_done_lids and len(_r_done_lids) >= len(_r_int_lessons)):
         st.markdown("---")
         with st.expander("📖 " + _ui("ai_reading_title"), expanded=False):
             st.caption(_ui("ai_reading_intro"))
@@ -1698,41 +1709,168 @@ def _render_step_nav_inline(step: int) -> None:
 
 def _render_embedded_ai_passage(user_id: str, native_lang: str, target_lang: str) -> bool:
     """
-    AI-generated reading passage, embedded in grammar.py's mandatory
-    "Читання" phase for a language whose curated reading_lessons.xlsx track
-    has no more (or no) content to introduce (2026-09-27). Ephemeral, like
-    the standalone module's own "AI reading practice" fallback (render_setup,
-    CLAUDE.md 2026-08-27) -- not written to mastery/SRS, there's no catalog
-    row to write it against. Gated behind an explicit button, same reasoning
-    as today's Warmup fix: don't fire a live Gemini call just because this
-    step rendered.
+    AI-generated reading text in grammar.py's "Читання" phase: for a student
+    who reads fluently (recommender.reading_tier == "texts", 2026-11-06) or
+    whose curated reading_lessons.xlsx track is used up / missing. A full
+    exercise since 2026-11-06 (Natalia: "генерировать упражнения, истории,
+    тексты на чтение"): text with per-sentence translation, listen, read
+    aloud with a pronunciation check, comprehension questions. Built from the
+    grammar already studied and the words in «Скарбничка». Ephemeral -- not
+    written to mastery/SRS (no catalog row). Generated only on a button
+    press, so rendering the step never fires a Gemini call by itself.
     """
     from engine import gemini as _gemini
-    level = _recommender.current_level(user_id, target_lang) or "A1"
-    key = f"er_ai_passage_{target_lang}_{level}"
-    st.caption(_ui("ai_reading_intro"))
+    lang_code = _recommender.LANG_TO_CODE.get(target_lang, "en")
+    frontier = _recommender._grammar_frontier_unit(user_id, target_lang)
+    # The higher of the student's own level and their grammar (path_level),
+    # not the grammar lesson alone: a B1 reader on an A1 grammar lesson got
+    # a 5-sentence A1 text -- the same "too easy" (2026-11-06).
+    level = _recommender.path_level(user_id, target_lang, frontier)
+    key = f"er_ai_passage_{target_lang}_{level}_{(frontier or {}).get('unit_id', '')}"
+    st.caption(i18n.get(native_lang, "ai_text_intro"))
     if key not in st.session_state:
-        if not st.button("✨ " + _ui("ai_reading_generate"), type="primary", key="er_ai_gen"):
+        if st.session_state.get("er_ai_limit"):
+            st.info(i18n.get(native_lang, "ai_text_limit_info"))
+            return st.button(_ui("continue"), type="primary", use_container_width=True,
+                             key="er_ai_limit_continue")
+        if not st.button(i18n.get(native_lang, "ai_text_generate"), type="primary",
+                         key="er_ai_gen", use_container_width=True):
             return False
+        words: list[str] = []
+        try:
+            from engine import word_inbox
+            words = [i["phrase"] for i in word_inbox.list_items(user_id, target_lang)][-8:]
+        except Exception:
+            pass
         try:
             with st.spinner(i18n.get(native_lang, "generating_reading_passage_spinner")):
                 st.session_state[key] = _gemini.generate_reading_passage(
                     target_lang=target_lang, native_lang=native_lang, level=level,
+                    grammar_topics=_recommender.learned_grammar_topics(user_id, target_lang),
+                    words=words,
                 )
         except _gemini.PaidFeatureRequired:
-            _show_upsell_reading("er_ai")
-            return False
+            st.session_state["er_ai_limit"] = True
+            st.rerun()
+        except Exception as e:
+            print(f"[reading] ai passage: {e}")
+            st.error(i18n.get(native_lang, "unexpected_error_msg"))
+            return st.button(_ui("continue"), key="er_ai_err_continue")
+        st.rerun()   # drop the "Створити текст" button from this run
 
     passage = st.session_state[key]
-    st.markdown(f"**{passage.get('title', '')}**")
-    for s in passage.get("sentences", []):
-        st.write(s.get("target", ""))
-        with st.expander("🌐", expanded=False):
-            st.caption(s.get("native", ""))
+    sentences = [x for x in passage.get("sentences", []) if x.get("target")]
+    if not sentences:
+        st.session_state.pop(key, None)
+        st.error(i18n.get(native_lang, "unexpected_error_msg"))
+        return st.button(_ui("continue"), key="er_ai_empty_continue")
+    full_text = " ".join(x["target"].strip() for x in sentences)
 
-    if st.button(_ui("continue"), type="primary", use_container_width=True, key="er_ai_continue"):
-        return True
-    return False
+    st.markdown(f"### {passage.get('title', '')}")
+    for x in sentences:
+        st.markdown(f'<div style="font-size:1.15rem;line-height:1.6;margin:4px 0 0">'
+                    f'{x["target"]}</div>', unsafe_allow_html=True)
+        if x.get("native"):
+            with st.expander("🌐", expanded=False):
+                st.caption(x["native"])
+
+    # Listen
+    if st.button(i18n.get(native_lang, "ai_text_listen"), key="er_ai_listen"):
+        st.session_state["er_ai_audio"] = key
+    if st.session_state.get("er_ai_audio") == key:
+        play(audio_for_word(full_text, lang=lang_code))
+
+    # Read aloud -> Whisper similarity, same scorer as the word lessons' step 2
+    st.markdown(f"#### {i18n.get(native_lang, 'ai_text_read_aloud')}")
+    audio = mic("er_ai")
+    if STT_OK and SCORER_OK and st.button(_ui("check_pron"), key="er_ai_check"):
+        if not audio:
+            st.warning(_ui("record_first"))
+        else:
+            with st.spinner(_ui("transcribing")):
+                r = score_audio(audio, full_text, lang=lang_code)
+            if r:
+                st.session_state["er_ai_pron"] = (key, r["score"], bool(r["passed"]))
+            else:
+                st.error(_ui("audio_not_recognized"))
+    pron = st.session_state.get("er_ai_pron")
+    if pron and pron[0] == key:
+        color = "var(--mova-mint)" if pron[2] else "var(--mova-coral-ink)"
+        st.markdown(f'<div style="text-align:center;font-size:1.6rem;color:{color};'
+                    f'font-weight:600">{int(pron[1] * 100)}%</div>', unsafe_allow_html=True)
+
+    # Comprehension questions
+    questions = passage.get("questions") or []
+    checked = st.session_state.get("er_ai_checked") == key
+    if questions:
+        st.markdown(f"#### {i18n.get(native_lang, 'ai_text_questions')}")
+        picks = []
+        for qi, q in enumerate(questions):
+            picks.append(st.radio(f"{qi + 1}. {q['question']}", list(range(len(q["options"]))),
+                                  format_func=lambda i, q=q: q["options"][i], index=None,
+                                  key=f"er_ai_q_{key}_{qi}", disabled=checked))
+            if checked:
+                if picks[-1] == q["answer"]:
+                    st.markdown("✅")
+                else:
+                    st.markdown("❌ " + i18n.get(native_lang, "ai_text_correct_was").format(
+                        answer=q["options"][q["answer"]]))
+        if not checked:
+            if st.button(i18n.get(native_lang, "ai_text_check_answers"), type="primary",
+                         key="er_ai_check_answers", disabled=any(p is None for p in picks),
+                         use_container_width=True):
+                st.session_state["er_ai_checked"] = key
+                st.rerun()
+            return False
+        n_ok = sum(1 for p, q in zip(picks, questions) if p == q["answer"])
+        st.success(i18n.get(native_lang, "ai_text_score").format(n=n_ok, total=len(questions)))
+
+    return st.button(_ui("continue"), type="primary", use_container_width=True,
+                     key="er_ai_continue")
+
+
+def set_reading_tier(user_id: str, target_lang: str, tier: str) -> None:
+    """Move this student's "Читання" start to `tier` ("words"/"texts") and
+    drop the reading lesson pinned in the step, so the next rerun picks one
+    from the new stage (2026-11-06, "⏫ Занадто легко")."""
+    from engine import user_prefs
+    user_prefs.set_reading_start(user_id, target_lang, tier)
+    st.session_state.update({"r_embed_lid": None, "r_intro_total": None,
+                             "r_intro_done": [], "r_step": 1})
+    st.session_state.pop("r_rows", None)
+    clear_step_state()
+
+
+def render_reading_tier_controls(user_id: str, native_lang: str, target_lang: str) -> None:
+    """"⏫ Занадто легко" (letters -> words -> texts), or, on texts, back to
+    words -- shown above the lesson's "Читання" step (2026-11-06, Natalia:
+    a student found Reading "супер легке"; turning it off was the only way
+    out)."""
+    tier = _recommender.reading_tier(user_id, target_lang)
+    if tier == "texts":
+        if st.button(i18n.get(native_lang, "reading_back_to_words_btn"), key="reading_back_words_btn"):
+            set_reading_tier(user_id, target_lang, "words")
+            st.rerun()
+    elif st.button(i18n.get(native_lang, "reading_too_easy_btn"), key="reading_too_easy_btn",
+                   help=i18n.get(native_lang, "reading_too_easy_help")):
+        set_reading_tier(user_id, target_lang, "words" if tier == "letters" else "texts")
+        st.rerun()
+
+
+def render_reading_easy_hint(user_id: str, native_lang: str, target_lang: str) -> None:
+    """Once step 2 of a word lesson scored 90%+ (do_step2 sets r_easy_hint),
+    offer to move on to texts for the rest of that lesson (2026-11-06)."""
+    lid = (st.session_state.get("r_embed_lid") or (None, None))[1]
+    if lid is None or st.session_state.get("r_easy_hint") != (target_lang, lid):
+        return
+    if _recommender.reading_tier(user_id, target_lang) != "words":
+        return
+    with st.container(border=True):
+        st.markdown(i18n.get(native_lang, "reading_easy_hint"))
+        if st.button(i18n.get(native_lang, "reading_go_texts_btn"), type="primary",
+                     key="reading_go_texts_btn"):
+            set_reading_tier(user_id, target_lang, "texts")
+            st.rerun()
 
 
 def _intro_lessons_needed(user_id: str, target_lang: str, lang_code: str) -> int:

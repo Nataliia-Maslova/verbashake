@@ -247,7 +247,9 @@ def _render_wave_plotly(
     RING_DONE    = '#1FB888'
     RING_CURRENT = '#5B3BE6'
     RING_NEUTRAL = '#FFFFFF'
-    COLS  = 7     # lessons per row
+    # 5, not 7, and 11px labels, not 9 (2026-11-05): at phone width (390px)
+    # 7 columns left ~48px per lesson and the 9px labels were unreadable.
+    COLS  = 5     # lessons per row
     ROW_H = 120   # vertical distance between row baselines (data units)
     AMP   = 40    # sine arc amplitude
 
@@ -284,6 +286,11 @@ def _render_wave_plotly(
         if " · " in nm:
             base, lvl = nm.rsplit(" · ", 1)
             suffix = f"·{lvl}"
+            # Phrasebook names are "<topic> — <Lesson> N": keep N too, or a
+            # whole row of nodes reads the same "Greeting…·A1".
+            if " — " in base and base.rsplit(" ", 1)[-1].isdigit():
+                suffix = f" {base.rsplit(' ', 1)[-1]}{suffix}"
+                base = base.split(" — ", 1)[0]
             keep = max(limit - len(suffix) - 1, 3)
             return f"{base[:keep]}…{suffix}"
         return nm[:limit] + "…"
@@ -325,7 +332,7 @@ def _render_wave_plotly(
         ),
         text=shorts,
         textposition='bottom center',
-        textfont=dict(size=9, color='#4B4564', family='Nunito, sans-serif'),
+        textfont=dict(size=11, color='#4B4564', family='Nunito, sans-serif'),
         hovertext=hover,
         hoverinfo='text',
         showlegend=False,

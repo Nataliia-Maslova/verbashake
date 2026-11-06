@@ -257,9 +257,17 @@ def _build_topics_map(df, cfg: dict, module: str, native: str, db_path) -> dict 
         # Phrasebook names are built in the data layer as "<sheet> — Lesson N"
         # (engine/vocab_loader.get_lesson_topics, no native-language access);
         # localize the word here so a Russian UI doesn't show "— Lesson 1".
+        # The sheet name itself is translated through the "pbtopic:<sheet>"
+        # i18n keys (unknown sheets keep their raw name).
         if module == "phrasebook" and topics:
             _lw = i18n.get(native, "word_lesson")
-            topics = {k: v.replace(" — Lesson ", f" — {_lw} ") for k, v in topics.items()}
+
+            def _pb_name(v: str) -> str:
+                sheet, _, num = v.partition(" — Lesson ")
+                shown = i18n.get(native, f"pbtopic:{sheet}") or sheet
+                return f"{shown} — {_lw} {num}" if num else shown
+
+            topics = {k: _pb_name(v) for k, v in topics.items()}
         return topics
     return None
 
@@ -4465,14 +4473,22 @@ def main(module: str = "grammar"):
                 st.session_state["reading_step_done"] = False
                 st.rerun()
             return
-        if st.button(i18n.get(_nl, "reading_off_btn"), key="reading_off_btn",
-                     help=i18n.get(_nl, "reading_off_help")):
-            _up.set_reading_phase_off(sess.state.user_id, sess.state.target_lang, True)
-            st.session_state[_roff_key] = True
-            st.session_state["reading_step_done"] = True
-            st.session_state["lesson_phase"] = 3
-            st.rerun()
         import reading_app
+        # "⏫ Занадто легко" / back to words (2026-11-06) next to turning it off.
+        _tc_l, _tc_r = st.columns(2)
+        with _tc_l:
+            reading_app.render_reading_tier_controls(
+                sess.state.user_id, sess.state.native_lang, sess.state.target_lang)
+        with _tc_r:
+            if st.button(i18n.get(_nl, "reading_off_btn"), key="reading_off_btn",
+                         help=i18n.get(_nl, "reading_off_help")):
+                _up.set_reading_phase_off(sess.state.user_id, sess.state.target_lang, True)
+                st.session_state[_roff_key] = True
+                st.session_state["reading_step_done"] = True
+                st.session_state["lesson_phase"] = 3
+                st.rerun()
+        reading_app.render_reading_easy_hint(
+            sess.state.user_id, sess.state.native_lang, sess.state.target_lang)
         if reading_app.render_embedded_reading_step(
             sess.state.user_id, sess.state.native_lang, sess.state.target_lang,
         ):

@@ -332,6 +332,43 @@ def needs_letters(user_id: str, target_lang: str) -> bool:
     return not reading_start.skips_letters(level, literacy)
 
 
+def reading_tier(user_id: str, target_lang: str) -> str:
+    """"letters" / "words" / "texts" -- where this student's lesson
+    "Читання" step starts (engine.reading_start.reading_tier)."""
+    from engine import user_prefs, reading_start
+    try:
+        level = user_prefs.get_language_level(user_id, target_lang)
+        literacy = user_prefs.get_language_literacy(user_id, target_lang)
+        texts = user_prefs.get_reading_texts(user_id, target_lang)
+    except Exception:
+        return "words"
+    return reading_start.reading_tier(level, literacy, texts)
+
+
+def learned_grammar_topics(user_id: str, target_lang: str, limit: int = 5) -> list[str]:
+    """Topics of the last `limit` grammar lessons before the one the student
+    is on now (curriculum order) -- what a reading text may use without
+    running ahead of the student (2026-11-06)."""
+    units = _candidates(target_lang, module="grammar")
+    frontier = _grammar_frontier_unit(user_id, target_lang)
+    if not units or not frontier:
+        return []
+
+    def _lid(u: dict) -> int:
+        try:
+            return parse_unit_id(u["unit_id"])["lesson_id"]
+        except Exception:
+            return 0
+
+    units.sort(key=lambda u: order_key(_lid(u)))
+    ids = [u["unit_id"] for u in units]
+    try:
+        pos = ids.index(frontier["unit_id"])
+    except ValueError:
+        return []
+    return [u["topic"] for u in units[max(0, pos - limit):pos] if u.get("topic")]
+
+
 def path_level(user_id: str, target_lang: str, frontier: dict | None = None) -> str:
     """CEFR level My Path picks vocabulary/phrasebook for: the higher of the
     student's own answer for this language (zero / none -> A1) and one level
@@ -470,6 +507,10 @@ def next_reading_unit(user_id: str, target_lang: str) -> dict | None:
     again" fallback (that's tuned for get_next()'s background-review
     scoring, not for "is there real new content to introduce").
     """
+    # "Читаю вільно" (2026-11-06): texts straight away, the word lessons
+    # stay in the Reading module's own picker.
+    if reading_tier(user_id, target_lang) == "texts":
+        return None
     done, total = _reading_progress(user_id, target_lang)
     if total == 0 or done >= total:
         return None
