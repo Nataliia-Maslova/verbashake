@@ -1,0 +1,93 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Delete your account — VerbaShake</title>
+<style>
+  :root {
+    --ink: #1c1b29; --ink-2: #514f66; --ink-3: #8a879e;
+    --card: #ffffff; --bg: #faf7f5; --line: #e7e2ea; --coral: #ff7b6b;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root { --ink:#f2f0f8; --ink-2:#c7c3d6; --ink-3:#8a879e; --card:#211f2e; --bg:#17151f; --line:#332f42; }
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; padding: 32px 18px 80px; background: var(--bg); color: var(--ink);
+    font-family: -apple-system, BlinkMacSystemFont, 'Inter', 'Segoe UI', sans-serif;
+    line-height: 1.6;
+  }
+  .wrap { max-width: 720px; margin: 0 auto; }
+  .card {
+    background: var(--card); border: 1px solid var(--line); border-radius: 16px;
+    padding: 28px 30px; margin-bottom: 16px;
+  }
+  h1 { font-size: 1.7rem; margin: 0 0 6px; }
+  h2 { font-size: 1.1rem; margin: 26px 0 8px; color: var(--ink); }
+  p, li { color: var(--ink-2); font-size: .96rem; }
+  .updated { color: var(--ink-3); font-size: .82rem; margin-bottom: 18px; }
+  ul { padding-left: 20px; }
+  a { color: var(--coral); }
+  .contact {
+    background: var(--bg); border: 1px solid var(--line); border-radius: 12px;
+    padding: 14px 18px; margin-top: 8px; font-size: .92rem;
+  }
+  code { background: var(--bg); border-radius: 4px; padding: 1px 5px; font-size: .88em; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="card">
+    <h1>🗑️ Delete your VerbaShake account</h1>
+    <div class="updated">Last updated: 5 November 2026</div>
+
+    <p>This page explains how to delete your <b>VerbaShake</b> account
+      (developer: Nataliia Maslova) and all data linked to it.</p>
+
+    <h2>Option 1 — in the app (immediate)</h2>
+    <ol>
+      <li>Open <a href="https://verbashake.app">verbashake.app</a> or the
+        VerbaShake app and sign in with Google.</li>
+      <li>On the home screen, open the side menu (<b>»</b> at the top left).</li>
+      <li>Open <b>⚠️ Delete my account</b> (shown in your app language), type
+        <code>DELETE</code> and press the confirm button.</li>
+    </ol>
+    <p>Your data is deleted right away and you're signed out.</p>
+
+    <h2>Option 2 — by email</h2>
+    <p>Send an email from the Google address you sign in with to</p>
+    <div class="contact">
+      📧 <a href="mailto:nataliiamaslovaneo@gmail.com?subject=Delete%20my%20VerbaShake%20account">nataliiamaslovaneo@gmail.com</a><br>
+      Subject: <code>Delete my VerbaShake account</code>
+    </div>
+    <p>Your account and data will be deleted within 30 days, and you'll get a
+      confirmation email.</p>
+
+    <h2>What is deleted</h2>
+    <ul>
+      <li>Your account data (name, email address) and settings.</li>
+      <li>All learning progress: lessons, mastery, review schedule, streaks,
+        XP, badges, study time.</li>
+      <li>Everything you created: your phrases, saved words, mistakes,
+        schedules and feedback messages.</li>
+      <li>Your subscription record. An active Premium subscription is
+        cancelled.</li>
+    </ul>
+
+    <h2>What is kept</h2>
+    <ul>
+      <li>Technical error logs are kept, but with your account identifier
+        removed, so they no longer relate to you.</li>
+      <li>Payment records held by Stripe are kept as long as tax law requires
+        (usually several years).</li>
+      <li>Voice recordings are never stored, so there is nothing to delete.</li>
+    </ul>
+
+    <p>Want to delete only some data, not the whole account? Email the address
+      above and say what you'd like removed. See also the
+      <a href="https://verbashake.app/privacy">Privacy Policy</a>.</p>
+  </div>
+</div>
+</body>
+</html>
